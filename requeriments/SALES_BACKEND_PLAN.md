@@ -19,14 +19,17 @@
 
 ## Data-backed tests
 
-Load `data/retaily_db_data.sql` into a dedicated test tenant/schema (or extract its referenced rows), then cover:
+Use dedicated Triplex test schemas and seed only the referenced Retaily rows. Every stock-changing test records inventory before checkout and verifies the expected quantity after checkout/cancellation.
 
-1. **Paid discounted delivery sale:** create the equivalent of sale `363886`: store `2`, customer `30218` (SCOLNY REYES), cashier `walex`, `DV`, `CASH`, `FOR_DELIVER`, product `19463`, quantity `1`, unit `3200`, discount `110`, line total `3090`, delivery `200`, amount `3290`, and cash payment `3290`. Assert one header/line/payment, balance `0`, closed status, and inventory for `(19463, 2)` changes from `12` to `11`.
-2. **Credit/open sale:** reproduce sale `363873`: store `2`, customer `26623`, product `19203`, quantity `1`, unit `240`, discount `40`, line total/amount `200`, status `CREDIT`, and no initial payment. Assert open balance `200`, no payment rows, and inventory `(19203, 2)` changes from `265` to `264`; then add a `CASH` payment of `200` and assert closed balance `0`.
-3. **Multiple lines and discount total:** reproduce sale `363885`: store `2`, customer `24181`, lines `(8679, 1, 1800, 200, 1600)` and `(19383, 1, 230, 0, 230)`, amount `1830`, discount `200`, payment `CASH 1830`. Assert server-derived line/header totals and one closed sale.
-4. **Cancellation/restock:** cancel the newly created sale from test 1, assert its cancelled/returned status and that `(19463, 2)` returns to `12`; repeat the request and assert neither stock nor payments/lines change again.
-5. **Insufficient stock and rollback:** request product `19463` at store `2` with quantity `13` (seed quantity is `12`). Assert validation failure and no sequence increment, sale, line, payment, or inventory change. Also reject product `19385` at store `2`, whose seeded quantity is `-144`.
-6. **Tenant and store isolation:** call the routes without a bearer tenant scope and expect `401`; under a second tenant, assert the Retaily IDs above are invisible. Within the seeded tenant, a cashier not assigned to store `2` must not create, list, pay, or cancel its sales.
+1. **Paid discounted delivery sale (`363886`):** store `2`, customer `30218` (SCOLNY REYES), cashier `walex`, product `19463`, quantity `1`, unit `3200`, discount `110`, delivery `200`, and `CASH 3290`. Assert one header/line/payment, closed balance, and inventory decreases by `1`.
+2. **Credit/open sale (`363873`):** customer `26623`, product `19203`, quantity `1`, unit `240`, discount `40`, no initial payment. Assert the open balance and inventory decrease; add `CASH 200` and assert closure without a further stock change.
+3. **Multiple lines (`363885`):** customer `24181`, lines `(8679, 1, 1800, 200, 1600)` and `(19383, 1, 230, 0, 230)`, with `CASH 1830`. Assert server-derived amount/discount, one closed sale, and each product inventory decreases by `1`.
+4. **Cancellation/restock:** cancel the delivery sale, assert `RETURN`/cancelled state and restoration of its pre-sale inventory; repeat cancellation and assert stock, lines, and payments are unchanged.
+5. **Insufficient stock and rollback:** request `19463` quantity `13` when the seed quantity is `12`; assert no sequence, sale, line, payment, or inventory change. Also reject `19385`, seeded at `-144`.
+6. **Tenant and store isolation:** no bearer scope returns `401`; a second tenant cannot see seeded sales; a cashier without store `2` cannot create or list its sales.
+7. **Simple paid checkout:** cashier `walex` sells product `19383` to customer `30218` for `CASH 230`; assert the closed invoice, payment, line, and one-unit inventory decrease.
+8. **Ten-product, multi-day credit collection:** create a credit sale for customer `30218` with ten real `educa` store-2 products, quantities `5` through `14`. Record inventory before/after each line, then settle `25155` through `CASH 10000`, `CC 8000`, and `CASH 7155`; assign three test-database payment dates and assert the final invoice is closed.
+9. **July 2026 cancellation fixture (`363261`):** recreate the July 31 `VEN00000024473` pattern for customer `30190`: products `19509`, `19378`, `8694`, and `19553`, original discounts, delivery `300`, and payment `4200`. Assert every inventory decrease before cancellation and restoration after cancellation.
 
 ## Focused improvement proposal
 

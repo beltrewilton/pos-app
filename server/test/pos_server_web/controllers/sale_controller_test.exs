@@ -29,11 +29,12 @@ defmodule PosServerWeb.SaleControllerTest do
   end
 
   test "creates the paid discounted delivery sale from 363886", %{walex_conn: conn} do
+    before_quantity = inventory_quantity(19_463)
     sale = create_delivery_sale(conn)
 
     assert sale["invoice_status"] == "close"
     assert sale["due_balance"] in ["0", "0.00"]
-    assert inventory_quantity(19_463) == 11
+    assert inventory_quantity(19_463) == before_quantity - 1
     assert Repo.aggregate(from(line in SaleLine, where: line.sale_id == ^sale["id"]), :count, prefix: @prefix) == 1
     assert Repo.aggregate(from(payment in SalePaid, where: payment.sale_id == ^sale["id"]), :count, prefix: @prefix) == 1
 
@@ -44,6 +45,7 @@ defmodule PosServerWeb.SaleControllerTest do
   end
 
   test "creates, pays, and closes the credit sale from 363873", %{walex_conn: conn} do
+    before_quantity = inventory_quantity(19_203)
     response =
       conn
       |> post(~p"/api/sales", credit_sale_payload())
@@ -52,7 +54,7 @@ defmodule PosServerWeb.SaleControllerTest do
     sale_id = response["id"]
     assert response["invoice_status"] == "open"
     assert Repo.aggregate(from(payment in SalePaid, where: payment.sale_id == ^sale_id), :count, prefix: @prefix) == 0
-    assert inventory_quantity(19_203) == 264
+    assert inventory_quantity(19_203) == before_quantity - 1
 
     paid =
       authenticated_conn_for("walex")
@@ -64,6 +66,7 @@ defmodule PosServerWeb.SaleControllerTest do
   end
 
   test "derives totals for the multiple-line sale from 363885", %{walex_conn: conn} do
+    before_quantities = inventory_quantities([8_679, 19_383])
     response =
       conn
       |> post(~p"/api/sales", multiple_line_sale_payload())
@@ -75,10 +78,14 @@ defmodule PosServerWeb.SaleControllerTest do
     assert sale.amount == Decimal.new("1830.00")
     assert sale.discount == Decimal.new("200.00")
     assert Repo.aggregate(from(line in SaleLine, where: line.sale_id == ^sale.id), :count, prefix: @prefix) == 2
+    assert inventory_quantity(8_679) == before_quantities[8_679] - 1
+    assert inventory_quantity(19_383) == before_quantities[19_383] - 1
   end
 
   test "cancellation is idempotent and restores stock", %{walex_conn: conn} do
+    before_quantity = inventory_quantity(19_463)
     sale = create_delivery_sale(conn)
+    assert inventory_quantity(19_463) == before_quantity - 1
 
     cancelled =
       authenticated_conn_for("walex")
@@ -87,7 +94,7 @@ defmodule PosServerWeb.SaleControllerTest do
 
     assert cancelled["status"] == "RETURN"
     assert cancelled["invoice_status"] == "cancelled"
-    assert inventory_quantity(19_463) == 12
+    assert inventory_quantity(19_463) == before_quantity
 
     again =
       authenticated_conn_for("walex")
@@ -95,13 +102,15 @@ defmodule PosServerWeb.SaleControllerTest do
       |> json_response(:ok)
 
     assert again["id"] == sale["id"]
-    assert inventory_quantity(19_463) == 12
+    assert inventory_quantity(19_463) == before_quantity
     assert Repo.aggregate(from(line in SaleLine, where: line.sale_id == ^sale["id"]), :count, prefix: @prefix) == 1
     assert Repo.aggregate(from(payment in SalePaid, where: payment.sale_id == ^sale["id"]), :count, prefix: @prefix) == 1
   end
 
   test "insufficient stock rolls back the sequence and every sale write", %{walex_conn: conn} do
     before_sequence = Repo.get_by!(Sequence, [code: "DV"], prefix: @prefix).current_seq
+    before_quantity = inventory_quantity(19_463)
+    before_negative_quantity = inventory_quantity(19_385)
 
     response =
       conn
@@ -110,7 +119,7 @@ defmodule PosServerWeb.SaleControllerTest do
 
     assert response["error"] == "insufficient_stock"
     assert Repo.get_by!(Sequence, [code: "DV"], prefix: @prefix).current_seq == before_sequence
-    assert inventory_quantity(19_463) == 12
+    assert inventory_quantity(19_463) == before_quantity
     assert Repo.aggregate(Sale, :count, prefix: @prefix) == 0
     assert Repo.aggregate(SaleLine, :count, prefix: @prefix) == 0
     assert Repo.aggregate(SalePaid, :count, prefix: @prefix) == 0
@@ -121,7 +130,7 @@ defmodule PosServerWeb.SaleControllerTest do
       |> json_response(:unprocessable_entity)
 
     assert negative["error"] == "insufficient_stock"
-    assert inventory_quantity(19_385) == -144
+    assert inventory_quantity(19_385) == before_negative_quantity
   end
 
   test "requires a tenant scope and enforces tenant and assigned-store isolation", %{no_store_conn: no_store_conn, other_tenant_conn: other_tenant_conn} do
@@ -133,6 +142,98 @@ defmodule PosServerWeb.SaleControllerTest do
 
     assert no_store_conn |> get(~p"/api/sales?store_id=2") |> json_response(:ok) == %{"entries" => []}
     assert other_tenant_conn |> get(~p"/api/sales") |> json_response(:ok) == %{"entries" => []}
+  end
+
+  # ---------------------------------------------------------------------------
+  # Additional checkout scenarios
+  # ---------------------------------------------------------------------------
+
+  test "cashier creates and pays a new in-store sale", %{walex_conn: conn} do
+    before_quantity = inventory_quantity(19_383)
+    response =
+      conn
+      |> post(~p"/api/sales", %{
+        store_id: 2,
+        client_id: 30_218,
+        sequence_type: "DV",
+        status: "CASH",
+        sale_type: "IN_SHOP",
+        delivery_charge: "0",
+        lines: [%{product_id: 19_383, quantity: 1, discount: "0"}],
+        payments: [%{amount: "230", type: "CASH"}]
+      })
+      |> json_response(:created)
+
+    assert response["client"]["id"] == 30_218
+    assert response["invoice_status"] == "close"
+    assert response["total_paid"] in ["230", "230.00"]
+    assert response["due_balance"] in ["0", "0.00"]
+    assert inventory_quantity(19_383) == before_quantity - 1
+    assert Repo.aggregate(from(line in SaleLine, where: line.sale_id == ^response["id"]), :count, prefix: @prefix) == 1
+    assert Repo.aggregate(from(payment in SalePaid, where: payment.sale_id == ^response["id"]), :count, prefix: @prefix) == 1
+  end
+
+  test "settles a ten-product credit sale with payments on different days", %{walex_conn: conn} do
+    before_quantities = inventory_quantities(Enum.map(large_credit_sale_lines(), & &1.product_id))
+    sale =
+      conn
+      |> post(~p"/api/sales", large_credit_sale_payload())
+      |> json_response(:created)
+
+    sale_id = sale["id"]
+    assert sale["invoice_status"] == "open"
+    assert Repo.aggregate(from(line in SaleLine, where: line.sale_id == ^sale_id), :count, prefix: @prefix) == 10
+
+    paid =
+      [{10_000, "CASH"}, {8_000, "CC"}, {7_155, "CASH"}]
+      |> Enum.map(fn {amount, type} ->
+        authenticated_conn_for("walex")
+        |> post(~p"/api/sales/#{sale_id}/payments", %{amount: to_string(amount), type: type})
+        |> json_response(:ok)
+      end)
+
+    Enum.zip(Repo.all(from(payment in SalePaid, where: payment.sale_id == ^sale_id, order_by: payment.id), prefix: @prefix), [~N[2026-08-10 10:00:00], ~N[2026-08-12 10:00:00], ~N[2026-08-15 10:00:00]])
+    |> Enum.each(fn {payment, date} ->
+      Repo.update_all(
+        from(entry in SalePaid, where: entry.id == ^payment.id),
+        [set: [date_create: date]],
+        prefix: @prefix
+      )
+    end)
+
+    assert List.last(paid)["invoice_status"] == "close"
+    assert List.last(paid)["due_balance"] in ["0", "0.00"]
+    assert Repo.all(from(payment in SalePaid, where: payment.sale_id == ^sale_id, order_by: payment.date_create, select: payment.date_create), prefix: @prefix) == [~N[2026-08-10 10:00:00], ~N[2026-08-12 10:00:00], ~N[2026-08-15 10:00:00]]
+    assert Repo.all(from(payment in SalePaid, where: payment.sale_id == ^sale_id, order_by: payment.date_create, select: payment.type), prefix: @prefix) == ["CASH", "CC", "CASH"]
+    Enum.each(large_credit_sale_lines(), fn line ->
+      assert inventory_quantity(line.product_id) == before_quantities[line.product_id] - line.quantity
+    end)
+  end
+
+  test "cancels the July 2026 invoice pattern from sale 363261 with stock restoration", %{walex_conn: conn} do
+    product_ids = [19_509, 19_378, 8_694, 19_553]
+    before_quantities = inventory_quantities(product_ids)
+
+    sale =
+      conn
+      |> post(~p"/api/sales", july_return_sale_payload())
+      |> json_response(:created)
+
+    assert sale["invoice_status"] == "close"
+    assert inventory_quantity(19_509) == before_quantities[19_509] - 1
+    assert inventory_quantity(19_378) == before_quantities[19_378] - 1
+    assert inventory_quantity(8_694) == before_quantities[8_694] - 1
+    assert inventory_quantity(19_553) == before_quantities[19_553] - 2
+
+    cancelled =
+      authenticated_conn_for("walex")
+      |> post(~p"/api/sales/#{sale["id"]}/cancel")
+      |> json_response(:ok)
+
+    assert cancelled["status"] == "RETURN"
+    Enum.each(product_ids, fn product_id ->
+      assert inventory_quantity(product_id) == before_quantities[product_id]
+    end)
   end
 
   defp create_delivery_sale(conn) do
@@ -165,6 +266,36 @@ defmodule PosServerWeb.SaleControllerTest do
     %{store_id: 2, client_id: 24_181, sequence_type: "CF", status: "CASH", sale_type: "IN_SHOP", delivery_charge: "0", lines: [%{product_id: 8_679, quantity: 1, discount: "200"}, %{product_id: 19_383, quantity: 1, discount: "0"}], payments: [%{amount: "1830", type: "CASH"}]}
   end
 
+  # Product IDs and default prices were read from the educa tenant's
+  # app_inventory/product/pricing_list records for store 2.
+  defp large_credit_sale_payload do
+    %{
+      store_id: 2,
+      client_id: 30_218,
+      sequence_type: "CF",
+      status: "CREDIT",
+      sale_type: "IN_SHOP",
+      delivery_charge: "0",
+      payments: [],
+      lines: large_credit_sale_lines()
+    }
+  end
+
+  defp large_credit_sale_lines do
+    [
+      %{product_id: 19_023, quantity: 5, discount: "0"}, %{product_id: 19_507, quantity: 6, discount: "0"},
+      %{product_id: 19_243, quantity: 7, discount: "0"}, %{product_id: 19_553, quantity: 8, discount: "0"},
+      %{product_id: 19_203, quantity: 9, discount: "0"}, %{product_id: 19_558, quantity: 10, discount: "0"},
+      %{product_id: 19_508, quantity: 11, discount: "0"}, %{product_id: 19_563, quantity: 12, discount: "0"},
+      %{product_id: 19_343, quantity: 13, discount: "0"}, %{product_id: 19_527, quantity: 14, discount: "0"}
+    ]
+  end
+
+  defp july_return_sale_payload do
+    # July 31, 2026 sale 363261: VEN00000024473, customer 30190, store 2.
+    %{store_id: 2, client_id: 30_190, sequence_type: "DV", status: "CASH", sale_type: "IN_SHOP", delivery_charge: "300", payments: [%{amount: "4200", type: "CASH"}], lines: [%{product_id: 19_509, quantity: 1, discount: "400"}, %{product_id: 19_378, quantity: 1, discount: "100"}, %{product_id: 8_694, quantity: 1, discount: "650"}, %{product_id: 19_553, quantity: 2, discount: "260"}]}
+  end
+
   defp seed_retaily_rows do
     prefix = @prefix
     Repo.insert!(%Store{id: 2, name: "SEED STORE"}, prefix: prefix)
@@ -173,7 +304,7 @@ defmodule PosServerWeb.SaleControllerTest do
     Repo.insert!(%UserStore{user_id: walex.id, store_id: 2}, prefix: prefix)
     _ = no_store
 
-    Enum.each([{26_623, "CREDIT CLIENT"}, {24_181, "MULTI LINE CLIENT"}, {30_218, "SCOLNY REYES"}], fn {id, name} ->
+    Enum.each([{26_623, "CREDIT CLIENT"}, {24_181, "MULTI LINE CLIENT"}, {30_190, "JULY RETURN CLIENT"}, {30_218, "SCOLNY REYES"}], fn {id, name} ->
       Repo.insert!(%Client{id: id, name: name}, prefix: prefix)
     end)
 
@@ -182,7 +313,19 @@ defmodule PosServerWeb.SaleControllerTest do
       {19_203, 240, 265},
       {19_383, 230, 10},
       {19_385, 300, -144},
-      {19_463, 3200, 12}
+      {19_463, 3200, 12},
+      {19_023, 175, 25},
+      {19_507, 160, 25},
+      {19_243, 210, 25},
+      {19_553, 130, 25},
+      {19_558, 275, 25},
+      {19_508, 240, 25},
+      {19_563, 230, 25},
+      {19_343, 700, 25},
+      {19_527, 100, 25},
+      {19_509, 1600, 25},
+      {19_378, 250, 25},
+      {8_694, 3200, 25}
     ], fn {id, price, quantity} ->
       Repo.insert!(%Product{id: id, name: "SEED #{id}", price: price * 1.0, active: 1}, prefix: prefix)
       Repo.insert!(%Inventory{product_id: id, store_id: 2, prev_quantity: quantity, quantity: quantity, next_quantity: quantity}, prefix: prefix)
@@ -206,4 +349,10 @@ defmodule PosServerWeb.SaleControllerTest do
   defp authenticated_conn(token), do: build_conn() |> put_req_header("authorization", "Bearer #{token}")
 
   defp inventory_quantity(product_id), do: Repo.get_by!(Inventory, [product_id: product_id, store_id: 2], prefix: @prefix).quantity
+
+  defp inventory_quantities(product_ids) do
+    product_ids
+    |> Enum.map(&{&1, inventory_quantity(&1)})
+    |> Map.new()
+  end
 end
