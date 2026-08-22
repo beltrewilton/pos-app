@@ -1,0 +1,344 @@
+defmodule PosServer.Retaily.Sales do
+  @moduledoc false
+
+  import Ecto.Query
+
+  alias Ecto.Changeset
+  alias PosServer.{Repo, TenantContext}
+  alias PosServer.Retaily.{Client, Inventory, Product, Sale, SaleLine, SalePaid, Sequence, User, UserStore}
+  alias PosServer.Retaily.SaleRequests.{Checkout, Payment}
+
+  @tax_rate Decimal.new("0.18")
+  @zero Decimal.new(0)
+
+  def create_sale(scope, attrs) do
+    with {:ok, checkout} <- valid_checkout(attrs),
+         {:ok, cashier, tenant} <- cashier(scope) do
+      Repo.transaction(fn ->
+        with :ok <- cashier_store?(cashier, checkout.store_id, tenant),
+             %Client{} <- Repo.get(Client, checkout.client_id, prefix: tenant),
+             {:ok, sequence} <- next_sequence(checkout.sequence_type, tenant),
+             {:ok, lines} <- sale_lines(checkout.lines, checkout.store_id, tenant),
+             totals <- totals(lines, checkout.delivery_charge),
+             :ok <- valid_payments?(checkout.payments, totals.amount),
+             {:ok, sale} <- insert_sale(checkout, cashier.username, sequence, totals, tenant),
+             {:ok, _} <- insert_lines(lines, sale.id, tenant),
+             {:ok, _} <- insert_payments(checkout.payments, sale.id, tenant) do
+          sale_response(sale.id, tenant)
+        else
+          nil -> Repo.rollback(:not_found)
+          {:error, reason} -> Repo.rollback(reason)
+          :error -> Repo.rollback(:forbidden_store)
+        end
+      end)
+    end
+  end
+
+  def add_payment(scope, sale_id, attrs) do
+    with {:ok, payment} <- valid_payment(attrs), {:ok, cashier, tenant} <- cashier(scope) do
+      Repo.transaction(fn ->
+        with %Sale{} = sale <- locked_sale(sale_id, tenant),
+             :ok <- cashier_store?(cashier, sale.store_id, tenant),
+             :ok <- open_sale?(sale, tenant),
+             :ok <- payment_within_balance?(sale, payment.amount, tenant),
+             {:ok, _} <- insert_payments([payment], sale.id, tenant) do
+          sale_response(sale.id, tenant)
+        else
+          nil -> Repo.rollback(:not_found)
+          {:error, reason} -> Repo.rollback(reason)
+          :error -> Repo.rollback(:forbidden_store)
+        end
+      end)
+    end
+  end
+
+  def cancel_sale(scope, sale_id) do
+    with {:ok, cashier, tenant} <- cashier(scope) do
+      Repo.transaction(fn ->
+        with %Sale{} = sale <- locked_sale(sale_id, tenant),
+             :ok <- cashier_store?(cashier, sale.store_id, tenant) do
+          if sale.status == "RETURN" do
+            sale_response(sale.id, tenant)
+          else
+            lines = Repo.all(from(line in SaleLine, where: line.sale_id == ^sale.id, lock: "FOR UPDATE"), prefix: tenant)
+
+            Enum.each(lines, fn line -> restore_inventory!(line, sale.store_id, tenant) end)
+
+            sale
+            |> Changeset.change(status: "RETURN")
+            |> Repo.update!(prefix: tenant)
+
+            sale_response(sale.id, tenant)
+          end
+        else
+          nil -> Repo.rollback(:not_found)
+          :error -> Repo.rollback(:forbidden_store)
+        end
+      end)
+    end
+  end
+
+  def list_sales(scope, filters \\ %{}) do
+    with {:ok, cashier, tenant} <- cashier(scope) do
+      store_ids = cashier_store_ids(cashier.id, tenant)
+
+      query =
+        from(sale in Sale,
+          where: sale.store_id in ^store_ids,
+          order_by: [desc: sale.id],
+          preload: [:client, :sale_paids, sale_lines: :product]
+        )
+        |> with_payment_totals()
+        |> apply_filters(filters)
+
+      {:ok, query |> Repo.all(prefix: tenant) |> Enum.map(&serialize_sale/1) |> filter_invoice_status(filters["invoice_status"])}
+    end
+  end
+
+  def get_sale(scope, sale_id) do
+    with {:ok, cashier, tenant} <- cashier(scope),
+         %Sale{} = sale <- Repo.get(Sale, sale_id, prefix: tenant),
+         :ok <- cashier_store?(cashier, sale.store_id, tenant) do
+      {:ok, sale_response(sale.id, tenant)}
+    else
+      nil -> {:error, :not_found}
+      :error -> {:error, :forbidden_store}
+    end
+  end
+
+  defp valid_checkout(attrs) do
+    changeset = Checkout.changeset(%Checkout{}, attrs)
+    if changeset.valid?, do: {:ok, Changeset.apply_changes(changeset)}, else: {:error, changeset}
+  end
+
+  defp valid_payment(attrs) do
+    changeset = Payment.changeset(%Payment{}, attrs)
+    if changeset.valid?, do: {:ok, Changeset.apply_changes(changeset)}, else: {:error, changeset}
+  end
+
+  # The authenticated account name is the Retaily cashier username. It is not supplied by the client.
+  defp cashier(%{user: %{name: name}}) when is_binary(name) do
+    tenant = TenantContext.tenant!()
+
+    case Repo.one(from(user in User, where: user.username == ^name and user.is_active == 1), prefix: tenant) do
+      nil -> {:error, :cashier_not_found}
+      user -> {:ok, user, tenant}
+    end
+  end
+
+  defp cashier(_), do: {:error, :unauthorized}
+
+  defp cashier_store?(cashier, store_id, tenant) do
+    if Repo.exists?(from(link in UserStore, where: link.user_id == ^cashier.id and link.store_id == ^store_id), prefix: tenant), do: :ok, else: :error
+  end
+
+  defp cashier_store_ids(cashier_id, tenant), do: Repo.all(from(link in UserStore, where: link.user_id == ^cashier_id, select: link.store_id), prefix: tenant)
+
+  defp next_sequence(code, tenant) do
+    case Repo.one(from(sequence in Sequence, where: sequence.code == ^code, lock: "FOR UPDATE"), prefix: tenant) do
+      nil -> {:error, :sequence_not_found}
+      sequence ->
+        current = sequence.current_seq + sequence.increment_by
+        {:ok, updated} = Repo.update(Changeset.change(sequence, current_seq: current), prefix: tenant)
+        {:ok, String.pad_trailing(updated.prefix, updated.fill, "0") <> Integer.to_string(current)}
+    end
+  end
+
+  defp sale_lines(lines, store_id, tenant) do
+    if duplicate_products?(lines) do
+      {:error, :duplicate_product_lines}
+    else
+      Enum.reduce_while(lines, {:ok, []}, fn line, {:ok, result} ->
+        inventory = Repo.one(from(i in Inventory, where: i.store_id == ^store_id and i.product_id == ^line.product_id, lock: "FOR UPDATE"), prefix: tenant)
+        product = Repo.get(Product, line.product_id, prefix: tenant)
+
+        cond do
+          is_nil(inventory) or is_nil(product) -> {:halt, {:error, :product_not_found}}
+          product.active != 1 -> {:halt, {:error, :inactive_product}}
+          inventory.quantity < line.quantity -> {:halt, {:error, :insufficient_stock}}
+          is_nil(product.price) -> {:halt, {:error, :product_has_no_price}}
+          true ->
+            unit_price = Decimal.from_float(product.price)
+            extended = unit_price |> Decimal.mult(line.quantity) |> Decimal.sub(line.discount)
+
+            if Decimal.negative?(extended) do
+              {:halt, {:error, :discount_exceeds_line}}
+            else
+              Repo.update!(Changeset.change(inventory, prev_quantity: inventory.quantity, quantity: inventory.quantity - line.quantity), prefix: tenant)
+              {:cont, {:ok, [%{line: line, price: unit_price, total: extended} | result]}}
+            end
+        end
+      end)
+    end
+  end
+
+  defp insert_sale(checkout, login, sequence, totals, tenant) do
+    %Sale{}
+    |> Sale.changeset(%{amount: totals.amount, sub: totals.sub, discount: totals.discount, tax_amount: totals.tax, delivery_charge: checkout.delivery_charge, sequence: sequence, sequence_type: checkout.sequence_type, status: checkout.status, sale_type: checkout.sale_type, login: login, client_id: checkout.client_id, store_id: checkout.store_id, additional_info: checkout.additional_info})
+    |> Repo.insert(prefix: tenant)
+  end
+
+  defp insert_lines(lines, sale_id, tenant) do
+    Enum.reduce_while(lines, {:ok, []}, fn %{line: line, price: price, total: total}, {:ok, result} ->
+      attrs = %{amount: price, tax_amount: @zero, discount: line.discount, quantity: line.quantity, total_amount: total, sale_id: sale_id, product_id: line.product_id}
+      case %SaleLine{} |> SaleLine.changeset(attrs) |> Repo.insert(prefix: tenant) do
+        {:ok, inserted} -> {:cont, {:ok, [inserted | result]}}
+        {:error, changeset} -> {:halt, {:error, changeset}}
+      end
+    end)
+  end
+
+  defp insert_payments(payments, sale_id, tenant) do
+    Enum.reduce_while(payments, {:ok, []}, fn payment, {:ok, result} ->
+      attrs = %{amount: payment.amount, type: payment.type, sale_id: sale_id, date_create: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)}
+
+      case %SalePaid{} |> SalePaid.changeset(attrs) |> Repo.insert(prefix: tenant) do
+        {:ok, inserted} -> {:cont, {:ok, [inserted | result]}}
+        {:error, changeset} -> {:halt, {:error, changeset}}
+      end
+    end)
+  end
+
+  defp valid_payments?(payments, amount) do
+    total = Enum.reduce(payments, @zero, &Decimal.add(&1.amount, &2))
+    if Decimal.compare(total, amount) in [:lt, :eq], do: :ok, else: {:error, :payment_exceeds_balance}
+  end
+
+  defp totals(lines, delivery) do
+    merchandise = Enum.reduce(lines, @zero, &Decimal.add(&1.total, &2))
+    discount = Enum.reduce(lines, @zero, &Decimal.add(&1.line.discount, &2))
+    sub = Decimal.div(merchandise, Decimal.add(Decimal.new(1), @tax_rate)) |> Decimal.round(2)
+    tax = Decimal.sub(merchandise, sub)
+    %{amount: Decimal.add(merchandise, delivery), sub: sub, tax: tax, discount: discount}
+  end
+
+  defp locked_sale(id, tenant), do: Repo.one(from(sale in Sale, where: sale.id == ^id, lock: "FOR UPDATE"), prefix: tenant)
+
+  defp open_sale?(%Sale{status: "RETURN"}, _tenant), do: {:error, :cancelled_sale}
+  defp open_sale?(sale, tenant), do: if(Decimal.compare(payment_total(sale.id, tenant), sale.amount) == :lt, do: :ok, else: {:error, :sale_paid})
+
+  defp payment_within_balance?(sale, amount, tenant) do
+    due = Decimal.sub(sale.amount, payment_total(sale.id, tenant))
+    if Decimal.compare(amount, due) in [:lt, :eq], do: :ok, else: {:error, :payment_exceeds_balance}
+  end
+
+  defp payment_total(sale_id, tenant) do
+    Repo.one(from(payment in SalePaid, where: payment.sale_id == ^sale_id, select: coalesce(sum(payment.amount), ^@zero)), prefix: tenant)
+  end
+
+  defp restore_inventory!(line, store_id, tenant) do
+    inventory = Repo.one!(from(i in Inventory, where: i.store_id == ^store_id and i.product_id == ^line.product_id, lock: "FOR UPDATE"), prefix: tenant)
+    quantity = trunc(line.quantity)
+    Repo.update!(Changeset.change(inventory, prev_quantity: inventory.quantity, quantity: inventory.quantity + quantity), prefix: tenant)
+  end
+
+  defp sale_response(id, tenant) do
+    from(sale in Sale, where: sale.id == ^id)
+    |> with_payment_totals()
+    |> Repo.one!(prefix: tenant)
+    |> Repo.preload([:client, :sale_paids, sale_lines: :product], prefix: tenant)
+    |> serialize_sale()
+  end
+
+  defp serialize_sale(sale) do
+    paid = sale.total_paid || Enum.reduce(sale.sale_paids, @zero, &Decimal.add(&1.amount, &2))
+    due = sale.due_balance || Decimal.sub(sale.amount, paid)
+    invoice_status = sale.invoice_status || if(sale.status == "RETURN", do: "cancelled", else: if(Decimal.positive?(due), do: "open", else: "close"))
+    %{
+      id: sale.id,
+      amount: sale.amount,
+      sub: sale.sub,
+      discount: sale.discount,
+      tax_amount: sale.tax_amount,
+      delivery_charge: sale.delivery_charge,
+      sequence: sale.sequence,
+      sequence_type: sale.sequence_type,
+      status: sale.status,
+      sale_type: sale.sale_type,
+      login: sale.login,
+      client: serialize_client(sale.client),
+      lines: Enum.map(sale.sale_lines, &serialize_line/1),
+      payments: Enum.map(sale.sale_paids, &serialize_payment/1),
+      total_paid: paid,
+      due_balance: due,
+      invoice_status: invoice_status
+    }
+  end
+
+  defp serialize_client(client) do
+    %{id: client.id, name: client.name, document_id: client.document_id, address: client.address, celphone: client.celphone, email: client.email}
+  end
+
+  defp serialize_line(line) do
+    %{
+      id: line.id,
+      amount: line.amount,
+      tax_amount: line.tax_amount,
+      discount: line.discount,
+      quantity: line.quantity,
+      total_amount: line.total_amount,
+      product_id: line.product_id,
+      product: %{id: line.product.id, name: line.product.name, price: line.product.price, code: line.product.code, active: line.product.active}
+    }
+  end
+
+  defp serialize_payment(payment) do
+    %{id: payment.id, amount: payment.amount, type: payment.type, date_create: payment.date_create}
+  end
+
+  defp apply_filters(query, filters) do
+    query
+    |> maybe_where(:store_id, filters["store_id"])
+    |> maybe_where(:client_id, filters["client_id"])
+    |> maybe_where(:login, filters["cashier"])
+    |> maybe_date(:date_from, filters["date_from"], :gte)
+    |> maybe_date(:date_to, filters["date_to"], :lte)
+  end
+
+  # Totals and invoice status are projected by PostgreSQL, avoiding per-sale payment queries.
+  defp with_payment_totals(query) do
+    totals = from(payment in SalePaid, group_by: payment.sale_id, select: %{sale_id: payment.sale_id, total_paid: sum(payment.amount)})
+
+    from(sale in query,
+      left_join: payment_total in subquery(totals),
+      on: payment_total.sale_id == sale.id,
+      select_merge: %{
+        total_paid: coalesce(payment_total.total_paid, ^@zero),
+        due_balance: fragment("? - COALESCE(?, ?)", sale.amount, payment_total.total_paid, ^@zero),
+        invoice_status:
+          fragment(
+            "CASE WHEN ? = 'RETURN' THEN 'cancelled' WHEN ? - COALESCE(?, ?) > 0 THEN 'open' ELSE 'close' END",
+            sale.status,
+            sale.amount,
+            payment_total.total_paid,
+            ^@zero
+          )
+      }
+    )
+  end
+
+  defp maybe_where(query, _field, nil), do: query
+  defp maybe_where(query, field, value) when field in [:store_id, :client_id] do
+    from(sale in query, where: field(sale, ^field) == ^value)
+  end
+
+  defp maybe_where(query, :login, value) do
+    from(sale in query, where: sale.login == ^value)
+  end
+
+  defp maybe_date(query, _field, nil, _operator), do: query
+
+  defp maybe_date(query, :date_from, value, :gte) do
+    from(sale in query, where: sale.date_create >= ^value)
+  end
+
+  defp maybe_date(query, :date_to, value, :lte) do
+    from(sale in query, where: sale.date_create <= ^value)
+  end
+
+  defp filter_invoice_status(sales, nil), do: sales
+  defp filter_invoice_status(sales, "all"), do: sales
+  defp filter_invoice_status(sales, status), do: Enum.filter(sales, &(&1.invoice_status == status))
+
+  defp duplicate_products?(lines), do: lines |> Enum.map(& &1.product_id) |> Enum.uniq() |> length() != length(lines)
+end

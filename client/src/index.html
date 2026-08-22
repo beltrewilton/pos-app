@@ -4,6 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>POS</title>
+    <link rel="stylesheet" href="./vendor/ui/default-semantic-tokens.css" />
+    <link rel="stylesheet" href="./vendor/ui/fonts/inter.css" />
+    <link rel="stylesheet" href="./vendor/ui/components/typography/typography.css" />
+    <link rel="stylesheet" href="./vendor/ui/components/button/button.css" />
+    <link rel="stylesheet" href="./vendor/ui/components/input/input.css" />
+    <link rel="stylesheet" href="./vendor/ui/components/label/label.css" />
+    <link rel="stylesheet" href="./vendor/ui/components/card/card.css" />
+    <link rel="stylesheet" href="./vendor/ui/components/form/form.css" />
+    <link rel="stylesheet" href="./vendor/ui/components/separator/separator.css" />
+    <link rel="stylesheet" href="./vendor/ui/components/alert/alert.css" />
+    <link rel="stylesheet" href="./vendor/ui/components/dialog/dialog.css" />
+    <link rel="stylesheet" href="./vendor/ui/components/toast/toast.css" />
+    <link rel="stylesheet" href="./vendor/ui/components/table/table.css" />
+    <link rel="stylesheet" href="./vendor/ui/components/select/select.css" />
     <link rel="stylesheet" href="./css/app.css" />
   </head>
   <body>
@@ -25,8 +39,8 @@
         <h2 id="order-title">Current Order</h2>
         <div id="cart"></div>
         <footer>
-          <div class="total">Total: <strong id="total">$0.00</strong></div>
-          <button id="print-test" class="btn" data-variant="default">PRINT RECEIPT</button>
+          <div class="total">Total: <strong id="total" class="numeric">$0.00</strong></div>
+          <button id="print-test" class="btn" data-variant="default" data-size="lg">PRINT RECEIPT</button>
           <p id="print-status"></p>
         </footer>
       </section>

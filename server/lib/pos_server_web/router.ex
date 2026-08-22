@@ -15,6 +15,14 @@ defmodule PosServerWeb.Router do
     plug :put_desktop_cors_headers
   end
 
+  pipeline :tenant_api do
+    plug :accepts, ["json"]
+    plug :put_desktop_cors_headers
+    plug PosServerWeb.Plugs.FetchCurrentScope
+    plug PosServerWeb.Plugs.PutTenantFromScope
+    plug PosServerWeb.Plugs.RequireTenant
+  end
+
   scope "/", PosServerWeb do
     pipe_through :browser
 
@@ -27,13 +35,27 @@ defmodule PosServerWeb.Router do
     pipe_through :api
 
     get "/health", HealthController, :show
-    get "/products", ProductController, :index
+    options "/*path", HealthController, :show
   end
 
-  # The Tauri webview is served from its own origin and reads this unauthenticated
-  # local API during the initial POS setup.
+  scope "/api", PosServerWeb do
+    pipe_through :tenant_api
+
+    get "/products", ProductController, :index
+    get "/sales", SaleController, :index
+    get "/sales/:id", SaleController, :show
+    post "/sales", SaleController, :create
+    post "/sales/:id/payments", SaleController, :add_payment
+    post "/sales/:id/cancel", SaleController, :cancel
+  end
+
+  # The Tauri webview is served from its own origin. Tenant-owned routes use
+  # bearer authentication in the :tenant_api pipeline.
   defp put_desktop_cors_headers(conn, _opts) do
-    Plug.Conn.put_resp_header(conn, "access-control-allow-origin", "*")
+    conn
+    |> Plug.Conn.put_resp_header("access-control-allow-origin", "*")
+    |> Plug.Conn.put_resp_header("access-control-allow-headers", "authorization, content-type")
+    |> Plug.Conn.put_resp_header("access-control-allow-methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development

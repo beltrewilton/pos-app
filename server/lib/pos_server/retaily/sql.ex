@@ -7,7 +7,7 @@ defmodule PosServer.Retaily.Sql do
   (`$1`, `$2`, ...) and are passed separately to `PosServer.Repo.query/3`.
   """
 
-  alias PosServer.Repo
+  alias PosServer.{Repo, TenantContext}
 
   @sql_directory Path.expand("../../../sql/retaily", __DIR__)
   @max_page_size 100
@@ -18,9 +18,11 @@ defmodule PosServer.Retaily.Sql do
           next_cursor: non_neg_integer() | nil
         }
 
-  @spec active_products_page(String.t(), non_neg_integer() | nil, keyword()) ::
+  @spec active_products_page(non_neg_integer() | nil, keyword()) ::
           {:ok, page()} | {:error, term()}
-  def active_products_page(tenant, after_id \\ nil, opts \\ []) do
+  def active_products_page(after_id \\ nil, opts \\ []) do
+    tenant = TenantContext.tenant!()
+
     with :ok <- validate_cursor(after_id),
          {:ok, page_size} <- page_size(opts),
          {:ok, result} <- run(tenant, "active_products", [after_id, page_size + 1]) do

@@ -5,11 +5,9 @@ defmodule PosServerWeb.ProductController do
 
   @page_size 100
 
-  # Authentication and tenant selection will be added with the desktop login
-  # flow. Until then, the POS uses the explicitly requested Educa tenant.
   def index(conn, params) do
     with {:ok, cursor} <- parse_cursor(params["cursor"]),
-         {:ok, page} <- Sql.active_products_page("educa", cursor, limit: @page_size) do
+         {:ok, page} <- Sql.active_products_page(cursor, limit: @page_size) do
       json(conn, %{
         entries: page.entries,
         has_more: page.has_more?,

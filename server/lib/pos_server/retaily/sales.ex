@@ -14,48 +14,94 @@ end
 defmodule PosServer.Retaily.Sale do
   use Ecto.Schema
 
+  import Ecto.Changeset
+
   schema "sale" do
-    field :amount, :float
-    field :sub, :float
-    field :discount, :float
-    field :tax_amount, :float
-    field :delivery_charge, :float
+    field :amount, :decimal
+    field :sub, :decimal
+    field :discount, :decimal
+    field :tax_amount, :decimal
+    field :delivery_charge, :decimal
     field :sequence, :string
     field :sequence_type, :string
     field :status, :string
     field :sale_type, :string
     field :date_create, :naive_datetime
     field :login, :string
-    field :client_id, :integer, default: 0
-    field :store_id, :integer, default: 0
     field :additional_info, :string
 
-    # The MySQL schema declares no foreign keys for sale_line or sale_paid.
-    # Associations are intentionally omitted rather than inferred.
+    belongs_to :client, PosServer.Retaily.Client, type: :integer
+    belongs_to :store, PosServer.Retaily.Store, type: :integer
+    has_many :sale_lines, PosServer.Retaily.SaleLine
+    has_many :sale_paids, PosServer.Retaily.SalePaid
+
+    field :total_paid, :decimal, virtual: true
+    field :due_balance, :decimal, virtual: true
+    field :invoice_status, :string, virtual: true
+
+    def changeset(sale, attrs) do
+      sale
+      |> cast(attrs, [
+        :amount,
+        :sub,
+        :discount,
+        :tax_amount,
+        :delivery_charge,
+        :sequence,
+        :sequence_type,
+        :status,
+        :sale_type,
+        :login,
+        :client_id,
+        :store_id,
+        :additional_info
+      ])
+      |> validate_required([:amount, :sub, :discount, :tax_amount, :sequence, :sequence_type, :status, :sale_type, :login, :client_id, :store_id])
+    end
   end
 end
 
 defmodule PosServer.Retaily.SaleLine do
   use Ecto.Schema
 
+  import Ecto.Changeset
+
   schema "sale_line" do
-    field :amount, :float
-    field :tax_amount, :float
-    field :discount, :float
+    field :amount, :decimal
+    field :tax_amount, :decimal
+    field :discount, :decimal
+    # Retaily's existing PostgreSQL migration stores sale quantities as float.
     field :quantity, :float
-    field :total_amount, :float
-    field :sale_id, :integer, default: 0
-    field :product_id, :integer
+    field :total_amount, :decimal
+
+    belongs_to :sale, PosServer.Retaily.Sale, type: :integer
+    belongs_to :product, PosServer.Retaily.Product, type: :integer
+
+    def changeset(line, attrs) do
+      line
+      |> cast(attrs, [:amount, :tax_amount, :discount, :quantity, :total_amount, :sale_id, :product_id])
+      |> validate_required([:amount, :tax_amount, :discount, :quantity, :total_amount, :sale_id, :product_id])
+    end
   end
 end
 
 defmodule PosServer.Retaily.SalePaid do
   use Ecto.Schema
 
+  import Ecto.Changeset
+
   schema "sale_paid" do
-    field :amount, :float
+    field :amount, :decimal
     field :type, :string
     field :date_create, :naive_datetime
-    field :sale_id, :integer, default: 0
+    belongs_to :sale, PosServer.Retaily.Sale, type: :integer
+
+    def changeset(payment, attrs) do
+      payment
+      |> cast(attrs, [:amount, :type, :sale_id, :date_create])
+      |> validate_required([:amount, :type, :sale_id])
+      |> validate_inclusion(:type, ["CASH", "CC"])
+      |> validate_number(:amount, greater_than: 0)
+    end
   end
 end

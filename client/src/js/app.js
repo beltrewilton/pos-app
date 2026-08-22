@@ -23,13 +23,8 @@ function imageSource(raw) {
 }
 
 function productCard(product) {
-  const card = document.createElement("button");
+  const card = document.createElement("article");
   card.className = "card product";
-  card.type = "button";
-  card.dataset.productId = product.id;
-  card.dataset.name = product.name || "Unnamed product";
-  card.dataset.price = product.price || 0;
-  card.setAttribute("aria-label", `Add ${product.name || "Unnamed product"} to order`);
   const source = imageSource(product.image_raw);
   if (source) {
     const image = document.createElement("img");
@@ -46,9 +41,15 @@ function productCard(product) {
   content.className = "card-content product-content";
   const name = document.createElement("h2");
   name.className = "card-title product-name"; name.textContent = product.name || "Unnamed product";
+  const meta = document.createElement("div");
+  meta.className = "product-meta";
   const price = document.createElement("strong");
-  price.className = "product-price"; price.textContent = `$${Number(product.price || 0).toFixed(2)}`;
-  content.append(name, price); card.appendChild(content);
+  price.className = "product-price numeric"; price.textContent = `$${Number(product.price || 0).toFixed(2)}`;
+  const add = document.createElement("button");
+  add.className = "btn product-add"; add.type = "button"; add.dataset.variant = "outline"; add.dataset.size = "sm";
+  add.dataset.productId = product.id; add.dataset.name = product.name || "Unnamed product"; add.dataset.price = product.price || 0;
+  add.textContent = "Add to order"; add.setAttribute("aria-label", `Add ${product.name || "Unnamed product"} to order`);
+  meta.append(price); content.append(name, meta, add); card.appendChild(content);
   return card;
 }
 

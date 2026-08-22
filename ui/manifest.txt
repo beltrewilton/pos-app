@@ -1,0 +1,34 @@
+shadcn-html=0.7.13-alpha (v0.7.13-alpha)
+lucide=0.468.0
+inter=v20
+inter-url=https://fonts.gstatic.com/s/inter/v20/UcCo3FwrK3iLTcviYwY.woff2
+
+7fa860c30bdc118c98fdc5c10d2de6f8c2e24f2f420ebd3b2857af3cd30d6d2c  ui/shadcn-html/default-semantic-tokens.css
+2c295d99e26dcf357d4d01bcf270fd6924b600c9a13dd8c363ef114f4c6976fa  ui/fonts/inter-latin-variable.woff2
+3411692820cb8d47543f69496aa25fd603a358f4498046f41c508a5a3342210e  ui/icons/lucide-0.468.0.min.js
+603ff57ba97abb37486bde74912c364bbe3cd28ac8ff7644dd3e21eb599c7802  ui/shadcn-html/components/typography/component-skill.md
+97726f41ee433b956080ea22e4c02cd6b2871a72923caf3971dbd33979cd10eb  ui/shadcn-html/components/typography/typography.css
+70bef92f7146ffe71557ebd388f1b65299301e6c1a584264008f0c0c93a448fb  ui/shadcn-html/components/button/button.css
+9a70b74f6cc9a6b07a162406e1cfa845d29b8b7b4e57549ba160fcf8bfdc0da2  ui/shadcn-html/components/button/component-skill.md
+1d2d2ff1048c32324e77a01ecf07729abbd3ea0ec2a0fba6973a272138ebb1c4  ui/shadcn-html/components/input/component-skill.md
+6d76285185e0bff1edfbf82d2aa2be68fcf5a8992d6786c0fdb23b0a78d12344  ui/shadcn-html/components/input/input.css
+568dc7c4a3af8be13053137826b76884ed4f085e7a33ee836d8da4666239b664  ui/shadcn-html/components/label/component-skill.md
+ad1866b890a3181429c248518bb24e8c3181e440db1f51eaf14259ba2889bc10  ui/shadcn-html/components/label/label.css
+d740a43038855731d9114bf09177473c22022abf40d3ab527784394895e22246  ui/shadcn-html/components/card/card.css
+c8d396a531c6f610c940dd683406d2a6f404a3867350832d8bf110e9bf8acd74  ui/shadcn-html/components/card/component-skill.md
+3f95762a25af318fb69d7c8d9128c4da2f6d84c2d016bc21c430b9896be481b5  ui/shadcn-html/components/form/component-skill.md
+78486ea10cab44d86e58f4de963726c3a49293fd360b8cb70623d9567904d64e  ui/shadcn-html/components/form/form.css
+55fb4fe5dc8868b2159853107547c227a9317396bb2feb82790a848046b2e2dc  ui/shadcn-html/components/separator/component-skill.md
+6374703bf98b6c1a6d4faa8aa7dca731ceafbdc28db06cff0d4f7c95e55405f6  ui/shadcn-html/components/separator/separator.css
+2efa7f30e27db17743d4f17ff8cfdbdee35d9013cd78dc2be428e23b3f325a80  ui/shadcn-html/components/alert/alert.css
+21e2c41ee7c90ab7025a8075d4cb21155529bb94d0b331289dfcc90c8b79a105  ui/shadcn-html/components/alert/component-skill.md
+7f1c38b872db0b4ab9520f3a55faf1c7a473c4abff067f1b9bc0a3065cfb8020  ui/shadcn-html/components/dialog/component-skill.md
+57307d0aea940d16ad9eecb590ab67525eef9aeed5e677afa7fba6bf83c8c1c5  ui/shadcn-html/components/dialog/dialog.css
+3b763c8f40597754003960ea32c3bf4f301a2cd85b689e9690213f885010e974  ui/shadcn-html/components/dialog/dialog.js
+c26c948a9c851b17dff91a196faf2b9237400fff4ee833649660a52b397a60fd  ui/shadcn-html/components/toast/component-skill.md
+8d1e0f6f4a4e243b0254a9fd8c510d1de729cf87e6eede4a488d8a7b44a1fe80  ui/shadcn-html/components/toast/toast.css
+aec9f5942247a7d95d21ce3c990b88f3feeb609898068527cfc5663db939882b  ui/shadcn-html/components/toast/toast.js
+b7b6164a76fcb3bce04e5e09a8db862c1c851f7408c948e8f1b2c77a4ed97e67  ui/shadcn-html/components/table/component-skill.md
+133eb921023888d3dac690783d7af846de11329ced79bb4a7fe628976e64ea64  ui/shadcn-html/components/table/table.css
+dd6af2851b396f1bd3a7a9f1a66ca76c1f24eb6af727ca8a532b983cb85942e1  ui/shadcn-html/components/select/component-skill.md
+97da1abc9927ea9e99bcc0f3a33b02efa40aa8b88c09c6076605c6359eea7406  ui/shadcn-html/components/select/select.css

@@ -49,6 +49,22 @@ defmodule PosServer.Accounts do
     |> Repo.insert()
   end
 
+  @doc "Encodes a binary session token for the desktop API Authorization header."
+  def encode_session_token(%UserToken{token: token}) when is_binary(token) do
+    Base.url_encode64(token, padding: false)
+  end
+
+  @doc "Returns the user for a valid binary session token, or nil."
+  def get_user_by_session_token(token) when is_binary(token) do
+    from(user in User,
+      join: user_token in UserToken,
+      on: user_token.user_id == user.id,
+      where: user_token.token == ^token and user_token.context == "session",
+      select: user
+    )
+    |> Repo.one()
+  end
+
   defp create_valid_company_user(user_changeset, company_changeset) do
     case Repo.insert(user_changeset) do
       {:ok, user} ->
