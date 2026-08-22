@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    <.live_title default="PosServer" suffix=" · Phoenix Framework">
+      {assigns[:page_title]}
+    </.live_title>
+    <link rel="stylesheet" href={~p"/assets/shadcn-html/theme/default-semantic-tokens.css"} />
+    <link rel="stylesheet" href={~p"/assets/shadcn-html/components/button/button.css"} />
+    <link rel="stylesheet" href={~p"/assets/shadcn-html/components/card/card.css"} />
+    <link rel="stylesheet" href={~p"/assets/shadcn-html/components/form/form.css"} />
+    <link rel="stylesheet" href={~p"/assets/shadcn-html/components/input/input.css"} />
+    <link rel="stylesheet" href={~p"/assets/shadcn-html/components/label/label.css"} />
+    <script defer src={~p"/assets/phoenix.js"}></script>
+    <script type="module" src={~p"/assets/liveview.js"}></script>
+  </head>
+  <body style="max-width: 42rem; margin: 4rem auto; padding: 0 1rem;">
+    <main>{@inner_content}</main>
+  </body>
+</html>

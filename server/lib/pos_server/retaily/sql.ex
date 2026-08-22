@@ -1,0 +1,85 @@
+defmodule PosServer.Retaily.Sql do
+  @moduledoc """
+  Executes version-controlled SQL files against a Triplex tenant schema.
+
+  SQL files live under `server/sql/retaily` and use `{{prefix}}` for the
+  tenant schema identifier. Values always use PostgreSQL positional parameters
+  (`$1`, `$2`, ...) and are passed separately to `PosServer.Repo.query/3`.
+  """
+
+  alias PosServer.Repo
+
+  @sql_directory Path.expand("../../../sql/retaily", __DIR__)
+  @max_page_size 100
+
+  @type page :: %{
+          entries: [map()],
+          has_more?: boolean(),
+          next_cursor: non_neg_integer() | nil
+        }
+
+  @spec active_products_page(String.t(), non_neg_integer() | nil, keyword()) ::
+          {:ok, page()} | {:error, term()}
+  def active_products_page(tenant, after_id \\ nil, opts \\ []) do
+    with :ok <- validate_cursor(after_id),
+         {:ok, page_size} <- page_size(opts),
+         {:ok, result} <- run(tenant, "active_products", [after_id, page_size + 1]) do
+      entries = result |> rows_as_maps() |> Enum.take(page_size)
+      has_more? = result.num_rows > page_size
+
+      {:ok,
+       %{
+         entries: entries,
+         has_more?: has_more?,
+         next_cursor: next_cursor(entries, has_more?)
+       }}
+    end
+  end
+
+  @spec run(String.t(), String.t(), list()) :: {:ok, Postgrex.Result.t()} | {:error, term()}
+  def run(tenant, statement_name, params \\ []) when is_list(params) do
+    with {:ok, sql} <- read(statement_name) do
+      Repo.query(render(sql, tenant), params)
+    end
+  end
+
+  @spec read(String.t()) :: {:ok, String.t()} | {:error, :invalid_statement | :enoent | term()}
+  def read(statement_name) do
+    with :ok <- valid_statement_name(statement_name) do
+      File.read(Path.join(@sql_directory, "#{statement_name}.sql"))
+    end
+  end
+
+  defp rows_as_maps(%Postgrex.Result{columns: columns, rows: rows}) do
+    Enum.map(rows, &Map.new(Enum.zip(columns, &1)))
+  end
+
+  defp render(sql, tenant) when is_binary(tenant) do
+    String.replace(sql, "{{prefix}}", quote_identifier(Triplex.to_prefix(tenant)))
+  end
+
+  defp quote_identifier(identifier) do
+    escaped = String.replace(identifier, "\"", "\"\"")
+    "\"#{escaped}\""
+  end
+
+  defp next_cursor(entries, true), do: entries |> List.last() |> Map.fetch!("id")
+  defp next_cursor(_entries, false), do: nil
+
+  defp page_size(opts) do
+    case Keyword.get(opts, :limit, 50) do
+      limit when is_integer(limit) and limit > 0 and limit <= @max_page_size -> {:ok, limit}
+      _ -> {:error, {:invalid_page_size, "must be between 1 and #{@max_page_size}"}}
+    end
+  end
+
+  defp validate_cursor(nil), do: :ok
+  defp validate_cursor(cursor) when is_integer(cursor) and cursor >= 0, do: :ok
+  defp validate_cursor(_cursor), do: {:error, :invalid_cursor}
+
+  defp valid_statement_name(name) when is_binary(name) do
+    if Regex.match?(~r/\A[a-z0-9_]+\z/, name), do: :ok, else: {:error, :invalid_statement}
+  end
+
+  defp valid_statement_name(_name), do: {:error, :invalid_statement}
+end

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>POS</title>
+    <link rel="stylesheet" href="./css/app.css" />
+  </head>
+  <body>
+    <main class="pos">
+      <section class="products" aria-labelledby="pos-title">
+        <header class="products-header">
+          <div><p class="eyebrow">Educa</p><h1 id="pos-title">Point of Sale</h1></div>
+          <p id="printer-status" class="printer-status">Printer: Checking...</p>
+        </header>
+        <div class="search-field">
+          <label class="sr-only" for="product-search">Search products</label>
+          <input id="product-search" class="input" type="search" placeholder="Search products by name or code" autocomplete="off" />
+        </div>
+        <p id="products-status" class="products-status" role="status">Loading products…</p>
+        <div id="product-grid" class="product-grid" aria-live="polite"></div>
+        <div id="products-sentinel" aria-hidden="true"></div>
+      </section>
+      <section class="order" aria-labelledby="order-title">
+        <h2 id="order-title">Current Order</h2>
+        <div id="cart"></div>
+        <footer>
+          <div class="total">Total: <strong id="total">$0.00</strong></div>
+          <button id="print-test" class="btn" data-variant="default">PRINT RECEIPT</button>
+          <p id="print-status"></p>
+        </footer>
+      </section>
+    </main>
+    <script type="module" src="./js/app.js"></script>
+  </body>
+</html>
