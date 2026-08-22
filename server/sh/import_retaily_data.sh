@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Required:
 #   EXPORT_DIR=/shared/mysql-postgres-export \
-#   ./import_retaily_data.sh
+#   ./sh/import_retaily_data.sh
 #
 # DATABASE_URL is constructed from DB_USER, DB_PASS, and DB_NAME in .env.
 # The target Triplex tenant schema is always educa.
@@ -11,16 +11,16 @@ set -euo pipefail
 # setting, and readable by the host running psql. When MySQL runs in Docker,
 # use a bind-mounted directory for EXPORT_DIR.
 
-script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+server_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 
-if [[ ! -f "$script_dir/.env" ]]; then
-  echo "Missing $script_dir/.env" >&2
+if [[ ! -f "$server_dir/.env" ]]; then
+  echo "Missing $server_dir/.env" >&2
   exit 1
 fi
 
 set -a
 # shellcheck disable=SC1091
-source "$script_dir/.env"
+source "$server_dir/.env"
 set +a
 
 : "${DB_USER:?Set DB_USER in server/.env}"

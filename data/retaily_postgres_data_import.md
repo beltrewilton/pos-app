@@ -11,7 +11,7 @@ in PostgreSQL.
 2. Run the application migrations from `server`:
 
    ```bash
-   ./migrate.sh
+   ./sh/migrate.sh
    ```
 
 3. Create the destination tenant through the normal company/onboarding flow.
@@ -46,7 +46,7 @@ worked in MySQL because the dump disables foreign-key checks.
 
 ## 3. Export each MySQL table as a PostgreSQL `COPY`-compatible file
 
-The repository includes [`server/import_retaily_data.sh`](../server/import_retaily_data.sh),
+The repository includes [`server/sh/import_retaily_data.sh`](../server/sh/import_retaily_data.sh),
 which performs the explicit export and `\copy` for all 21 tables in the required
 foreign-key order. Use a shared directory that is allowed by MySQL's
 `secure_file_priv` setting and readable by `psql`:
@@ -54,7 +54,7 @@ foreign-key order. Use a shared directory that is allowed by MySQL's
 ```bash
 cd server
 EXPORT_DIR='/shared/mysql-postgres-export' \
-./import_retaily_data.sh
+./sh/import_retaily_data.sh
 ```
 
 The script creates `DATABASE_URL` from `DB_USER`, `DB_PASS`, and `DB_NAME` in

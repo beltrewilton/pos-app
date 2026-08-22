@@ -58,7 +58,7 @@ Set up the server once:
 ```bash
 cd server
 cp .env.example .env
-./deps_get.sh
+./sh/deps_get.sh
 ```
 
 The database is provisioned outside of Mix. Public and Triplex tenant migrations are checked in but are not run automatically; tenant creation and migration orchestration will be introduced deliberately in a later SaaS phase.
@@ -67,17 +67,17 @@ To run the public migrations after the database has been provisioned:
 
 ```bash
 cd server
-./migrate.sh
+./sh/migrate.sh
 ```
 
 Run the server in terminal 1:
 
 ```bash
 cd server
-./run_local.sh
+./sh/run_local.sh
 ```
 
-On macOS, `run_local.sh` starts Phoenix with `iex -S mix phx.server`.
+On macOS, `sh/run_local.sh` starts Phoenix with `iex -S mix phx.server`.
 
 Run the desktop client in terminal 2:
 
