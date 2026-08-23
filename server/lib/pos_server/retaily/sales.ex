@@ -93,12 +93,13 @@ defmodule PosServer.Retaily.SalePaid do
   schema "sale_paid" do
     field :amount, :decimal
     field :type, :string
+    field :login, :string
     field :date_create, :naive_datetime
     belongs_to :sale, PosServer.Retaily.Sale, type: :integer
 
     def changeset(payment, attrs) do
       payment
-      |> cast(attrs, [:amount, :type, :sale_id, :date_create])
+      |> cast(attrs, [:amount, :type, :login, :sale_id, :date_create])
       |> validate_required([:amount, :type, :sale_id])
       |> validate_inclusion(:type, ["CASH", "CC"])
       |> validate_number(:amount, greater_than: 0)

@@ -226,6 +226,7 @@ defmodule PosServer.Repo.Migrations.CreateRetailySchema do
       add :id, :bigserial, primary_key: true
       add :amount, :float
       add :type, :string, size: 10
+      add :login, :string
       add :date_create, :naive_datetime
       add :sale_id, :bigint, default: 0, null: false
     end

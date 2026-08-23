@@ -252,37 +252,63 @@ function invoicePaymentForm(invoice) {
   const payment = document.createElement("form");
   payment.className = "invoice-payment";
   payment.dataset.invoiceId = invoice.id;
-  const inputId = `invoice-payment-${invoice.id}`;
-  const label = document.createElement("label");
-  label.className = "label sr-only";
-  label.htmlFor = inputId;
-  label.textContent = `Payment amount for ${invoice.sequence || invoice.id}`;
-  const amount = document.createElement("input");
-  amount.className = "input numeric";
-  amount.id = inputId;
-  amount.type = "number"; amount.min = "0.01"; amount.max = invoice.due_balance; amount.step = "0.01"; amount.required = true;
-  amount.value = Number(invoice.due_balance).toFixed(2);
-  payment.dataset.paymentType = "CASH";
-  const methods = document.createElement("div");
-  methods.className = "invoice-payment-methods";
-  methods.setAttribute("role", "group");
-  methods.setAttribute("aria-label", "Payment method");
-  [["CASH", "Cash"], ["CC", "Credit Card"]].forEach(([type, labelText]) => {
-    const method = document.createElement("button");
-    method.className = "btn"; method.type = "button"; method.dataset.paymentType = type;
-    method.dataset.variant = type === "CASH" ? "secondary" : "ghost";
-    method.setAttribute("aria-pressed", String(type === "CASH"));
-    const iconElement = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    iconElement.classList.add("invoice-payment-icon"); iconElement.setAttribute("aria-hidden", "true"); iconElement.setAttribute("viewBox", "0 0 24 24"); iconElement.setAttribute("fill", "none"); iconElement.setAttribute("stroke", "currentColor"); iconElement.setAttribute("stroke-width", "2");
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("d", type === "CASH" ? "M3 6h18v12H3zM7 12h.01M17 12h.01M12 9a3 3 0 1 0 0 6" : "M3 5h18v14H3zM3 10h18");
-    iconElement.appendChild(path);
-    method.append(iconElement, document.createTextNode(labelText));
-    methods.appendChild(method);
-  });
+  const createMethodSelector = (row, label) => {
+    const methods = document.createElement("div");
+    methods.className = "invoice-payment-methods sequence-options";
+    methods.setAttribute("role", "group");
+    methods.setAttribute("aria-label", label);
+    row.dataset.paymentType = "CASH";
+    [["CASH", "Cash"], ["CC", "Credit Card"]].forEach(([type, labelText]) => {
+      const method = document.createElement("button");
+      method.className = "btn"; method.type = "button"; method.dataset.paymentType = type;
+      method.dataset.variant = type === "CASH" ? "default" : "secondary";
+      method.setAttribute("aria-pressed", String(type === "CASH"));
+      method.textContent = labelText;
+      methods.appendChild(method);
+    });
+    return methods;
+  };
+  const createAmount = ({ id, value, readonly = false, label }) => {
+    const amountWrap = document.createElement("div");
+    amountWrap.className = "invoice-payment-amount";
+    const amountLabel = document.createElement("label");
+    amountLabel.className = "label sr-only";
+    amountLabel.htmlFor = id;
+    amountLabel.textContent = label;
+    const amount = document.createElement("input");
+    amount.className = "input numeric";
+    amount.id = id;
+    amount.value = value;
+    if (readonly) {
+      amount.type = "text";
+      amount.readOnly = true;
+      amount.setAttribute("aria-label", label);
+    } else {
+      amount.type = "number"; amount.min = "0.01"; amount.max = invoice.due_balance; amount.step = "0.01";
+      amount.name = "paymentAmount";
+    }
+    amountWrap.append(amountLabel, amount);
+    return amountWrap;
+  };
+  const primary = document.createElement("div");
+  primary.className = "invoice-payment-row";
+  primary.append(
+    createAmount({ id: `invoice-payment-${invoice.id}`, value: "0", label: `Payment amount for ${invoice.sequence || invoice.id}` }),
+    createMethodSelector(primary, "Payment method"),
+  );
   const pay = document.createElement("button");
   pay.className = "btn"; pay.type = "submit"; pay.dataset.variant = "outline"; pay.textContent = "Pay";
-  payment.append(label, amount, methods, pay);
+  primary.appendChild(pay);
+  const payoff = document.createElement("div");
+  payoff.className = "invoice-payment-row invoice-payment-payoff";
+  payoff.append(
+    createAmount({ id: `invoice-payoff-${invoice.id}`, value: Number(invoice.due_balance).toFixed(2), readonly: true, label: `Outstanding balance for ${invoice.sequence || invoice.id}` }),
+    createMethodSelector(payoff, "Payoff payment method"),
+  );
+  const payOff = document.createElement("button");
+  payOff.className = "btn"; payOff.type = "submit"; payOff.dataset.variant = "default"; payOff.textContent = "Pay off";
+  payoff.appendChild(payOff);
+  payment.append(primary, payoff);
   return payment;
 }
 
@@ -366,22 +392,65 @@ function invoiceDetailsRow(invoice) {
     if (detail.invoice_status === "open") header.appendChild(invoicePaymentForm(detail));
     const content = document.createElement("div");
     content.className = "card-content";
-    const totals = document.createElement("p");
-    totals.className = "invoice-detail-totals numeric";
-    totals.textContent = `Subtotal ${currency(detail.sub)} · Tax ${currency(detail.tax_amount)} · Discount ${currency(detail.discount)} · Paid ${currency(detail.total_paid)} · Balance ${currency(detail.due_balance)}`;
-    const separator = document.createElement("hr");
-    separator.className = "separator";
-    separator.setAttribute("role", "none");
+    const paymentTableWrap = document.createElement("div");
+    paymentTableWrap.className = "table-container invoice-payment-history";
+    const paymentTitle = document.createElement("p");
+    paymentTitle.className = "invoice-table-section-title";
+    paymentTitle.textContent = "Payments";
+    const paymentTable = document.createElement("table");
+    paymentTable.className = "table";
+    const paymentCaption = document.createElement("caption");
+    paymentCaption.className = "sr-only";
+    paymentCaption.textContent = "Recorded payments";
+    const paymentHead = document.createElement("thead");
+    const paymentColumns = document.createElement("tr");
+    paymentColumns.className = "table-row invoice-payment-columns";
+    ["Payment", "Date", "User", "Method", "Amount", "Status"].forEach((label) => {
+      const th = document.createElement("th");
+      th.className = "table-head";
+      th.scope = "col";
+      th.textContent = label;
+      paymentColumns.appendChild(th);
+    });
+    paymentHead.appendChild(paymentColumns);
+    const paymentBody = document.createElement("tbody");
+    if (!detail.payments.length) {
+      const emptyRow = document.createElement("tr");
+      emptyRow.className = "table-row";
+      const emptyCell = document.createElement("td");
+      emptyCell.className = "table-cell muted";
+      emptyCell.colSpan = 6;
+      emptyCell.textContent = "No payments recorded.";
+      emptyRow.appendChild(emptyCell);
+      paymentBody.appendChild(emptyRow);
+    }
+    detail.payments.forEach((payment) => {
+      const paymentRow = document.createElement("tr");
+      paymentRow.className = "table-row";
+      const values = ["Payment", payment.date_create ? new Date(payment.date_create.replace(" ", "T")).toLocaleDateString() : "—", payment.login || detail.login || "—", payment.type === "CC" ? "Credit Card" : "Cash", currency(payment.amount), detail.invoice_status === "close" ? "Complete" : "Partial"];
+      values.forEach((value, index) => {
+        const paymentCell = document.createElement("td");
+        paymentCell.className = index === 4 ? "table-cell numeric" : "table-cell";
+        paymentCell.textContent = value;
+        paymentRow.appendChild(paymentCell);
+      });
+      paymentBody.appendChild(paymentRow);
+    });
+    paymentTable.append(paymentCaption, paymentHead, paymentBody);
+    paymentTableWrap.append(paymentTitle, paymentTable);
     const tableWrap = document.createElement("div");
     tableWrap.className = "table-container";
+    const lineItemsTitle = document.createElement("p");
+    lineItemsTitle.className = "invoice-table-section-title";
+    lineItemsTitle.textContent = "Invoice line items";
     const table = document.createElement("table");
     table.className = "table invoice-detail-lines";
     const caption = document.createElement("caption");
-    caption.className = "table-caption";
+    caption.className = "sr-only";
     caption.textContent = "Invoice line items";
     const head = document.createElement("thead");
     const headRow = document.createElement("tr");
-    headRow.className = "table-row";
+    headRow.className = "table-row invoice-line-columns";
     ["Product", "Quantity", "Unit price", "Discount", "Total"].forEach((label) => {
       const th = document.createElement("th");
       th.className = "table-head"; th.scope = "col"; th.textContent = label; headRow.appendChild(th);
@@ -395,47 +464,26 @@ function invoiceDetailsRow(invoice) {
       });
       body.appendChild(lineRow);
     });
-    const paymentSection = document.createElement("tbody");
-    const paymentSectionHeading = document.createElement("tr");
-    paymentSectionHeading.className = "table-row invoice-payment-section";
-    const paymentHeading = document.createElement("th");
-    paymentHeading.className = "table-head";
-    paymentHeading.scope = "rowgroup";
-    paymentHeading.colSpan = 5;
-    paymentHeading.textContent = detail.payments.length ? `Payments · ${detail.invoice_status === "close" ? "Complete" : "Partial"}` : "Payments · None recorded";
-    paymentSectionHeading.appendChild(paymentHeading);
-    paymentSection.appendChild(paymentSectionHeading);
-    if (detail.payments.length) {
-      const paymentColumns = document.createElement("tr");
-      paymentColumns.className = "table-row invoice-payment-columns";
-      ["Payment", "Date", "Method", "Amount", "Status"].forEach((label) => {
-        const th = document.createElement("th");
-        th.className = "table-head";
-        th.scope = "col";
-        th.textContent = label;
-        paymentColumns.appendChild(th);
-      });
-      paymentSection.appendChild(paymentColumns);
-    }
-    detail.payments.forEach((payment) => {
-      const paymentRow = document.createElement("tr");
-      paymentRow.className = "table-row";
-      const values = [
-        "Payment",
-        payment.date_create ? new Date(payment.date_create.replace(" ", "T")).toLocaleDateString() : "—",
-        payment.type === "CC" ? "Credit Card" : "Cash",
-        currency(payment.amount),
-        detail.invoice_status === "close" ? "Complete" : "Partial"
-      ];
-      values.forEach((value, index) => {
-        const paymentCell = document.createElement("td");
-        paymentCell.className = index === 3 ? "table-cell numeric" : "table-cell";
-        paymentCell.textContent = value;
-        paymentRow.appendChild(paymentCell);
-      });
-      paymentSection.appendChild(paymentRow);
+    const foot = document.createElement("tfoot");
+    [["Subtotal", detail.sub], ["Tax", detail.tax_amount], ["Discount", detail.discount], ["Total", detail.amount]].forEach(([label, value]) => {
+      const summaryRow = document.createElement("tr");
+      summaryRow.className = "table-row invoice-line-summary";
+      if (label === "Total") summaryRow.classList.add("invoice-line-summary-total");
+      const spacer = document.createElement("td");
+      spacer.className = "table-cell";
+      spacer.colSpan = 3;
+      spacer.setAttribute("aria-hidden", "true");
+      const summaryLabel = document.createElement("th");
+      summaryLabel.className = "table-cell";
+      summaryLabel.scope = "row";
+      summaryLabel.textContent = label;
+      const summaryAmount = document.createElement("td");
+      summaryAmount.className = "table-cell numeric";
+      summaryAmount.textContent = currency(value);
+      summaryRow.append(spacer, summaryLabel, summaryAmount);
+      foot.appendChild(summaryRow);
     });
-    table.append(caption, head, body, paymentSection); tableWrap.appendChild(table); content.append(totals, separator, tableWrap); card.append(header, content);
+    table.append(caption, head, body, foot); tableWrap.append(lineItemsTitle, table); content.append(paymentTableWrap, tableWrap); card.append(header, content);
   }
   cell.appendChild(card); row.appendChild(cell);
   return row;
@@ -734,11 +782,11 @@ invoiceTableBody.addEventListener("click", async (event) => {
 invoiceTableBody.addEventListener("click", (event) => {
   const button = event.target.closest("[data-payment-type]");
   if (!button || !button.closest(".invoice-payment-methods")) return;
-  const form = button.closest(".invoice-payment");
-  form.dataset.paymentType = button.dataset.paymentType;
-  form.querySelectorAll("[data-payment-type]").forEach((method) => {
+  const row = button.closest(".invoice-payment-row");
+  row.dataset.paymentType = button.dataset.paymentType;
+  row.querySelectorAll("[data-payment-type]").forEach((method) => {
     const selected = method === button;
-    method.dataset.variant = selected ? "secondary" : "ghost";
+    method.dataset.variant = selected ? "default" : "secondary";
     method.setAttribute("aria-pressed", String(selected));
   });
 });
@@ -747,12 +795,14 @@ invoiceTableBody.addEventListener("submit", async (event) => {
   if (!form) return;
   event.preventDefault();
   const invoice = invoices.find((entry) => String(entry.id) === form.dataset.invoiceId);
-  const amount = Number(form.querySelector("input").value);
+  const submit = event.submitter;
+  const paymentRow = submit?.closest(".invoice-payment-row");
+  const isPayoff = paymentRow?.classList.contains("invoice-payment-payoff");
+  const amount = isPayoff ? Number(invoice?.due_balance) : Number(paymentRow?.querySelector("input[name='paymentAmount']")?.value);
   if (!invoice || !Number.isFinite(amount) || amount <= 0 || amount > Number(invoice.due_balance)) return;
-  const submit = form.querySelector("button");
   submit.disabled = true;
   try {
-    const sale = await addSalePayment(invoice.id, { amount, type: form.dataset.paymentType });
+    const sale = await addSalePayment(invoice.id, { amount, type: paymentRow.dataset.paymentType });
     Object.assign(invoice, sale);
     invoiceDetails.set(invoice.id, sale);
     renderInvoices();

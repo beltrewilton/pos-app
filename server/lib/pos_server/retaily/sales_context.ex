@@ -24,7 +24,7 @@ defmodule PosServer.Retaily.Sales do
              :ok <- valid_payments?(checkout.payments, totals.amount),
              {:ok, sale} <- insert_sale(checkout, cashier.username, sequence, totals, tenant),
              {:ok, _} <- insert_lines(lines, sale.id, tenant),
-             {:ok, _} <- insert_payments(checkout.payments, sale.id, tenant) do
+             {:ok, _} <- insert_payments(checkout.payments, sale.id, cashier.username, tenant) do
           sale_response(sale.id, tenant)
         else
           nil -> Repo.rollback(:not_found)
@@ -45,7 +45,7 @@ defmodule PosServer.Retaily.Sales do
              :ok <- cashier_store?(cashier, sale.store_id, tenant),
              :ok <- open_sale?(sale, tenant),
              :ok <- payment_within_balance?(sale, payment.amount, tenant),
-             {:ok, _} <- insert_payments([payment], sale.id, tenant) do
+             {:ok, _} <- insert_payments([payment], sale.id, cashier.username, tenant) do
           sale_response(sale.id, tenant)
         else
           nil -> Repo.rollback(:not_found)
@@ -215,9 +215,9 @@ defmodule PosServer.Retaily.Sales do
     end)
   end
 
-  defp insert_payments(payments, sale_id, tenant) do
+  defp insert_payments(payments, sale_id, login, tenant) do
     Enum.reduce_while(payments, {:ok, []}, fn payment, {:ok, result} ->
-      attrs = %{amount: payment.amount, type: payment.type, sale_id: sale_id, date_create: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)}
+      attrs = %{amount: payment.amount, type: payment.type, sale_id: sale_id, login: login, date_create: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)}
 
       case %SalePaid{} |> SalePaid.changeset(attrs) |> Repo.insert(prefix: tenant) do
         {:ok, inserted} -> {:cont, {:ok, [inserted | result]}}
@@ -318,7 +318,7 @@ defmodule PosServer.Retaily.Sales do
   end
 
   defp serialize_payment(payment) do
-    %{id: payment.id, amount: payment.amount, type: payment.type, date_create: payment.date_create}
+    %{id: payment.id, amount: payment.amount, type: payment.type, login: payment.login, date_create: payment.date_create}
   end
 
   defp apply_filters(query, filters) do
