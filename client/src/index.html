@@ -125,6 +125,30 @@
         <div id="product-grid" class="product-grid" aria-live="polite"></div>
         <div id="products-sentinel" aria-hidden="true"></div>
         </div>
+        <section id="customers-screen" class="customers-screen" aria-labelledby="customers-title" hidden>
+          <header class="customers-header">
+            <div>
+              <p class="eyebrow" data-i18n="customer.label">Customers</p>
+              <h2 id="customers-title" class="h3" tabindex="-1" data-i18n="customer.list">Customer list</h2>
+            </div>
+            <div class="customers-header-actions">
+              <button id="create-customer" class="btn" type="button" data-variant="default" data-dialog-trigger="customer-dialog" aria-haspopup="dialog" data-i18n="customer.create">Create customer</button>
+              <button id="customers-back" class="btn" type="button" data-variant="outline" data-i18n="action.back">Back</button>
+            </div>
+          </header>
+          <div class="customer-search-field">
+            <label class="sr-only" for="customer-search" data-i18n="customer.search">Search customers</label>
+            <input id="customer-search" class="input" type="search" autocomplete="off" data-i18n-placeholder="customer.searchPlaceholder" placeholder="Search customers by name or phone" />
+          </div>
+          <p id="customers-status" class="customers-status" role="status"></p>
+          <div class="table-container">
+            <table class="table">
+              <caption class="table-caption" data-i18n="customer.tableCaption">Choose a customer for this sale.</caption>
+              <thead><tr class="table-row"><th class="table-head" scope="col" data-i18n="customer.name">Name</th><th class="table-head" scope="col" data-i18n="customer.phone">Phone</th><th class="table-head" scope="col" data-i18n="customer.email">Email</th><th class="table-head" scope="col"><span class="sr-only" data-i18n="customer.select">Select customer</span></th></tr></thead>
+              <tbody id="customers-table-body"></tbody>
+            </table>
+          </div>
+        </section>
         <section id="checkout-flow" class="checkout-flow" aria-live="polite" hidden>
           <header class="checkout-header">
             <div>
@@ -133,14 +157,10 @@
             </div>
             <button id="checkout-cancel" class="btn" type="button" data-variant="outline" data-i18n="checkout.backSale">Back to sale</button>
           </header>
-          <ol class="checkout-steps" aria-label="Checkout progress">
-            <li data-checkout-step="customer" aria-current="step" data-i18n="checkout.stepCustomer">1. Customer</li><li data-checkout-step="payment" data-i18n="checkout.stepPayment">2. Payment</li><li data-checkout-step="setup" data-i18n="checkout.stepSetup">3. Final setup</li><li data-checkout-step="pay" data-i18n="checkout.stepPay">4. Pay</li>
-          </ol>
+          <ol class="checkout-steps" aria-label="Checkout progress"><li data-checkout-step="customer" aria-current="step" data-i18n="checkout.stepCustomer">1. Customer</li><li data-checkout-step="payment" data-i18n="checkout.stepPayment">2. Payment</li></ol>
           <div class="checkout-stage-wrap">
-            <section class="checkout-stage" data-stage="customer" aria-labelledby="customer-stage-title"><div class="checkout-stage-copy"><p class="eyebrow" data-i18n="checkout.stepOne">Step 1 of 4</p><h2 id="customer-stage-title" class="h2" tabindex="-1" data-i18n="checkout.customer.title">Select customer</h2><p class="muted" data-i18n="checkout.customer.empty">Customer selection will be added here.</p></div><div class="checkout-actions"><button class="btn" type="button" data-variant="default" data-checkout-next="payment" data-i18n="checkout.continuePayment">Continue to payment</button></div></section>
-            <section class="checkout-stage" data-stage="payment" aria-labelledby="payment-stage-title" hidden><div class="checkout-stage-copy"><p class="eyebrow" data-i18n="checkout.stepTwo">Step 2 of 4</p><h2 id="payment-stage-title" class="h2" tabindex="-1" data-i18n="checkout.payment.title">Payment</h2><p class="muted" data-i18n="checkout.payment.empty">Payment options will be added here.</p></div><div class="checkout-actions"><button class="btn" type="button" data-variant="outline" data-checkout-back="customer" data-i18n="action.back">Back</button><button class="btn" type="button" data-variant="default" data-checkout-next="setup" data-i18n="checkout.continueSetup">Continue to final setup</button></div></section>
-            <section class="checkout-stage" data-stage="setup" aria-labelledby="setup-stage-title" hidden><div class="checkout-stage-copy"><p class="eyebrow" data-i18n="checkout.stepThree">Step 3 of 4</p><h2 id="setup-stage-title" class="h2" tabindex="-1" data-i18n="checkout.setup.title">Final setup</h2><p class="muted" data-i18n="checkout.setup.empty">Final sale settings will be added here.</p></div><div class="checkout-actions"><button class="btn" type="button" data-variant="outline" data-checkout-back="payment" data-i18n="action.back">Back</button><button class="btn" type="button" data-variant="default" data-checkout-next="pay" data-i18n="checkout.continuePay">Continue to pay</button></div></section>
-            <section class="checkout-stage" data-stage="pay" aria-labelledby="pay-stage-title" hidden><div class="checkout-stage-copy"><p class="eyebrow" data-i18n="checkout.stepFour">Step 4 of 4</p><h2 id="pay-stage-title" class="h2" tabindex="-1" data-i18n="checkout.pay.title">Pay</h2><p class="muted" data-i18n="checkout.pay.empty">Choose how to complete this sale.</p></div><div class="checkout-actions"><button class="btn" type="button" data-variant="outline" data-checkout-back="setup" data-i18n="action.back">Back</button><button id="pay-credit" class="btn" type="button" data-variant="secondary" data-i18n="checkout.payCredit">Pay on credit</button><button id="print-test" class="btn charge-button" type="button" data-variant="default" data-size="lg" disabled>Charge $0.00</button></div><p id="checkout-status" class="print-status" role="status"></p></section>
+            <section class="checkout-stage" data-stage="customer" aria-labelledby="customer-stage-title"><div class="checkout-stage-copy"><p class="eyebrow" data-i18n="checkout.stepCustomer">1. Customer</p><h2 id="customer-stage-title" class="h2" tabindex="-1" data-i18n="checkout.customer">Customer</h2><button id="customer-picker" class="customer-choice btn" type="button" data-variant="outline" data-i18n="customer.pick">Pick a customer…</button><div id="customer-details" class="customer-details" hidden></div></div><div class="checkout-actions"><button class="btn" type="button" data-variant="outline" data-checkout-back="pos" data-i18n="action.back">Back</button><button id="customer-continue" class="btn" type="button" data-variant="default" disabled data-i18n="checkout.continue">Continue</button></div></section>
+            <section class="checkout-stage" data-stage="payment" aria-labelledby="payment-stage-title" hidden><div class="checkout-stage-copy"><p class="eyebrow" data-i18n="checkout.stepPayment">2. Payment</p><h2 id="payment-stage-title" class="h2" tabindex="-1" data-i18n="checkout.paymentCompletion">Payment &amp; completion</h2><div class="form-group checkout-payment"><button id="delivery-toggle" class="btn" type="button" data-variant="outline" aria-pressed="false" data-i18n="checkout.delivery">Delivery</button><div id="delivery-options" class="delivery-options" hidden></div><button id="credit-toggle" class="btn" type="button" data-variant="outline" aria-pressed="false" disabled data-i18n="checkout.credit">Pay on Credit</button><div id="payment-inputs"><fieldset class="form-fieldset"><legend data-i18n="checkout.sequence">Sequence type</legend><div class="sequence-options" role="group"><button class="btn" type="button" data-sequence="CF" data-variant="default">CF</button><button class="btn" type="button" data-sequence="VF" data-variant="secondary">VF</button><button class="btn" type="button" data-sequence="DV" data-variant="secondary">DV</button></div></fieldset><fieldset class="form-fieldset"><legend data-i18n="checkout.payments">Payments</legend><div id="payment-lines" class="payment-lines"></div><button id="add-payment-line" class="btn" type="button" data-variant="outline" data-i18n="checkout.addPayment">Add payment</button><p id="payment-balance" class="field-description"></p><p id="payment-change" class="payment-change" role="status" hidden></p></fieldset></div></div></div><div class="checkout-actions"><button class="btn checkout-back" type="button" data-variant="outline" data-checkout-back="customer" data-i18n="action.back">Back</button><button id="complete-sale" class="btn" type="button" data-variant="default" disabled data-i18n="checkout.complete">Complete</button></div><p id="checkout-status" class="print-status" role="status"></p></section>
           </div>
         </section>
       </section>
@@ -148,7 +168,7 @@
         <header class="order-header">
           <div>
             <p class="eyebrow" data-i18n="order.current">Current sale</p>
-            <h2 id="order-title" class="h3" data-i18n="order.list">Order list</h2>
+            <div class="customer-picker-wrap"><button id="order-title" class="customer-picker" type="button" data-i18n="customer.pick">Pick a customer …</button><button id="clear-customer" class="btn" type="button" data-variant="ghost" data-size="icon-xs" data-i18n-aria-label="customer.clear" aria-label="Clear customer" hidden>×</button></div>
           </div>
           <button
             id="clear-order"
@@ -184,6 +204,7 @@
               <dt data-i18n="total.discount">Discount</dt>
               <dd id="discount" class="numeric discount-value">−$0.00</dd>
             </div>
+            <div id="delivery-summary" hidden><dt>Delivery</dt><dd id="delivery-total" class="numeric">$0.00</dd></div>
             <div
               id="grand-total"
               class="grand-total"
@@ -199,7 +220,7 @@
             </div>
           </dl>
           <div class="payment-label">
-            <span data-i18n="payment.method">Payment method</span><span class="payment-choice" data-i18n="payment.cash">Cash</span>
+            <span data-i18n="payment.method">Payment method</span><span id="payment-choice" class="payment-choice">—</span>
           </div>
           <button id="start-checkout" class="btn charge-button" type="button" data-variant="default" data-size="lg" disabled data-i18n="checkout.continue">Continue</button>
           <p id="print-status" class="print-status" role="status"></p>
@@ -298,6 +319,19 @@
               <span data-i18n="discount.applyAction">Apply discount</span>
             </button>
           </div>
+        </form>
+      </div>
+    </dialog>
+    <dialog id="receipt-dialog" class="dialog" data-size="sm" aria-labelledby="receipt-dialog-title"><div class="dialog-content"><div class="dialog-header"><h2 id="receipt-dialog-title" class="dialog-title">Sale completed</h2><p class="dialog-description">Would you like to print the receipt?</p></div><div class="dialog-footer"><button id="skip-print" class="btn" type="button" data-variant="outline">No, return to POS</button><button id="print-receipt" class="btn" type="button" data-variant="default">Print receipt</button></div></div></dialog>
+    <dialog id="customer-dialog" class="dialog" role="dialog" aria-modal="true" aria-labelledby="customer-dialog-title">
+      <div class="dialog-content">
+        <div class="dialog-header"><h2 id="customer-dialog-title" class="dialog-title" data-i18n="customer.create">Create customer</h2><p class="dialog-description" data-i18n="customer.createDescription">Add a customer, then use them on this sale.</p></div>
+        <form id="customer-form" class="form">
+          <div class="form-field"><label class="label" for="customer-name" data-i18n="customer.name">Name</label><input id="customer-name" class="input" name="name" required autocomplete="name" /></div>
+          <div class="form-field"><label class="label" for="customer-phone" data-i18n="customer.phone">Phone</label><input id="customer-phone" class="input" name="celphone" type="tel" autocomplete="tel" /></div>
+          <div class="form-field"><label class="label" for="customer-email" data-i18n="customer.email">Email</label><input id="customer-email" class="input" name="email" type="email" autocomplete="email" /></div>
+          <p id="customer-form-status" class="field-error" role="alert" hidden></p>
+          <div class="dialog-footer"><button class="btn" type="button" data-variant="outline" data-dialog-close data-i18n="action.cancel">Cancel</button><button id="customer-submit" class="btn" type="submit" data-variant="default" data-i18n="customer.save">Save customer</button></div>
         </form>
       </div>
     </dialog>

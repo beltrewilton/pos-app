@@ -5,7 +5,7 @@ defmodule PosServerWeb.SaleControllerTest do
 
   alias PosServer.Accounts
   alias PosServer.Repo
-  alias PosServer.Retaily.{Client, Inventory, Product, Sale, SaleLine, SalePaid, Sequence, Store, User, UserStore}
+  alias PosServer.Retaily.{Client, Inventory, PricingList, Product, Sale, SaleLine, SalePaid, Sequence, Store, User, UserStore}
 
   @tenant "sales_seed_test"
   @prefix "sales_seed_test"
@@ -174,6 +174,28 @@ defmodule PosServerWeb.SaleControllerTest do
     assert Repo.aggregate(from(payment in SalePaid, where: payment.sale_id == ^response["id"]), :count, prefix: @prefix) == 1
   end
 
+  test "uses the default price-list price for the sale total", %{walex_conn: conn} do
+    Repo.insert!(%PricingList{price: 2_300.0, product_id: 8_679, pricing_id: 1}, prefix: @prefix)
+
+    response =
+      conn
+      |> post(~p"/api/sales", %{
+        store_id: 2,
+        client_id: 24_181,
+        sequence_type: "CF",
+        status: "CASH",
+        sale_type: "IN_SHOP",
+        delivery_charge: "0",
+        lines: [%{product_id: 8_679, quantity: 1, discount: "0"}],
+        payments: [%{amount: "2300", type: "CASH"}]
+      })
+      |> json_response(:created)
+
+    assert response["amount"] in ["2300", "2300.00"]
+    assert response["total_paid"] in ["2300", "2300.00"]
+    assert response["invoice_status"] == "close"
+  end
+
   test "settles a ten-product credit sale with payments on different days", %{walex_conn: conn} do
     before_quantities = inventory_quantities(Enum.map(large_credit_sale_lines(), & &1.product_id))
     sale =
@@ -328,7 +350,8 @@ defmodule PosServerWeb.SaleControllerTest do
       {19_378, 250, 25},
       {8_694, 3200, 25}
     ], fn {id, price, quantity} ->
-      Repo.insert!(%Product{id: id, name: "SEED #{id}", price: price * 1.0, active: 1}, prefix: prefix)
+      Repo.insert!(%Product{id: id, name: "SEED #{id}", active: 1}, prefix: prefix)
+      Repo.insert!(%PricingList{price: price * 1.0, product_id: id, pricing_id: 1}, prefix: prefix)
       Repo.insert!(%Inventory{product_id: id, store_id: 2, prev_quantity: quantity, quantity: quantity, next_quantity: quantity}, prefix: prefix)
     end)
 

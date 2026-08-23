@@ -161,8 +161,7 @@ defmodule PosServer.Retaily.Sales do
             # Retaily allows backorders, including sales from an already
             # negative inventory balance. The locked row still guarantees
             # this decrement is atomic.
-            # product.price and pricing_list.price are legacy double precision
-            # columns. Normalize the catalog value before it becomes the
+            # Normalize the active catalog price before it becomes the
             # immutable Decimal sale snapshot.
             unit_price = price |> Decimal.from_float() |> Decimal.round(2)
             extended = unit_price |> Decimal.mult(line.quantity) |> Decimal.sub(line.discount)
@@ -184,18 +183,19 @@ defmodule PosServer.Retaily.Sales do
     |> Repo.insert(prefix: tenant)
   end
 
-  # Retaily's active POS price is the default pricing list when the legacy
-  # product.price column is empty.
-  defp sale_price(%Product{price: price}, _tenant) when is_number(price), do: price
-
   defp sale_price(product, tenant) do
-    Repo.one(
-      from(entry in PricingList,
-        where: entry.product_id == ^product.id and entry.pricing_id == 1,
-        select: entry.price
-      ),
-      prefix: tenant
-    )
+    pricing_price =
+      Repo.one(
+        from(entry in PricingList,
+          where: entry.product_id == ^product.id and entry.pricing_id == 1,
+          order_by: [desc: entry.id],
+          select: entry.price,
+          limit: 1
+        ),
+        prefix: tenant
+      )
+
+    pricing_price
   end
 
   defp insert_lines(lines, sale_id, tenant) do
@@ -298,7 +298,7 @@ defmodule PosServer.Retaily.Sales do
       quantity: line.quantity,
       total_amount: line.total_amount,
       product_id: line.product_id,
-      product: %{id: line.product.id, name: line.product.name, price: line.product.price, code: line.product.code, active: line.product.active}
+      product: %{id: line.product.id, name: line.product.name, price: line.amount, code: line.product.code, active: line.product.active}
     }
   end
 

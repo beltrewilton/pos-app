@@ -5,6 +5,7 @@ export function createPos(options) {
   let discountType = "amount";
   let orderDiscount = 0;
   let orderDiscountType = "amount";
+  let delivery = 0;
   const money = (value) => "$" + value.toFixed(2);
   const lineGross = (item) => item.price * item.qty;
   const lineDiscount = (item) => item.discountType === "amount" ? Math.min(item.discount, lineGross(item)) : lineGross(item) * (item.discount / 100);
@@ -13,7 +14,7 @@ export function createPos(options) {
   const beforeOrderDiscount = () => subtotal() - lineDiscountTotal();
   const orderDiscountTotal = () => orderDiscountType === "amount" ? Math.min(orderDiscount, beforeOrderDiscount()) : beforeOrderDiscount() * (orderDiscount / 100);
   const discountTotal = () => lineDiscountTotal() + orderDiscountTotal();
-  const total = () => beforeOrderDiscount() - orderDiscountTotal();
+  const total = () => beforeOrderDiscount() - orderDiscountTotal() + delivery;
   const lineFactor = (item) => lineGross(item) ? (lineGross(item) - lineDiscount(item)) / lineGross(item) : 1;
   const orderFactor = () => beforeOrderDiscount() ? total() / beforeOrderDiscount() : 1;
   const taxTotal = () => cart.reduce((value, item) => value + item.tax * item.qty * lineFactor(item) * orderFactor(), 0);
@@ -36,18 +37,18 @@ export function createPos(options) {
     const isEmpty = cart.length === 0;
     emptyElement.hidden = !isEmpty;
     clearButton.disabled = isEmpty;
-    chargeButton.disabled = isEmpty;
     if (checkoutButton) checkoutButton.disabled = isEmpty;
     subtotalElement.textContent = money(subTotal());
     taxElement.textContent = money(taxTotal());
     discountElement.textContent = "−" + money(discountTotal());
+    document.querySelector("#delivery-total")?.replaceChildren(document.createTextNode(money(delivery)));
     if (totalBeforeDiscountElement) {
       totalBeforeDiscountElement.hidden = discountTotal() <= 0;
       totalBeforeDiscountElement.textContent = money(subtotal());
     }
     totalElement.textContent = money(total());
     itemCountElement.textContent = String(items());
-    chargeButton.textContent = t("charge", { amount: money(total()) });
+    if (chargeButton) chargeButton.textContent = t("charge", { amount: money(total()) });
   }
 
   function addProduct({ id, name, price, sub, tax, imageSrc }) {
@@ -169,7 +170,7 @@ export function createPos(options) {
     discountPreviewDiscount.textContent = "−" + money(deduction);
     discountPreviewTotal.textContent = money(amount - deduction);
   }
-  return { isEmpty: () => cart.length === 0, receipt: () => ({ number: "POS-" + String(Date.now()).slice(-6), items: cart.map(({ name, qty, price, sub, tax, discount }) => ({ name, qty, price, sub, tax, discount })), order_discount: orderDiscount, order_discount_type: orderDiscountType, sub: subTotal(), tax: taxTotal(), total: total() }), render };
+  return { isEmpty: () => cart.length === 0, total, setDelivery: (value) => { delivery = value; render(); }, receipt: () => ({ number: "POS-" + String(Date.now()).slice(-6), items: cart.map(({ id, name, qty, price, sub, tax, discount }) => ({ id, name, qty, price, sub, tax, discount })), order_discount: orderDiscount, order_discount_type: orderDiscountType, delivery, sub: subTotal(), tax: taxTotal(), total: total() }), clear: () => { cart.splice(0); orderDiscount = 0; delivery = 0; render(); }, render };
 }
 
 function escapeHtml(value) {

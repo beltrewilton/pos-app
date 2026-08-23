@@ -4,7 +4,6 @@ defmodule PosServer.Retaily.Product do
   schema "product" do
     field :name, :string
     field :cost, :float
-    field :price, :float
     field :margin, :float
     field :code, :string
     field :img_path, :string

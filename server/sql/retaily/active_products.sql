@@ -3,7 +3,7 @@ WITH catalog AS (
     product.id,
     product.name,
     product.cost,
-    COALESCE(default_price.price, product.price) AS price,
+    default_price.price AS price,
     product.margin,
     product.code,
     product.img_path,

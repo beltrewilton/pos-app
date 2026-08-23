@@ -1,5 +1,5 @@
 import * as printer from "./printer.js";
-import { activeProducts } from "./api.js";
+import { activeProducts, customers, createCustomer, createSale } from "./api.js";
 import { createPos } from "./pos.js";
 import { onLanguageChange, t, translateDocument } from "./i18n.js";
 import { createLanguageSwitcher } from "./language-switcher.js";
@@ -15,6 +15,15 @@ const productGrid = document.querySelector("#product-grid");
 const productStatus = document.querySelector("#products-status");
 const productSearch = document.querySelector("#product-search");
 const productSentinel = document.querySelector("#products-sentinel");
+const customersScreen = document.querySelector("#customers-screen");
+const customersTableBody = document.querySelector("#customers-table-body");
+const customersStatus = document.querySelector("#customers-status");
+const customerSearch = document.querySelector("#customer-search");
+const customerDialog = document.querySelector("#customer-dialog");
+const customerForm = document.querySelector("#customer-form");
+const customerFormStatus = document.querySelector("#customer-form-status");
+const orderTitle = document.querySelector("#order-title");
+const clearCustomerButton = document.querySelector("#clear-customer");
 const languageSwitcher = createLanguageSwitcher(document.querySelector("#language-switcher"));
 const pos = createPos({
   cartElement: document.querySelector("#cart"),
@@ -51,6 +60,109 @@ let hasMore = true;
 let loading = false;
 let products = [];
 let checkoutStage = "customer";
+let selectedCustomer = null;
+let customerSearchTimer;
+let completedReceipt = null;
+
+function updateCustomerPicker() {
+  orderTitle.textContent = selectedCustomer?.name || t("customer.pick");
+  orderTitle.title = selectedCustomer?.name || "";
+  orderTitle.setAttribute("aria-label", selectedCustomer ? t("customer.change") : t("customer.pick"));
+  clearCustomerButton.hidden = !selectedCustomer;
+}
+
+// A completed sale starts a completely new order. Keep this in one place so no
+// customer, payment, delivery, or invoice choice leaks into the next sale.
+function resetCompletedOrder() {
+  selectedCustomer = null;
+  updateCustomerPicker();
+
+  const choice = document.querySelector("#customer-picker");
+  const details = document.querySelector("#customer-details");
+  choice.textContent = t("customer.pick");
+  details.hidden = true;
+  details.textContent = "";
+  document.querySelector("#customer-continue").disabled = true;
+
+  const creditToggle = document.querySelector("#credit-toggle");
+  creditToggle.setAttribute("aria-pressed", "false");
+  creditToggle.dataset.variant = "outline";
+  creditToggle.disabled = true;
+  document.querySelector("#payment-inputs").hidden = false;
+  document.querySelector("#payment-lines").replaceChildren();
+  document.querySelector("#payment-balance").textContent = "";
+  document.querySelector("#payment-change").hidden = true;
+  document.querySelector("#payment-change").textContent = "";
+  document.querySelector("#payment-choice").textContent = "—";
+
+  const deliveryToggle = document.querySelector("#delivery-toggle");
+  deliveryToggle.setAttribute("aria-pressed", "false");
+  deliveryToggle.dataset.variant = "outline";
+  document.querySelector("#delivery-options").hidden = true;
+  document.querySelector("#delivery-options").replaceChildren();
+  document.querySelector("#delivery-summary").hidden = true;
+  document.querySelectorAll("[data-sequence]").forEach((button) => {
+    button.dataset.variant = button.dataset.sequence === "CF" ? "default" : "secondary";
+  });
+
+  checkoutStatus.textContent = "";
+  pos.clear();
+}
+
+function customerRow(customer) {
+  const row = document.createElement("tr");
+  row.className = "table-row";
+  const values = [customer.name || "—", customer.celphone || "—", customer.email || "—"];
+  values.forEach((value) => { const cell = document.createElement("td"); cell.className = "table-cell"; cell.textContent = value; row.appendChild(cell); });
+  const action = document.createElement("td"); action.className = "table-cell customer-action";
+  const choose = document.createElement("button"); choose.className = "btn"; choose.type = "button"; choose.dataset.variant = "outline"; choose.dataset.size = "sm"; choose.dataset.customerId = customer.id; choose.textContent = t("customer.choose"); choose.setAttribute("aria-label", `${t("customer.choose")}: ${customer.name || ""}`); action.appendChild(choose); row.appendChild(action);
+  return row;
+}
+
+async function loadCustomers() {
+  customersStatus.textContent = t("customer.loading");
+  customersTableBody.replaceChildren();
+  try {
+    const page = await customers(customerSearch.value.trim());
+    customersTableBody.replaceChildren(...page.entries.map(customerRow));
+    if (!page.entries.length) customersStatus.textContent = t("customer.empty");
+    else customersStatus.textContent = "";
+    customersTableBody.querySelectorAll("[data-customer-id]").forEach((button) => {
+      button.addEventListener("click", () => selectCustomer(page.entries.find((customer) => String(customer.id) === button.dataset.customerId)));
+    });
+  } catch (error) {
+    console.error(error); customersStatus.textContent = t("customer.error");
+  }
+}
+
+let customerReturn = "pos";
+function openCustomers(returnTo = "pos") {
+  customerReturn = returnTo;
+  catalogPanel.dataset.view = "customers";
+  customersScreen.hidden = false;
+  loadCustomers();
+  requestAnimationFrame(() => document.querySelector("#customers-title").focus());
+}
+
+function closeCustomers() {
+  customersScreen.hidden = true;
+  if (catalogPanel.dataset.view === "customers") delete catalogPanel.dataset.view;
+  if (customerReturn === "checkout") { catalogPanel.dataset.view = "checkout"; checkoutFlow.hidden = false; showCheckoutStage("customer"); }
+  else orderTitle.focus();
+}
+
+function selectCustomer(customer) {
+  if (!customer) return;
+  selectedCustomer = customer;
+  updateCustomerPicker();
+  const choice = document.querySelector("#customer-picker");
+  const details = document.querySelector("#customer-details");
+  if (choice) choice.textContent = customer.name;
+  if (details) { details.hidden = false; details.textContent = `${customer.name} · ${customer.celphone || ""} · ${customer.address || ""}`; }
+  document.querySelector("#customer-continue").disabled = false;
+  document.querySelector("#credit-toggle").disabled = false;
+  closeCustomers();
+}
 
 function imageSource(raw) {
   if (!raw) return null;
@@ -87,6 +199,7 @@ function productCard(product) {
   price.className = "product-price numeric"; price.textContent = `$${Number(product.price || 0).toFixed(2)}`;
   const inventory = document.createElement("span");
   inventory.className = "inventory-badge numeric";
+  inventory.classList.toggle("inventory-badge-low", Number(product.inventory_quantity || 0) <= 0);
   inventory.textContent = t("product.stock", { count: Number(product.inventory_quantity || 0) });
   const code = document.createElement("p");
   code.className = "product-code"; code.textContent = product.code ? `SKU ${product.code}` : t("product.tap");
@@ -133,6 +246,22 @@ async function updatePrinterStatus() {
 }
 
 productSearch.addEventListener("input", renderProducts);
+orderTitle.addEventListener("click", () => openCustomers("pos"));
+clearCustomerButton.addEventListener("click", () => { selectedCustomer = null; updateCustomerPicker(); });
+document.querySelector("#customers-back").addEventListener("click", closeCustomers);
+customerSearch.addEventListener("input", () => { clearTimeout(customerSearchTimer); customerSearchTimer = setTimeout(loadCustomers, 220); });
+customerForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!customerForm.reportValidity()) return;
+  const submit = document.querySelector("#customer-submit");
+  customerFormStatus.hidden = true; submit.disabled = true;
+  try {
+    const customer = await createCustomer(Object.fromEntries(new FormData(customerForm)));
+    customerForm.reset(); customerDialog.close(); selectCustomer(customer);
+  } catch (error) {
+    console.error(error); customerFormStatus.textContent = t("customer.saveError"); customerFormStatus.hidden = false;
+  } finally { submit.disabled = false; }
+});
 document.querySelector("#search-focus").addEventListener("click", () => productSearch.focus());
 productGrid.addEventListener("keydown", (event) => {
   const product = event.target.closest("[data-product-id]");
@@ -161,32 +290,37 @@ function showCheckoutStage(stage) {
 function openCheckout() {
   if (pos.isEmpty()) { printStatus.textContent = t("print.addItem"); return; }
   catalogPanel.dataset.view = "checkout";
+  startCheckoutButton.hidden = true;
   checkoutFlow.hidden = false;
-  showCheckoutStage("customer");
+  showCheckoutStage(selectedCustomer ? "payment" : "customer");
 }
 
 function closeCheckout() {
   checkoutFlow.hidden = true;
   delete catalogPanel.dataset.view;
+  startCheckoutButton.hidden = false;
   startCheckoutButton.focus();
 }
 
-async function completePayment(mode) {
-  const statusTarget = checkoutStatus;
-  if (!(await updatePrinterStatus())) { statusTarget.textContent = t("printer.disconnected"); return; }
-  statusTarget.textContent = t("print.printing");
-  printButton.disabled = true;
-  document.querySelector("#pay-credit").disabled = true;
-  try {
-    statusTarget.textContent = await printer.print({ ...pos.receipt(), payment_method: mode });
-  } catch (error) {
-    console.error(error);
-    statusTarget.textContent = t("print.error", { error });
-  } finally {
-    printButton.disabled = false;
-    document.querySelector("#pay-credit").disabled = false;
-    updatePrinterStatus();
-  }
+function updatePaymentCompletion() {
+  const paymentLines = [...document.querySelectorAll(".payment-line")];
+  const paid = paymentLines.reduce((sum, line) => sum + (Number(line.querySelector("input").value) || 0), 0);
+  const remaining = Math.max(0, pos.total() - paid);
+  const nonCashPaid = paymentLines.reduce((sum, line) => line.querySelector("select").value === "CASH" ? sum : sum + (Number(line.querySelector("input").value) || 0), 0);
+  const cashPaid = paid - nonCashPaid;
+  const change = Math.max(0, cashPaid - Math.max(0, pos.total() - nonCashPaid));
+  document.querySelector("#payment-balance").textContent = `${t("checkout.remaining")}: $${remaining.toFixed(2)}`;
+  const changeLabel = document.querySelector("#payment-change");
+  changeLabel.hidden = change === 0;
+  changeLabel.textContent = change ? `${t("checkout.change")}: $${change.toFixed(2)}` : "";
+  const onCredit = document.querySelector("#credit-toggle").getAttribute("aria-pressed") === "true";
+  document.querySelector("#complete-sale").disabled = !onCredit && paid < pos.total();
+}
+
+function updatePaymentChoice() {
+  const credit = document.querySelector("#credit-toggle").getAttribute("aria-pressed") === "true";
+  const methods = credit ? [t("checkout.credit")] : [...document.querySelectorAll(".payment-line select")].map((select) => select.value === "CC" ? t("checkout.card") : t("checkout.cash"));
+  document.querySelector("#payment-choice").textContent = methods.length ? [...new Set(methods)].join(" + ") : "—";
 }
 
 startCheckoutButton.addEventListener("click", openCheckout);
@@ -195,10 +329,22 @@ checkoutFlow.addEventListener("click", (event) => {
   const next = event.target.closest("[data-checkout-next]");
   const back = event.target.closest("[data-checkout-back]");
   if (next) showCheckoutStage(next.dataset.checkoutNext);
-  if (back) showCheckoutStage(back.dataset.checkoutBack);
+  if (back) back.dataset.checkoutBack === "pos" ? closeCheckout() : showCheckoutStage(back.dataset.checkoutBack);
+  const sequence = event.target.closest("[data-sequence]");
+  if (sequence) document.querySelectorAll("[data-sequence]").forEach((button) => { button.dataset.variant = button === sequence ? "default" : "secondary"; });
 });
-printButton.addEventListener("click", () => completePayment("cash"));
-document.querySelector("#pay-credit").addEventListener("click", () => completePayment("credit"));
+document.querySelector("#customer-picker").addEventListener("click", () => openCustomers("checkout"));
+document.querySelector("#customer-continue").addEventListener("click", () => showCheckoutStage("payment"));
+document.querySelector("#delivery-toggle").addEventListener("click", (event) => { const active = event.currentTarget.getAttribute("aria-pressed") !== "true"; event.currentTarget.setAttribute("aria-pressed", String(active)); event.currentTarget.dataset.variant = active ? "default" : "outline"; const target = document.querySelector("#delivery-options"); target.hidden = !active; if (active) target.replaceChildren(...[100,150,200,250,300,400,500,600].map((amount) => { const button = document.createElement("button"); button.className = "btn"; button.dataset.variant = "secondary"; button.dataset.delivery = amount; button.textContent = `$${amount}`; return button; })); else { pos.setDelivery(0); document.querySelector("#delivery-summary").hidden = true; } updatePaymentCompletion(); });
+document.querySelector("#delivery-options").addEventListener("click", (event) => { const button = event.target.closest("[data-delivery]"); if (!button) return; pos.setDelivery(Number(button.dataset.delivery)); document.querySelector("#delivery-summary").hidden = false; document.querySelectorAll("[data-delivery]").forEach((item) => item.dataset.variant = item === button ? "default" : "secondary"); updatePaymentCompletion(); });
+document.querySelector("#add-payment-line").addEventListener("click", () => { const line = document.createElement("div"); line.className = "payment-line"; const previous = document.querySelector(".payment-line:last-child select")?.value; const method = previous === "CC" ? "CASH" : "CC"; line.innerHTML = `<select class="select" aria-label="${t("checkout.paymentMethod")}"><option value="CASH">${t("checkout.cash")}</option><option value="CC">${t("checkout.card")}</option></select><input class="input numeric" aria-label="${t("checkout.amount")}" type="number" min="0.01" step="0.01" placeholder="$ 0.00"><button class="btn" type="button" data-variant="ghost" data-size="icon" data-remove-payment aria-label="${t("checkout.removePayment")}">×</button>`; line.querySelector("select").value = method; document.querySelector("#payment-lines").append(line); updatePaymentChoice(); });
+document.querySelector("#payment-lines").addEventListener("click", (event) => { const button = event.target.closest("[data-remove-payment]"); if (!button) return; button.closest(".payment-line").remove(); document.querySelector("#payment-lines").dispatchEvent(new Event("input", { bubbles: true })); updatePaymentChoice(); });
+document.querySelector("#payment-lines").addEventListener("change", () => { updatePaymentChoice(); updatePaymentCompletion(); });
+document.querySelector("#payment-lines").addEventListener("input", updatePaymentCompletion);
+document.querySelector("#credit-toggle").addEventListener("click", (event) => { const active = event.currentTarget.getAttribute("aria-pressed") !== "true"; event.currentTarget.setAttribute("aria-pressed", String(active)); event.currentTarget.dataset.variant = active ? "default" : "outline"; document.querySelector("#payment-inputs").hidden = active; document.querySelector("#complete-sale").disabled = false; updatePaymentChoice(); });
+document.querySelector("#complete-sale").addEventListener("click", async () => { const complete = document.querySelector("#complete-sale"); const credit = document.querySelector("#credit-toggle").getAttribute("aria-pressed") === "true"; const payments = [...document.querySelectorAll(".payment-line")].map((line) => ({ type: line.querySelector("select").value, amount: Number(line.querySelector("input").value) || 0 })).filter((line) => line.amount); if (!credit && payments.reduce((sum, line) => sum + line.amount, 0) < pos.total()) return; const receipt = pos.receipt(); complete.disabled = true; try { await createSale({ store_id: 2, client_id: selectedCustomer.id, sequence_type: document.querySelector("[data-sequence][data-variant=default]").dataset.sequence, status: credit ? "CREDIT" : "CASH", sale_type: receipt.delivery ? "FOR_DELIVER" : "IN_SHOP", delivery_charge: receipt.delivery, lines: receipt.items.map((item) => ({ product_id: Number(item.id), quantity: item.qty, discount: item.discount })), payments: credit ? [] : payments }); completedReceipt = receipt; resetCompletedOrder(); closeCheckout(); document.querySelector("#receipt-dialog").showModal(); } catch (error) { checkoutStatus.textContent = error.message; complete.disabled = false; } });
+document.querySelector("#skip-print").addEventListener("click", () => { document.querySelector("#receipt-dialog").close(); completedReceipt = null; });
+document.querySelector("#print-receipt").addEventListener("click", async () => { try { if (completedReceipt) await printer.print(completedReceipt); } finally { document.querySelector("#receipt-dialog").close(); completedReceipt = null; } });
 
 pos.render();
 translateDocument();
@@ -208,6 +354,9 @@ onLanguageChange(() => {
   renderProducts();
   updatePrinterStatus();
   if (!checkoutFlow.hidden) showCheckoutStage(checkoutStage);
+  updateCustomerPicker();
+  if (!customersScreen.hidden) loadCustomers();
 });
+updateCustomerPicker();
 updatePrinterStatus();
 loadProducts();
