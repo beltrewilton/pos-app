@@ -4,11 +4,11 @@ defmodule PosServerWeb.ProductOrderController do
   alias Ecto.Changeset
   alias PosServer.Retaily.Orders
 
-  def index(conn, %{"store_id" => store_id}) do
+  def index(conn, %{"store_id" => store_id} = params) do
     case Integer.parse(store_id) do
       {id, ""} when id > 0 ->
-        case Orders.list_orders(conn.assigns.current_scope, id) do
-          {:ok, orders} -> json(conn, %{entries: orders})
+        case Orders.list_orders(conn.assigns.current_scope, id, params["status"]) do
+          {:ok, orders} -> json(conn, orders)
           {:error, reason} -> error(conn, reason)
         end
       _ -> error(conn, :invalid_params)

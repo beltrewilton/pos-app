@@ -39,10 +39,19 @@ export async function adjustInventory(adjustment) {
   return response.json();
 }
 
-export async function productOrders(storeId) {
+export async function productOrders(storeId, status = "") {
   const url = new URL(`${API_BASE_URL}/product-orders`); url.searchParams.set("store_id", storeId);
+  if (status) url.searchParams.set("status", status);
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Could not load purchase orders: ${response.status}`);
+  return response.json();
+}
+
+export async function purchaseSources(storeId) {
+  const url = new URL(`${API_BASE_URL}/purchase-sources`);
+  url.searchParams.set("store_id", storeId);
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Could not load purchase sources: ${response.status}`);
   return response.json();
 }
 

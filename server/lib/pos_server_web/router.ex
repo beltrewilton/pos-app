@@ -47,6 +47,7 @@ defmodule PosServerWeb.Router do
     post "/inventory/adjustments", InventoryController, :adjust
     post "/product-orders", ProductOrderController, :create
     get "/product-orders", ProductOrderController, :index
+    get "/purchase-sources", PurchaseSourceController, :index
     post "/product-orders/:id/receive", ProductOrderController, :receive
     get "/customers", CustomerController, :index
     post "/customers", CustomerController, :create

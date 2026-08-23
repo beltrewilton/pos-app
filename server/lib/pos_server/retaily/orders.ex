@@ -6,7 +6,7 @@ defmodule PosServer.Retaily.Orders do
   alias Ecto.Changeset
   alias PosServer.{Repo, TenantContext}
   alias PosServer.Retaily.OrderRequests.{Create, Receive}
-  alias PosServer.Retaily.{Inventory, Product, ProductOrder, ProductOrderLine, Store, User, UserStore}
+  alias PosServer.Retaily.{Inventory, InventoryContext, Product, ProductOrder, ProductOrderLine, Provider, Store, User, UserStore}
 
   def create_order(scope, attrs) do
     with {:ok, request} <- valid(Create, attrs),
@@ -29,15 +29,38 @@ defmodule PosServer.Retaily.Orders do
     end
   end
 
-  def list_orders(scope, store_id) do
+  def list_orders(scope, store_id, status \\ nil) do
     with {:ok, cashier, tenant} <- cashier(scope),
          :ok <- cashier_store?(cashier, store_id, tenant) do
-      orders = Repo.all(from(order in ProductOrder, where: order.to_store_id == ^store_id, order_by: [desc: order.date_closed, desc: order.date_opened], preload: [lines: :product]), prefix: tenant)
+      base_query = from(order in ProductOrder, where: order.to_store_id == ^store_id)
+      orders =
+        base_query
+        |> maybe_filter_status(status)
+        |> order_by([order], desc: order.date_closed, desc: order.date_opened)
+        |> preload([order], lines: :product)
+        |> Repo.all(prefix: tenant)
+      status_counts = Repo.all(from(order in base_query, group_by: order.status, select: {order.status, count(order.id)}), prefix: tenant) |> Map.new()
       store_names = store_names(orders, tenant)
-      {:ok, Enum.map(orders, &serialize_order(&1, store_names))}
+      provider_names = provider_names(orders, tenant)
+      {:ok, %{entries: Enum.map(orders, &serialize_order(&1, store_names, provider_names, tenant)), status_counts: status_counts}}
     else
       :error -> {:error, :forbidden_store}
       {:error, _} = error -> error
+    end
+  end
+
+  def list_purchase_sources(scope, store_id) do
+    with {:ok, tenant} <- InventoryContext.authorize_store(scope, store_id) do
+      providers =
+        Repo.all(
+          from(provider in Provider,
+            order_by: [asc: provider.name],
+            select: %{id: provider.id, name: provider.name}
+          ),
+          prefix: tenant
+        )
+
+      {:ok, providers}
     end
   end
 
@@ -145,7 +168,8 @@ defmodule PosServer.Retaily.Orders do
     line
     |> ProductOrderLine.changeset(%{
       quantity_observed: observed,
-      status: "received",
+      # The imported Retaily schema limits this column to varchar(10).
+      status: "transfered",
       user_receiver: username,
       receiver_last_update: now(),
       receiver_memo: memo
@@ -154,8 +178,13 @@ defmodule PosServer.Retaily.Orders do
   end
 
   defp close_order(order, username, tenant) do
+    status =
+      if Repo.exists?(from(line in ProductOrderLine, where: line.product_order_id == ^order.id and line.status != "transfered"), prefix: tenant),
+        do: "received",
+        else: "closed"
+
     order
-    |> ProductOrder.changeset(%{status: "received", user_receiver: username, date_closed: now()})
+    |> ProductOrder.changeset(%{status: status, user_receiver: username, date_closed: now()})
     |> Repo.update(prefix: tenant)
   end
 
@@ -202,17 +231,19 @@ defmodule PosServer.Retaily.Orders do
 
   defp order_response(id, tenant) do
     order = Repo.one!(from(order in ProductOrder, where: order.id == ^id, preload: [lines: :product]), prefix: tenant)
-    serialize_order(order, store_names([order], tenant))
+    serialize_order(order, store_names([order], tenant), provider_names([order], tenant), tenant)
   end
 
-  defp serialize_order(order, store_names) do
+  defp serialize_order(order, store_names, provider_names, tenant) do
+    current_quantities = current_quantities(order.lines, order.to_store_id, tenant)
+
     %{
       id: order.id,
       name: order.name,
       memo: order.memo,
       order_type: order.order_type,
       from_origin_id: order.from_origin_id,
-      from_origin_name: Map.get(store_names, order.from_origin_id, "External source"),
+      from_origin_name: source_name(order, store_names, provider_names),
       to_store_id: order.to_store_id,
       to_store_name: Map.get(store_names, order.to_store_id, "Unknown store"),
       user_requester: order.user_requester,
@@ -220,7 +251,7 @@ defmodule PosServer.Retaily.Orders do
       date_opened: order.date_opened,
       date_closed: order.date_closed,
       status: order.status,
-      lines: Enum.map(order.lines, &serialize_line/1)
+      lines: Enum.map(order.lines, &serialize_line(&1, current_quantities))
     }
   end
 
@@ -231,11 +262,40 @@ defmodule PosServer.Retaily.Orders do
     |> Map.new()
   end
 
-  defp serialize_line(line) do
+  defp provider_names(orders, tenant) do
+    provider_ids = orders |> Enum.filter(&(&1.order_type == "purchase")) |> Enum.map(& &1.from_origin_id) |> Enum.filter(&is_integer/1) |> Enum.uniq()
+
+    Repo.all(from(provider in Provider, where: provider.id in ^provider_ids, select: {provider.id, provider.name}), prefix: tenant)
+    |> Map.new()
+  end
+
+  defp maybe_filter_status(query, nil), do: query
+  defp maybe_filter_status(query, status), do: where(query, [order], order.status == ^status)
+
+  defp source_name(%{order_type: "purchase", from_origin_id: id}, _store_names, provider_names), do: Map.get(provider_names, id, "External source")
+  defp source_name(order, store_names, _provider_names), do: Map.get(store_names, order.from_origin_id, "External source")
+
+  defp current_quantities(lines, store_id, tenant) do
+    product_ids = lines |> Enum.map(& &1.product_id) |> Enum.uniq()
+
+    Repo.all(
+      from(inventory in Inventory,
+        where: inventory.store_id == ^store_id and inventory.product_id in ^product_ids,
+        select: {inventory.product_id, inventory.quantity}
+      ),
+      prefix: tenant
+    )
+    |> Map.new()
+  end
+
+  defp serialize_line(line, current_quantities) do
     %{
       id: line.id,
       product_id: line.product_id,
       product_name: line.product.name,
+      product_code: line.product.code,
+      product_cost: line.product.cost,
+      current_quantity: Map.get(current_quantities, line.product_id, 0),
       from_origin_id: line.from_origin_id,
       to_store_id: line.to_store_id,
       quantity: line.quantity,
