@@ -33,7 +33,8 @@ defmodule PosServer.Retaily.Orders do
     with {:ok, cashier, tenant} <- cashier(scope),
          :ok <- cashier_store?(cashier, store_id, tenant) do
       orders = Repo.all(from(order in ProductOrder, where: order.to_store_id == ^store_id, order_by: [desc: order.date_closed, desc: order.date_opened], preload: [lines: :product]), prefix: tenant)
-      {:ok, Enum.map(orders, &serialize_order/1)}
+      store_names = store_names(orders, tenant)
+      {:ok, Enum.map(orders, &serialize_order(&1, store_names))}
     else
       :error -> {:error, :forbidden_store}
       {:error, _} = error -> error
@@ -200,18 +201,20 @@ defmodule PosServer.Retaily.Orders do
   defp locked_inventory(product_id, store_id, tenant), do: Repo.one(from(inventory in Inventory, where: inventory.product_id == ^product_id and inventory.store_id == ^store_id, lock: "FOR UPDATE"), prefix: tenant)
 
   defp order_response(id, tenant) do
-    Repo.one!(from(order in ProductOrder, where: order.id == ^id, preload: [lines: :product]), prefix: tenant)
-    |> serialize_order()
+    order = Repo.one!(from(order in ProductOrder, where: order.id == ^id, preload: [lines: :product]), prefix: tenant)
+    serialize_order(order, store_names([order], tenant))
   end
 
-  defp serialize_order(order) do
+  defp serialize_order(order, store_names) do
     %{
       id: order.id,
       name: order.name,
       memo: order.memo,
       order_type: order.order_type,
       from_origin_id: order.from_origin_id,
+      from_origin_name: Map.get(store_names, order.from_origin_id, "External source"),
       to_store_id: order.to_store_id,
+      to_store_name: Map.get(store_names, order.to_store_id, "Unknown store"),
       user_requester: order.user_requester,
       user_receiver: order.user_receiver,
       date_opened: order.date_opened,
@@ -219,6 +222,13 @@ defmodule PosServer.Retaily.Orders do
       status: order.status,
       lines: Enum.map(order.lines, &serialize_line/1)
     }
+  end
+
+  defp store_names(orders, tenant) do
+    store_ids = orders |> Enum.flat_map(&[&1.from_origin_id, &1.to_store_id]) |> Enum.filter(&is_integer/1) |> Enum.uniq()
+
+    Repo.all(from(store in Store, where: store.id in ^store_ids, select: {store.id, store.name}), prefix: tenant)
+    |> Map.new()
   end
 
   defp serialize_line(line) do

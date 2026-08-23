@@ -160,7 +160,9 @@ defmodule PosServerWeb.SaleController do
 
   defp parse_date(_), do: {:error, :invalid_date}
 
-  defp valid_date_range(%Date{} = date_from, %Date{} = date_to) when date_from > date_to, do: {:error, :invalid_date}
+  defp valid_date_range(%Date{} = date_from, %Date{} = date_to) do
+    if Date.compare(date_from, date_to) == :gt, do: {:error, :invalid_date}, else: :ok
+  end
   defp valid_date_range(_, _), do: :ok
 
   defp parse_invoice_status(nil), do: {:ok, nil}

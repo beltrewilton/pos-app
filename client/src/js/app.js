@@ -92,6 +92,7 @@ const invoiceDetails = new Map();
 let invoiceSort = { key: "sequence", direction: "desc" };
 const inventoryScreen = document.querySelector("#inventory-screen");
 const ordersScreen = document.querySelector("#orders-screen");
+const purchaseOrderScreen = document.querySelector("#purchase-order-screen");
 const inventoryTableBody = document.querySelector("#inventory-table-body");
 const ordersTableBody = document.querySelector("#orders-table-body");
 const inventorySearchInput = document.querySelector("#inventory-search");
@@ -101,6 +102,7 @@ const ordersStatus = document.querySelector("#orders-status");
 let inventoryEntries = [], purchaseOrders = [], selectedOrder = null;
 let editingInventoryProductId = null;
 let inventorySort = { key: "last_update", direction: "desc" };
+let inventoryFilter = "";
 let purchaseOrderSort = { key: "last_updated", direction: "desc" };
 
 function updateInvoiceStickyOffset() {
@@ -586,7 +588,7 @@ function closeInvoiceReport() {
 }
 
 function formatOperationDate(value) { return value ? new Date(String(value).replace(" ", "T")).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—"; }
-function closeOperations() { inventoryScreen.hidden = true; ordersScreen.hidden = true; document.querySelector("#order-detail").hidden = true; }
+function closeOperations() { inventoryScreen.hidden = true; ordersScreen.hidden = true; purchaseOrderScreen.hidden = true; }
 function openInventory() { openPos(); closeOperations(); catalogPanel.dataset.view = "inventory"; appShell.classList.add("invoice-view"); inventoryScreen.hidden = false; selectSidebar("inventory-nav"); loadInventory(); requestAnimationFrame(() => document.querySelector("#inventory-title").focus()); }
 function openOrders() { openPos(); closeOperations(); catalogPanel.dataset.view = "orders"; appShell.classList.add("invoice-view"); ordersScreen.hidden = false; selectSidebar("orders-nav"); loadOrders(); requestAnimationFrame(() => document.querySelector("#orders-title").focus()); }
 function sortOperationEntries(entries, sort) { const factor = sort.direction === "asc" ? 1 : -1; return [...entries].sort((a, b) => { const left = a[sort.key] ?? "", right = b[sort.key] ?? ""; return (typeof left === "number" && typeof right === "number" ? left - right : String(left).localeCompare(String(right), undefined, { numeric: true, sensitivity: "base" })) * factor; }); }
@@ -596,12 +598,13 @@ function renderInventory() {
   inventoryTableBody.replaceChildren(...entries.map((entry) => {
     const row = document.createElement("tr");
     row.className = "table-row";
-    [entry.product_name || `Product #${entry.product_id}`, entry.store_name || "Current store", entry.quantity ?? 0, entry.prev_quantity ?? "—", formatOperationDate(entry.last_update), entry.user_updated || "—"].forEach((value) => {
+    row.dataset.inventoryProductId = entry.product_id;
+    [entry.product_name || `Product #${entry.product_id}`, entry.product_code || "—", entry.store_name || "Current store", currency(entry.product_cost), entry.quantity ?? 0, entry.prev_quantity ?? "—", formatOperationDate(entry.last_update), entry.user_updated || "—"].forEach((value) => {
       const cell = document.createElement("td"); cell.className = "table-cell"; cell.textContent = value; row.appendChild(cell);
     });
     const action = document.createElement("td"); action.className = "table-cell inventory-row-action";
     if (editingInventoryProductId === entry.product_id) {
-      action.innerHTML = `<div class="inventory-inline-editor"><label class="sr-only" for="inventory-add-${entry.product_id}">Quantity to add</label><input id="inventory-add-${entry.product_id}" class="input" type="number" inputmode="numeric" placeholder="Add" aria-label="Quantity to add" autofocus><button class="btn" type="button" data-variant="default" data-size="sm" data-save-inventory="${entry.product_id}">Save</button><button class="btn" type="button" data-variant="ghost" data-size="sm" data-cancel-inventory>Cancel</button></div>`;
+      action.innerHTML = `<div class="inventory-inline-editor"><label class="sr-only" for="inventory-add-${entry.product_id}">Quantity to add</label><input id="inventory-add-${entry.product_id}" class="input" type="number" inputmode="numeric" placeholder="Add" aria-label="Quantity to add"><button class="btn" type="button" data-variant="default" data-size="sm" data-save-inventory="${entry.product_id}">Save</button><button class="btn" type="button" data-variant="ghost" data-size="sm" data-cancel-inventory>Cancel</button></div>`;
     } else {
       action.innerHTML = `<button class="btn" type="button" data-variant="outline" data-size="sm" data-adjust-product="${entry.product_id}">Update</button>`;
     }
@@ -612,15 +615,24 @@ function renderInventory() {
 }
 function percentage(value) { return `${(Number(value || 0) * 100).toFixed(1)}%`; }
 function compactList(items, formatter, empty = "No activity") { return Array.isArray(items) && items.length ? items.map(formatter).join(" · ") : empty; }
-function inventoryMetric(title, value, description, tone = "") {
+function inventoryMetric(title, value, description, tone = "", filter = "") {
   const card = document.createElement("article");
   card.className = `card inventory-summary-card ${tone}`.trim();
+  const body = document.createElement(filter ? "button" : "div");
+  if (filter) {
+    body.className = "btn inventory-kpi";
+    body.type = "button";
+    body.dataset.inventoryFilter = filter;
+    body.dataset.variant = inventoryFilter === filter ? "secondary" : "ghost";
+    body.setAttribute("aria-pressed", String(inventoryFilter === filter));
+    body.setAttribute("aria-label", `Filter inventory by ${title.toLowerCase()}`);
+  }
   const header = document.createElement("div"); header.className = "card-header";
   const label = document.createElement("p"); label.className = "card-title"; label.textContent = title;
   const content = document.createElement("div"); content.className = "card-content";
   const metric = document.createElement("p"); metric.className = "inventory-kpi-value numeric"; metric.textContent = value;
   const detail = document.createElement("p"); detail.className = "inventory-kpi-detail"; detail.textContent = description;
-  header.appendChild(label); content.append(metric, detail); card.append(header, content);
+  header.appendChild(label); content.append(metric, detail); body.append(header, content); card.appendChild(body);
   return card;
 }
 function renderInventorySummary(summary) {
@@ -631,9 +643,9 @@ function renderInventorySummary(summary) {
   const paymentMix = compactList(summary.payment_method_mix, (item) => `${item.type}: ${currency(item.amount)}`);
   const cards = [
     inventoryMetric("Inventory valuation", currency(summary.inventory_valuation), `Current store · company total ${currency(summary.company_inventory_valuation)}`),
-    inventoryMetric("Negative-stock exposure", `${Number(summary.negative_stock_sku_count || 0)} SKUs`, `${Number(summary.negative_stock_units || 0)} units · ${currency(summary.negative_stock_value)}`, "inventory-summary-negative"),
+    inventoryMetric("Negative-stock exposure", `${Number(summary.negative_stock_sku_count || 0)} SKUs`, `${Number(summary.negative_stock_units || 0)} units · ${currency(summary.negative_stock_value)}`, "inventory-summary-negative", "negative"),
+    inventoryMetric("Uncosted inventory", `${Number(summary.uncosted_inventory_sku_count || 0)} SKUs`, `${Number(summary.uncosted_inventory_units || 0)} positive units with missing/zero cost`, "inventory-summary-warning", "uncosted"),
     inventoryMetric("Stockout rate", percentage(summary.zero_stock_rate), `${Number(summary.zero_stock_sku_count || 0)} of ${Number(summary.inventoried_sku_count || 0)} inventoried SKUs`, "inventory-summary-warning"),
-    inventoryMetric("Uncosted inventory", `${Number(summary.uncosted_inventory_sku_count || 0)} SKUs`, `${Number(summary.uncosted_inventory_units || 0)} positive units with missing/zero cost`, "inventory-summary-warning"),
     inventoryMetric("Net sales · 30 days", currency(summary.net_sales), `${Number(summary.sale_transaction_count || 0)} completed sale transactions`),
     inventoryMetric("Sales mix · 30 days", currency(summary.net_sales), salesMix),
     inventoryMetric("Average order", currency(summary.average_order_value), `${Number(summary.units_per_order || 0).toFixed(1)} net units per sale`),
@@ -645,30 +657,48 @@ function renderInventorySummary(summary) {
   ];
   inventorySummaryGrid.replaceChildren(...cards);
 }
-async function loadInventory() {
+function focusInventoryRow(productId) {
+  if (!productId) return;
+  const row = inventoryTableBody.querySelector(`[data-inventory-product-id="${productId}"]`);
+  if (!row) return;
+  row.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  row.querySelector("[data-adjust-product]")?.focus({ preventScroll: true });
+}
+function renderInventoryWithoutMoving() {
+  const scrollTop = catalogPanel.scrollTop;
+  renderInventory();
+  catalogPanel.scrollTop = scrollTop;
+}
+async function loadInventory(focusProductId = null) {
   inventoryStatus.textContent = "Loading inventory…";
   const storeId = document.querySelector("#inventory-store").value;
   try {
+    const inventoryUrl = new URL(`${API_BASE_URL}/inventory`);
+    inventoryUrl.searchParams.set("store_id", storeId);
+    if (inventoryFilter) inventoryUrl.searchParams.set("inventory_filter", inventoryFilter);
     const [inventoryResponse, summaryResponse] = await Promise.all([
-      fetch(`${API_BASE_URL}/inventory?store_id=${storeId}`),
+      fetch(inventoryUrl),
       inventorySummary(storeId)
     ]);
     if (!inventoryResponse.ok) throw new Error();
     inventoryEntries = (await inventoryResponse.json()).entries;
     renderInventorySummary(summaryResponse.summary);
     renderInventory();
+    requestAnimationFrame(() => focusInventoryRow(focusProductId));
   } catch (error) {
     console.error(error);
     inventoryStatus.textContent = "Inventory could not be loaded.";
   }
 }
-function renderOrders() { const entries = sortOperationEntries(purchaseOrders, purchaseOrderSort); ordersTableBody.replaceChildren(...entries.map((o) => { const r = document.createElement("tr"); r.className = "table-row"; [`#${o.id}`, o.from_origin_id || "—", o.to_store_id || "—", o.status === "received" ? "Processed" : "Open", formatOperationDate(o.date_opened), o.user_requester || "—"].forEach((v) => { const c = document.createElement("td"); c.className = "table-cell"; c.textContent = v; r.appendChild(c); }); const c = document.createElement("td"); c.className = "table-cell"; c.innerHTML = `<button class="btn" type="button" data-variant="outline" data-size="sm" data-order-detail="${o.id}">View</button>`; r.appendChild(c); return r; })); ordersStatus.textContent = entries.length ? `${entries.length} orders` : "No purchase orders found."; }
+function renderOrders() { const entries = sortOperationEntries(purchaseOrders, purchaseOrderSort); ordersTableBody.replaceChildren(...entries.map((o) => { const r = document.createElement("tr"); r.className = `table-row purchase-order-row purchase-order-${o.status === "received" ? "received" : "open"}`; [`#${o.id}`, o.from_origin_name || "External source", o.to_store_name || "—", o.status === "received" ? "Processed" : "Open", formatOperationDate(o.date_opened), o.user_requester || "—"].forEach((v) => { const c = document.createElement("td"); c.className = "table-cell"; c.textContent = v; r.appendChild(c); }); const c = document.createElement("td"); c.className = "table-cell"; c.innerHTML = `<button class="btn" type="button" data-variant="outline" data-size="sm" data-order-detail="${o.id}">View</button>`; r.appendChild(c); return r; })); ordersStatus.textContent = entries.length ? `${entries.length} orders` : "No purchase orders found."; }
 async function loadOrders() { ordersStatus.textContent = "Loading purchase orders…"; try { purchaseOrders = (await productOrders(storeId)).entries.map((order) => ({ ...order, last_updated: order.date_closed || order.date_opened })); renderOrders(); } catch { ordersStatus.textContent = "Purchase orders could not be loaded."; } }
-function showOrderDetail(order) { selectedOrder = order; const detail = document.querySelector("#order-detail"); detail.hidden = false; detail.innerHTML = `<div class="card-header"><div><p class="eyebrow">Order #${order.id}</p><h3 class="card-title">${order.status === "received" ? "Processed" : "Open"}</h3><p class="field-description">Destination store ${order.to_store_id} · Created by ${order.user_requester || "—"}</p></div>${order.status === "opened" ? '<button id="process-order" class="btn" type="button" data-variant="default">Process order</button>' : ""}</div><div class="card-content"><table class="table"><thead><tr class="table-row"><th class="table-head">Product</th><th class="table-head">Requested</th><th class="table-head">Observed</th><th class="table-head">Status</th></tr></thead><tbody>${order.lines.map((l) => `<tr class="table-row"><td class="table-cell">${l.product_name}</td><td class="table-cell">${l.quantity}</td><td class="table-cell">${l.quantity_observed ?? "—"}</td><td class="table-cell">${l.status}</td></tr>`).join("")}</tbody></table></div>`; detail.querySelector("#process-order")?.addEventListener("click", openProcessOrder); }
+function showOrderDetail(order) { selectedOrder = order; ordersScreen.hidden = true; purchaseOrderScreen.hidden = false; const detail = document.querySelector("#order-detail"); detail.innerHTML = `<div class="card-header"><div><p class="eyebrow">Order #${order.id}</p><h3 class="card-title">${order.status === "received" ? "Processed" : "Open"}</h3><p class="field-description">${order.from_origin_name || "External source"} → ${order.to_store_name || "—"} · Created by ${order.user_requester || "—"}</p></div>${order.status === "opened" ? '<button id="process-order" class="btn" type="button" data-variant="default">Process order</button>' : ""}</div><div class="card-content table-container"><table class="table purchase-order-lines-table"><caption class="table-caption">Products in this purchase order.</caption><thead><tr class="table-row"><th class="table-head">Product</th><th class="table-head">Requested</th><th class="table-head">Observed</th><th class="table-head">Status</th></tr></thead><tbody>${order.lines.map((l) => `<tr class="table-row"><td class="table-cell">${l.product_name}</td><td class="table-cell numeric">${l.quantity}</td><td class="table-cell numeric">${l.quantity_observed ?? "—"}</td><td class="table-cell">${l.status}</td></tr>`).join("")}</tbody></table></div>`; detail.querySelector("#process-order")?.addEventListener("click", openProcessOrder); requestAnimationFrame(() => document.querySelector("#purchase-order-title").focus()); }
+function openPurchaseOrderCreate() { ordersScreen.hidden = true; purchaseOrderScreen.hidden = false; const detail = document.querySelector("#order-detail"); detail.innerHTML = `<div class="card-header"><div><p class="eyebrow">Operations</p><h3 class="card-title">Create purchase order</h3><p class="field-description">Add products and confirm the requested quantities.</p></div></div><form id="purchase-order-create-form" class="form card-content"><div class="order-form-grid"><div class="form-field"><label class="label" for="purchase-order-source">Source / provider / store ID</label><input id="purchase-order-source" class="input" type="number" min="1" required></div><div class="form-field"><label class="label" for="purchase-order-destination">Destination store</label><select id="purchase-order-destination" class="select" required><option value="2">Current store</option></select></div></div><div id="order-lines" class="order-lines"></div><button id="add-order-line" class="btn" type="button" data-variant="outline" data-size="sm">Add product</button><p id="purchase-order-create-status" class="field-description" role="status"></p><div class="form-actions"><button class="btn" type="submit" data-variant="default">Create order</button></div></form>`; detail.querySelector("#add-order-line").addEventListener("click", addOrderLine); detail.querySelector("form").addEventListener("submit", createPurchaseOrder); addOrderLine(); requestAnimationFrame(() => document.querySelector("#purchase-order-title").focus()); }
+async function createPurchaseOrder(event) { event.preventDefault(); const lines = [...document.querySelectorAll("#order-lines .order-line")].map((line) => ({ product_id: Number(line.querySelector("select").value), quantity: Number(line.querySelector("input[type='number']").value) })); const status = document.querySelector("#purchase-order-create-status"); status.textContent = "Creating…"; try { const order = await createProductOrder({ order_type: "purchase", from_origin_id: Number(document.querySelector("#purchase-order-source").value), to_store_id: Number(document.querySelector("#purchase-order-destination").value), lines }); purchaseOrders.unshift(order); renderOrders(); showOrderDetail(order); window.toast?.success({ title: "Purchase order created", description: `Order #${order.id} is ready to process.` }); } catch (error) { status.textContent = error.message; } }
 function fillProductOptions(select) { const entries = inventoryEntries.length ? inventoryEntries : products.map((product) => ({ product_id: product.id, product_name: product.name })); select.replaceChildren(...entries.map((e) => new Option(e.product_name, e.product_id))); }
 function openInventoryDialog(productId) { const dialog = document.querySelector("#inventory-dialog"), select = document.querySelector("#inventory-product"); fillProductOptions(select); select.value = productId || inventoryEntries[0]?.product_id || ""; updateInventoryCurrent(); dialog.showModal(); }
 function updateInventoryCurrent() { const entry = inventoryEntries.find((e) => String(e.product_id) === document.querySelector("#inventory-product").value); document.querySelector("#inventory-current").value = entry?.quantity ?? 0; }
-function addOrderLine() { const line = document.createElement("div"); line.className = "order-line"; const select = document.createElement("select"); select.className = "select"; select.required = true; fillProductOptions(select); const qty = document.createElement("input"); qty.className = "input"; qty.type = "number"; qty.min = "1"; qty.value = "1"; qty.required = true; const remove = document.createElement("button"); remove.className = "btn"; remove.type = "button"; remove.dataset.variant = "ghost"; remove.textContent = "Remove"; remove.addEventListener("click", () => line.remove()); line.append(select, qty, remove); document.querySelector("#order-lines").appendChild(line); }
+function addOrderLine() { const line = document.createElement("div"); line.className = "order-line"; const select = document.createElement("select"); select.className = "select"; select.required = true; fillProductOptions(select); const current = document.createElement("input"); current.className = "input numeric"; current.type = "text"; current.readOnly = true; current.setAttribute("aria-label", "Current inventory quantity"); const updateCurrent = () => { const productId = Number(select.value); const entry = inventoryEntries.find((item) => Number(item.product_id) === productId) || products.find((item) => Number(item.id) === productId); current.value = entry?.quantity ?? entry?.inventory_quantity ?? 0; }; select.addEventListener("change", updateCurrent); updateCurrent(); const qty = document.createElement("input"); qty.className = "input"; qty.type = "number"; qty.min = "1"; qty.value = "1"; qty.required = true; qty.setAttribute("aria-label", "Requested quantity"); const remove = document.createElement("button"); remove.className = "btn"; remove.type = "button"; remove.dataset.variant = "ghost"; remove.textContent = "Remove"; remove.addEventListener("click", () => line.remove()); line.append(select, current, qty, remove); document.querySelector("#order-lines").appendChild(line); }
 function openOrderDialog() { document.querySelector("#order-form").reset(); document.querySelector("#order-lines").replaceChildren(); addOrderLine(); document.querySelector("#order-dialog").showModal(); }
 function openProcessOrder() { const lines = document.querySelector("#process-order-lines"); lines.replaceChildren(); selectedOrder.lines.forEach((line) => { const row = document.createElement("div"); row.className = "order-line process-line"; row.dataset.lineId = line.id; const name = document.createElement("span"); name.textContent = `${line.product_name} (requested ${line.quantity})`; const observed = document.createElement("input"); observed.className = "input"; observed.type = "number"; observed.min = "0"; observed.value = line.quantity_observed ?? line.quantity; row.append(name, observed); lines.appendChild(row); }); document.querySelector("#process-order-dialog").showModal(); }
 
@@ -834,12 +864,24 @@ document.querySelector("#inventory-screen thead").addEventListener("click", (eve
 document.querySelector("#orders-screen thead").addEventListener("click", (event) => { const button = event.target.closest("[data-order-sort]"); if (!button) return; const key = button.dataset.orderSort; purchaseOrderSort = { key, direction: purchaseOrderSort.key === key && purchaseOrderSort.direction === "asc" ? "desc" : "asc" }; document.querySelectorAll("[data-order-sort]").forEach((item) => item.parentElement.setAttribute("aria-sort", item === button ? (purchaseOrderSort.direction === "asc" ? "ascending" : "descending") : "none")); renderOrders(); });
 inventorySearchInput.addEventListener("input", renderInventory);
 document.querySelector("#inventory-store").addEventListener("change", loadInventory);
+document.querySelector("#inventory-kpis-toggle").addEventListener("click", (event) => {
+  const expanded = event.currentTarget.getAttribute("aria-expanded") !== "true";
+  inventorySummaryGrid.classList.toggle("is-collapsed", !expanded);
+  event.currentTarget.setAttribute("aria-expanded", String(expanded));
+  event.currentTarget.innerHTML = `${expanded ? "Show fewer KPIs" : "Show more KPIs"} <span aria-hidden="true">${expanded ? "⌃" : "⌄"}</span>`;
+});
+inventorySummaryGrid.addEventListener("click", (event) => {
+  const card = event.target.closest("[data-inventory-filter]");
+  if (!card) return;
+  inventoryFilter = inventoryFilter === card.dataset.inventoryFilter ? "" : card.dataset.inventoryFilter;
+  loadInventory();
+});
 inventoryTableBody.addEventListener("click", async (event) => {
   const update = event.target.closest("[data-adjust-product]");
   const cancel = event.target.closest("[data-cancel-inventory]");
   const save = event.target.closest("[data-save-inventory]");
-  if (update) { editingInventoryProductId = Number(update.dataset.adjustProduct); renderInventory(); return; }
-  if (cancel) { editingInventoryProductId = null; renderInventory(); return; }
+  if (update) { editingInventoryProductId = Number(update.dataset.adjustProduct); renderInventoryWithoutMoving(); return; }
+  if (cancel) { editingInventoryProductId = null; renderInventoryWithoutMoving(); return; }
   if (!save) return;
   const productId = Number(save.dataset.saveInventory);
   const input = document.querySelector(`#inventory-add-${productId}`);
@@ -849,7 +891,7 @@ inventoryTableBody.addEventListener("click", async (event) => {
   try {
     await adjustInventory({ product_id: productId, store_id: document.querySelector("#inventory-store").value, quantity });
     editingInventoryProductId = null;
-    await loadInventory();
+    await loadInventory(productId);
     refreshInventory([productId]).catch(console.error);
     window.toast?.success({ title: "Inventory updated", description: "The product quantity was refreshed." });
   } catch (error) {
@@ -858,10 +900,11 @@ inventoryTableBody.addEventListener("click", async (event) => {
   }
 });
 document.querySelector("#inventory-product").addEventListener("change", updateInventoryCurrent);
-document.querySelector("#inventory-form").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const quantity = Number(document.querySelector("#inventory-quantity").value); if (!Number.isInteger(quantity)) return; const status = document.querySelector("#inventory-form-status"); status.textContent = "Saving…"; try { await adjustInventory({ product_id: document.querySelector("#inventory-product").value, store_id: document.querySelector("#inventory-form-store").value, quantity }); document.querySelector("#inventory-dialog").close(); await loadInventory(); refreshInventory([document.querySelector("#inventory-product").value]).catch(console.error); window.toast?.success({ title: "Inventory updated", description: "The product quantity was refreshed." }); } catch (error) { status.textContent = error.message; } });
-document.querySelector("#create-order").addEventListener("click", openOrderDialog);
+document.querySelector("#inventory-form").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const productId = document.querySelector("#inventory-product").value; const quantity = Number(document.querySelector("#inventory-quantity").value); if (!Number.isInteger(quantity)) return; const status = document.querySelector("#inventory-form-status"); status.textContent = "Saving…"; try { await adjustInventory({ product_id: productId, store_id: document.querySelector("#inventory-form-store").value, quantity }); document.querySelector("#inventory-dialog").close(); await loadInventory(productId); refreshInventory([productId]).catch(console.error); window.toast?.success({ title: "Inventory updated", description: "The product quantity was refreshed." }); } catch (error) { status.textContent = error.message; } });
+document.querySelector("#create-order").addEventListener("click", openPurchaseOrderCreate);
+document.querySelector("#purchase-order-back").addEventListener("click", () => { purchaseOrderScreen.hidden = true; ordersScreen.hidden = false; requestAnimationFrame(() => document.querySelector("#orders-title").focus()); });
 document.querySelector("#add-order-line").addEventListener("click", addOrderLine);
-document.querySelector("#order-form").addEventListener("submit", async (event) => { event.preventDefault(); const lines = [...document.querySelectorAll("#order-lines .order-line")].map((line) => ({ product_id: Number(line.querySelector("select").value), quantity: Number(line.querySelector("input").value) })); const status = document.querySelector("#order-form-status"); status.textContent = "Creating…"; try { const order = await createProductOrder({ order_type: "purchase", from_origin_id: Number(document.querySelector("#order-source").value), to_store_id: Number(document.querySelector("#order-destination").value), lines }); document.querySelector("#order-dialog").close(); purchaseOrders.unshift(order); renderOrders(); showOrderDetail(order); window.toast?.success({ title: "Purchase order created", description: `Order #${order.id} is ready to process.` }); } catch (error) { status.textContent = error.message; } });
+document.querySelector("#order-form").addEventListener("submit", async (event) => { event.preventDefault(); const lines = [...document.querySelectorAll("#order-lines .order-line")].map((line) => ({ product_id: Number(line.querySelector("select").value), quantity: Number(line.querySelector("input[type='number']").value) })); const status = document.querySelector("#order-form-status"); status.textContent = "Creating…"; try { const order = await createProductOrder({ order_type: "purchase", from_origin_id: Number(document.querySelector("#order-source").value), to_store_id: Number(document.querySelector("#order-destination").value), lines }); document.querySelector("#order-dialog").close(); purchaseOrders.unshift(order); renderOrders(); showOrderDetail(order); window.toast?.success({ title: "Purchase order created", description: `Order #${order.id} is ready to process.` }); } catch (error) { status.textContent = error.message; } });
 ordersTableBody.addEventListener("click", (event) => { const button = event.target.closest("[data-order-detail]"); if (button) showOrderDetail(purchaseOrders.find((order) => String(order.id) === button.dataset.orderDetail)); });
 document.querySelector("#process-order-form").addEventListener("submit", async (event) => { event.preventDefault(); const status = document.querySelector("#process-order-status"); status.textContent = "Processing…"; try { const order = await receiveProductOrder(selectedOrder.id, { lines: [...document.querySelectorAll(".process-line")].map((row) => ({ id: Number(row.dataset.lineId), quantity_observed: Number(row.querySelector("input").value) })) }); document.querySelector("#process-order-dialog").close(); purchaseOrders = purchaseOrders.map((item) => item.id === order.id ? order : item); renderOrders(); showOrderDetail(order); loadInventory(); refreshInventory(order.lines.map((line) => line.product_id)).catch(console.error); window.toast?.success({ title: "Order processed", description: "Inventory quantities were refreshed." }); } catch (error) { status.textContent = error.message; } });
 document.querySelector(".invoice-table thead").addEventListener("click", (event) => {

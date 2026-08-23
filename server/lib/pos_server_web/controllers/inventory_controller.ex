@@ -18,17 +18,18 @@ defmodule PosServerWeb.InventoryController do
 
   def index(conn, params) do
     with {:ok, store_id} <- positive_integer(params["store_id"]),
-         {:ok, entries} <- inventory_entries(conn.assigns.current_scope, store_id, params["product_ids"]) do
+         {:ok, inventory_filter} <- inventory_filter(params["inventory_filter"]),
+         {:ok, entries} <- inventory_entries(conn.assigns.current_scope, store_id, params["product_ids"], inventory_filter) do
       json(conn, %{entries: entries})
     else
-      {:error, :invalid_params} -> conn |> put_status(:bad_request) |> json(%{error: "store_id and product_ids are required"})
+      {:error, :invalid_params} -> conn |> put_status(:bad_request) |> json(%{error: "store_id, product_ids, or inventory_filter is invalid"})
       :error -> conn |> put_status(:forbidden) |> json(%{error: "store is not assigned to cashier"})
       {:error, reason} -> conn |> put_status(:unprocessable_entity) |> json(%{error: to_string(reason)})
     end
   end
 
-  defp inventory_entries(scope, store_id, nil), do: InventoryContext.list(scope, store_id)
-  defp inventory_entries(scope, store_id, ids) do
+  defp inventory_entries(scope, store_id, nil, inventory_filter), do: InventoryContext.list(scope, store_id, inventory_filter)
+  defp inventory_entries(scope, store_id, ids, _inventory_filter) do
     with {:ok, product_ids} <- product_ids(ids) do
       InventoryContext.quantities(scope, store_id, product_ids)
     end
@@ -71,4 +72,8 @@ defmodule PosServerWeb.InventoryController do
     end
   end
   defp positive_integer(_), do: {:error, :invalid_params}
+
+  defp inventory_filter(nil), do: {:ok, nil}
+  defp inventory_filter(filter) when filter in ["negative", "uncosted"], do: {:ok, filter}
+  defp inventory_filter(_), do: {:error, :invalid_params}
 end
