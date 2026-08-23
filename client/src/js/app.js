@@ -284,7 +284,7 @@ function invoicePaymentForm(invoice) {
       amount.readOnly = true;
       amount.setAttribute("aria-label", label);
     } else {
-      amount.type = "number"; amount.min = "0.01"; amount.max = invoice.due_balance; amount.step = "0.01";
+      amount.type = "number"; amount.min = "0.01"; amount.max = invoice.due_balance; amount.step = "0.01"; amount.required = true;
       amount.name = "paymentAmount";
     }
     amountWrap.append(amountLabel, amount);
@@ -306,7 +306,7 @@ function invoicePaymentForm(invoice) {
     createMethodSelector(payoff, "Payoff payment method"),
   );
   const payOff = document.createElement("button");
-  payOff.className = "btn"; payOff.type = "submit"; payOff.dataset.variant = "default"; payOff.textContent = "Pay off";
+  payOff.className = "btn"; payOff.type = "submit"; payOff.formNoValidate = true; payOff.dataset.variant = "default"; payOff.textContent = "Pay off";
   payoff.appendChild(payOff);
   payment.append(primary, payoff);
   return payment;
@@ -358,6 +358,8 @@ function invoiceRow(invoice) {
     const cancel = document.createElement("button");
     cancel.className = "btn invoice-cancel"; cancel.type = "button"; cancel.dataset.variant = "ghost"; cancel.dataset.size = "sm"; cancel.dataset.cancelInvoice = invoice.id; cancel.textContent = "Cancel";
     actions.appendChild(cancel);
+  } else {
+    actions.textContent = invoice.cancelled_by || "—";
   }
   row.appendChild(actions);
   return row;
@@ -390,6 +392,12 @@ function invoiceDetailsRow(invoice) {
     headerCopy.append(title, description);
     header.appendChild(headerCopy);
     if (detail.invoice_status === "open") header.appendChild(invoicePaymentForm(detail));
+    if (["close", "cancelled"].includes(detail.invoice_status)) {
+      const statusBadge = document.createElement("span");
+      statusBadge.className = `invoice-status invoice-detail-status invoice-status-${detail.invoice_status}`;
+      statusBadge.textContent = invoiceStatusLabel(detail.invoice_status);
+      header.appendChild(statusBadge);
+    }
     const content = document.createElement("div");
     content.className = "card-content";
     const paymentTableWrap = document.createElement("div");
@@ -492,6 +500,26 @@ function invoiceDetailsRow(invoice) {
 function renderInvoices() {
   invoiceTableBody.replaceChildren(...invoices.flatMap((invoice) => expandedInvoiceId === invoice.id ? [invoiceRow(invoice), invoiceDetailsRow(invoice)] : [invoiceRow(invoice)]));
   if (!invoices.length && !invoiceLoading) invoiceReportStatus.textContent = "No invoices found.";
+}
+
+function renderInvoicesPreservingScroll(invoiceId) {
+  const currentTrigger = invoiceTableBody.querySelector(`[data-invoice-detail="${invoiceId}"]`);
+  const currentDetails = currentTrigger?.closest("tr")?.nextElementSibling;
+  const scrollTop = catalogPanel.scrollTop;
+  const offset = currentDetails ? currentDetails.getBoundingClientRect().top - catalogPanel.getBoundingClientRect().top : null;
+
+  renderInvoices();
+
+  requestAnimationFrame(() => {
+    const refreshedTrigger = invoiceTableBody.querySelector(`[data-invoice-detail="${invoiceId}"]`);
+    const refreshedDetails = refreshedTrigger?.closest("tr")?.nextElementSibling;
+    if (offset !== null && refreshedDetails) {
+      const refreshedOffset = refreshedDetails.getBoundingClientRect().top - catalogPanel.getBoundingClientRect().top;
+      catalogPanel.scrollTop = scrollTop + refreshedOffset - offset;
+    } else {
+      catalogPanel.scrollTop = scrollTop;
+    }
+  });
 }
 
 function sortInvoices() {
@@ -805,7 +833,7 @@ invoiceTableBody.addEventListener("submit", async (event) => {
     const sale = await addSalePayment(invoice.id, { amount, type: paymentRow.dataset.paymentType });
     Object.assign(invoice, sale);
     invoiceDetails.set(invoice.id, sale);
-    renderInvoices();
+    renderInvoicesPreservingScroll(invoice.id);
     invoiceReportStatus.textContent = "Payment recorded.";
     window.toast?.success({ title: "Payment recorded", description: `${currency(amount)} applied to invoice ${invoice.sequence || invoice.id}.` });
   } catch (error) {

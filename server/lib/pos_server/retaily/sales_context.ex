@@ -69,7 +69,7 @@ defmodule PosServer.Retaily.Sales do
             Enum.each(lines, fn line -> restore_inventory!(line, sale.store_id, tenant) end)
 
             sale
-            |> Changeset.change(status: "RETURN")
+            |> Changeset.change(status: "RETURN", cancelled_by: cashier.username)
             |> Repo.update!(prefix: tenant)
 
             {sale_response(sale.id, tenant), true}
@@ -290,6 +290,7 @@ defmodule PosServer.Retaily.Sales do
       date_create: sale.date_create,
       store_id: sale.store_id,
       login: sale.login,
+      cancelled_by: sale.cancelled_by,
       additional_info: sale.additional_info,
       client: serialize_client(sale.client),
       lines: Enum.map(sale.sale_lines, &serialize_line/1),

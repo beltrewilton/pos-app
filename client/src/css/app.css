@@ -881,6 +881,10 @@ button {
   font-size: 0.7rem;
   font-weight: 720;
 }
+.invoice-detail-status {
+  flex-shrink: 0;
+  align-self: flex-start;
+}
 .invoice-status-close {
   background: color-mix(in oklch, #249a68 15%, white);
   color: #137247;

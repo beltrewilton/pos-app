@@ -203,6 +203,7 @@ defmodule PosServer.Repo.Migrations.CreateRetailySchema do
       add :sale_type, :string, size: 45
       add :date_create, :naive_datetime, default: fragment("CURRENT_TIMESTAMP")
       add :login, :string, size: 45
+      add :cancelled_by, :string, size: 45
       add :client_id, :bigint, default: 0, null: false
       add :store_id, :bigint, default: 0, null: false
       add :additional_info, :string, size: 1000

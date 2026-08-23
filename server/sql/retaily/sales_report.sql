@@ -11,6 +11,7 @@ SELECT
   sale.sale_type,
   sale.date_create,
   sale.login,
+  sale.cancelled_by,
   sale.additional_info,
   sale.store_id,
   client.id AS client_id,
