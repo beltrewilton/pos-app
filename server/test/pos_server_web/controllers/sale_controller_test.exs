@@ -107,30 +107,31 @@ defmodule PosServerWeb.SaleControllerTest do
     assert Repo.aggregate(from(payment in SalePaid, where: payment.sale_id == ^sale["id"]), :count, prefix: @prefix) == 1
   end
 
-  test "insufficient stock rolls back the sequence and every sale write", %{walex_conn: conn} do
+  test "backorders decrement low and negative inventory", %{walex_conn: conn} do
     before_sequence = Repo.get_by!(Sequence, [code: "DV"], prefix: @prefix).current_seq
     before_quantity = inventory_quantity(19_463)
     before_negative_quantity = inventory_quantity(19_385)
 
-    response =
+    low_stock_sale =
       conn
-      |> post(~p"/api/sales", delivery_sale_payload(%{lines: [%{product_id: 19_463, quantity: 13, discount: "0"}]}))
-      |> json_response(:unprocessable_entity)
+      |> post(~p"/api/sales", delivery_sale_payload(%{lines: [%{product_id: 19_463, quantity: 13, discount: "0"}], payments: []}))
+      |> json_response(:created)
 
-    assert response["error"] == "insufficient_stock"
-    assert Repo.get_by!(Sequence, [code: "DV"], prefix: @prefix).current_seq == before_sequence
-    assert inventory_quantity(19_463) == before_quantity
-    assert Repo.aggregate(Sale, :count, prefix: @prefix) == 0
-    assert Repo.aggregate(SaleLine, :count, prefix: @prefix) == 0
+    assert low_stock_sale["invoice_status"] == "open"
+    assert inventory_quantity(19_463) == before_quantity - 13
+    assert Repo.get_by!(Sequence, [code: "DV"], prefix: @prefix).current_seq == before_sequence + 1
+    assert Repo.aggregate(Sale, :count, prefix: @prefix) == 1
+    assert Repo.aggregate(SaleLine, :count, prefix: @prefix) == 1
     assert Repo.aggregate(SalePaid, :count, prefix: @prefix) == 0
 
-    negative =
+    negative_stock_sale =
       authenticated_conn_for("walex")
-      |> post(~p"/api/sales", delivery_sale_payload(%{lines: [%{product_id: 19_385, quantity: 1, discount: "0"}]}))
-      |> json_response(:unprocessable_entity)
+      |> post(~p"/api/sales", delivery_sale_payload(%{lines: [%{product_id: 19_385, quantity: 1, discount: "0"}], payments: []}))
+      |> json_response(:created)
 
-    assert negative["error"] == "insufficient_stock"
-    assert inventory_quantity(19_385) == before_negative_quantity
+    assert negative_stock_sale["invoice_status"] == "open"
+    assert inventory_quantity(19_385) == before_negative_quantity - 1
+    assert Repo.get_by!(Sequence, [code: "DV"], prefix: @prefix).current_seq == before_sequence + 2
   end
 
   test "requires a tenant scope and enforces tenant and assigned-store isolation", %{no_store_conn: no_store_conn, other_tenant_conn: other_tenant_conn} do

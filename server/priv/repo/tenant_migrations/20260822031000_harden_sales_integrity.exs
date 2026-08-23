@@ -2,25 +2,19 @@ defmodule PosServer.Repo.Migrations.HardenSalesIntegrity do
   use Ecto.Migration
 
   def up do
-    alter table(:sale) do
-      modify :amount, :decimal, precision: 14, scale: 2
-      modify :sub, :decimal, precision: 14, scale: 2
-      modify :discount, :decimal, precision: 14, scale: 2
-      modify :tax_amount, :decimal, precision: 14, scale: 2
-      modify :delivery_charge, :decimal, precision: 14, scale: 2
-    end
+    # The imported Retaily schema stores money as double precision. Convert
+    # existing values explicitly and round them to the scale used by Ecto's
+    # :decimal fields before sales code starts writing Decimal values.
+    convert_money_columns(:sale, [:amount, :sub, :discount, :tax_amount, :delivery_charge])
+    convert_money_columns(:sale_line, [:amount, :tax_amount, :discount, :total_amount])
+    convert_money_columns(:sale_paid, [:amount])
 
     alter table(:sale_line) do
-      modify :amount, :decimal, precision: 14, scale: 2
-      modify :tax_amount, :decimal, precision: 14, scale: 2
-      modify :discount, :decimal, precision: 14, scale: 2
-      modify :total_amount, :decimal, precision: 14, scale: 2
       modify :sale_id, references(:sale, type: :bigint, on_delete: :restrict)
       modify :product_id, references(:product, type: :bigint, on_delete: :restrict)
     end
 
     alter table(:sale_paid) do
-      modify :amount, :decimal, precision: 14, scale: 2
       modify :sale_id, references(:sale, type: :bigint, on_delete: :restrict)
     end
 
@@ -57,5 +51,24 @@ defmodule PosServer.Repo.Migrations.HardenSalesIntegrity do
       modify :sub, :float
       modify :amount, :float
     end
+  end
+
+  defp convert_money_columns(table, columns) do
+    schema = quoted_identifier(prefix() || "public")
+    table = quoted_identifier(table)
+
+    Enum.each(columns, fn column ->
+      column = quoted_identifier(column)
+
+      execute("""
+      ALTER TABLE #{schema}.#{table}
+      ALTER COLUMN #{column} TYPE numeric(14, 2)
+      USING round(#{column}::numeric, 2)
+      """)
+    end)
+  end
+
+  defp quoted_identifier(identifier) do
+    "\"#{identifier |> to_string() |> String.replace("\"", "\"\"")}\""
   end
 end

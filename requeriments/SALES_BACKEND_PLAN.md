@@ -25,7 +25,7 @@ Use dedicated Triplex test schemas and seed only the referenced Retaily rows. Ev
 2. **Credit/open sale (`363873`):** customer `26623`, product `19203`, quantity `1`, unit `240`, discount `40`, no initial payment. Assert the open balance and inventory decrease; add `CASH 200` and assert closure without a further stock change.
 3. **Multiple lines (`363885`):** customer `24181`, lines `(8679, 1, 1800, 200, 1600)` and `(19383, 1, 230, 0, 230)`, with `CASH 1830`. Assert server-derived amount/discount, one closed sale, and each product inventory decreases by `1`.
 4. **Cancellation/restock:** cancel the delivery sale, assert `RETURN`/cancelled state and restoration of its pre-sale inventory; repeat cancellation and assert stock, lines, and payments are unchanged.
-5. **Insufficient stock and rollback:** request `19463` quantity `13` when the seed quantity is `12`; assert no sequence, sale, line, payment, or inventory change. Also reject `19385`, seeded at `-144`.
+5. **Backorder inventory:** request `19463` quantity `13` when the seed quantity is `12`; assert a sale is created, the sequence advances, and inventory becomes `-1`. Also sell `19385`, seeded at `-144`, and assert it becomes `-145`.
 6. **Tenant and store isolation:** no bearer scope returns `401`; a second tenant cannot see seeded sales; a cashier without store `2` cannot create or list its sales.
 7. **Simple paid checkout:** cashier `walex` sells product `19383` to customer `30218` for `CASH 230`; assert the closed invoice, payment, line, and one-unit inventory decrease.
 8. **Ten-product, multi-day credit collection:** create a credit sale for customer `30218` with ten real `educa` store-2 products, quantities `5` through `14`. Record inventory before/after each line, then settle `25155` through `CASH 10000`, `CC 8000`, and `CASH 7155`; assign three test-database payment dates and assert the final invoice is closed.
@@ -33,4 +33,4 @@ Use dedicated Triplex test schemas and seed only the referenced Retaily rows. Ev
 
 ## Focused improvement proposal
 
-Replace the legacy per-row commits and client-trusted totals with a single tenant-scoped PostgreSQL transaction using row locks and `Decimal`. This prevents partial sales, duplicate sequence use, overselling under concurrent checkouts, cross-store access, and cancellation restocks happening more than once.
+Replace the legacy per-row commits and client-trusted totals with a single tenant-scoped PostgreSQL transaction using row locks and `Decimal`. This prevents partial sales, duplicate sequence use, stale inventory updates, cross-store access, and cancellation restocks happening more than once while allowing Retaily backorders.

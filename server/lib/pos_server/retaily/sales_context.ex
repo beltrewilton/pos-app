@@ -5,7 +5,7 @@ defmodule PosServer.Retaily.Sales do
 
   alias Ecto.Changeset
   alias PosServer.{Repo, TenantContext}
-  alias PosServer.Retaily.{Client, Inventory, Product, Sale, SaleLine, SalePaid, Sequence, User, UserStore}
+  alias PosServer.Retaily.{Client, Inventory, PricingList, Product, Sale, SaleLine, SalePaid, Sequence, User, UserStore}
   alias PosServer.Retaily.SaleRequests.{Checkout, Payment}
 
   @tax_rate Decimal.new("0.18")
@@ -151,14 +151,20 @@ defmodule PosServer.Retaily.Sales do
       Enum.reduce_while(lines, {:ok, []}, fn line, {:ok, result} ->
         inventory = Repo.one(from(i in Inventory, where: i.store_id == ^store_id and i.product_id == ^line.product_id, lock: "FOR UPDATE"), prefix: tenant)
         product = Repo.get(Product, line.product_id, prefix: tenant)
+        price = if product, do: sale_price(product, tenant)
 
         cond do
           is_nil(inventory) or is_nil(product) -> {:halt, {:error, :product_not_found}}
           product.active != 1 -> {:halt, {:error, :inactive_product}}
-          inventory.quantity < line.quantity -> {:halt, {:error, :insufficient_stock}}
-          is_nil(product.price) -> {:halt, {:error, :product_has_no_price}}
+          is_nil(price) -> {:halt, {:error, :product_has_no_price}}
           true ->
-            unit_price = Decimal.from_float(product.price)
+            # Retaily allows backorders, including sales from an already
+            # negative inventory balance. The locked row still guarantees
+            # this decrement is atomic.
+            # product.price and pricing_list.price are legacy double precision
+            # columns. Normalize the catalog value before it becomes the
+            # immutable Decimal sale snapshot.
+            unit_price = price |> Decimal.from_float() |> Decimal.round(2)
             extended = unit_price |> Decimal.mult(line.quantity) |> Decimal.sub(line.discount)
 
             if Decimal.negative?(extended) do
@@ -176,6 +182,20 @@ defmodule PosServer.Retaily.Sales do
     %Sale{}
     |> Sale.changeset(%{amount: totals.amount, sub: totals.sub, discount: totals.discount, tax_amount: totals.tax, delivery_charge: checkout.delivery_charge, sequence: sequence, sequence_type: checkout.sequence_type, status: checkout.status, sale_type: checkout.sale_type, login: login, client_id: checkout.client_id, store_id: checkout.store_id, additional_info: checkout.additional_info})
     |> Repo.insert(prefix: tenant)
+  end
+
+  # Retaily's active POS price is the default pricing list when the legacy
+  # product.price column is empty.
+  defp sale_price(%Product{price: price}, _tenant) when is_number(price), do: price
+
+  defp sale_price(product, tenant) do
+    Repo.one(
+      from(entry in PricingList,
+        where: entry.product_id == ^product.id and entry.pricing_id == 1,
+        select: entry.price
+      ),
+      prefix: tenant
+    )
   end
 
   defp insert_lines(lines, sale_id, tenant) do
