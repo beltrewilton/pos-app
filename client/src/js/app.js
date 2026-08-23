@@ -1,5 +1,5 @@
 import * as printer from "./printer.js";
-import { activeProducts, customers, createCustomer, createSale, inventoryQuantities } from "./api.js";
+import { API_BASE_URL, activeProducts, addSalePayment, cancelSale, createCustomer, createSale, customers, inventoryQuantities, salesReport } from "./api.js";
 import { createPos } from "./pos.js";
 import { onLanguageChange, t, translateDocument } from "./i18n.js";
 import { createLanguageSwitcher } from "./language-switcher.js";
@@ -10,6 +10,7 @@ const printStatus = document.querySelector("#print-status");
 const checkoutFlow = document.querySelector("#checkout-flow");
 const checkoutStatus = document.querySelector("#checkout-status");
 const catalogPanel = document.querySelector(".catalog-panel");
+const appShell = document.querySelector("#app-shell");
 const startCheckoutButton = document.querySelector("#start-checkout");
 const productGrid = document.querySelector("#product-grid");
 const productStatus = document.querySelector("#products-status");
@@ -22,6 +23,19 @@ const customerSearch = document.querySelector("#customer-search");
 const customerDialog = document.querySelector("#customer-dialog");
 const customerForm = document.querySelector("#customer-form");
 const customerFormStatus = document.querySelector("#customer-form-status");
+const invoiceReport = document.querySelector("#invoice-report");
+const invoiceReportFixed = document.querySelector(".invoice-report-fixed");
+const invoiceTableBody = document.querySelector("#invoice-table-body");
+const invoiceReportStatus = document.querySelector("#invoice-report-status");
+const invoiceSearch = document.querySelector("#invoice-search");
+const invoiceSentinel = document.querySelector("#invoice-sentinel");
+const invoiceFilters = document.querySelector("#invoice-filters");
+const invoiceDateFrom = document.querySelector("#invoice-date-from");
+const invoiceDateTo = document.querySelector("#invoice-date-to");
+const invoiceDateRangeTrigger = document.querySelector("#invoice-date-range-trigger");
+const invoiceDateRangeDialog = document.querySelector("#invoice-date-range-dialog");
+const invoiceCalendarGrid = document.querySelector("#invoice-calendar-grid");
+const invoiceCancelDialog = document.querySelector("#invoice-cancel-dialog");
 const orderTitle = document.querySelector("#order-title");
 const clearCustomerButton = document.querySelector("#clear-customer");
 const languageSwitcher = createLanguageSwitcher(document.querySelector("#language-switcher"));
@@ -64,6 +78,21 @@ let checkoutStage = "customer";
 let selectedCustomer = null;
 let customerSearchTimer;
 let completedReceipt = null;
+let invoiceCursor = null;
+let invoiceHasMore = true;
+let invoiceLoading = false;
+let invoices = [];
+let invoiceSearchTimer;
+let invoicePendingCancellation = null;
+let calendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+let calendarRange = { from: "", to: "" };
+let invoiceStatusFilter = "";
+
+function updateInvoiceStickyOffset() {
+  invoiceReport.style.setProperty("--invoice-fixed-height", `${invoiceReportFixed.offsetHeight}px`);
+}
+
+new ResizeObserver(updateInvoiceStickyOffset).observe(invoiceReportFixed);
 
 function updateCustomerPicker() {
   orderTitle.textContent = selectedCustomer?.name || t("customer.pick");
@@ -150,6 +179,203 @@ function closeCustomers() {
   if (catalogPanel.dataset.view === "customers") delete catalogPanel.dataset.view;
   if (customerReturn === "checkout") { catalogPanel.dataset.view = "checkout"; checkoutFlow.hidden = false; showCheckoutStage("customer"); }
   else orderTitle.focus();
+}
+
+function currency(value) {
+  return `$${Number(value || 0).toFixed(2)}`;
+}
+
+function dateValue(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function rangeLabel(from, to) {
+  if (!from) return "Any date";
+  const format = (value) => new Date(`${value}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  return to ? `${format(from)} – ${format(to)}` : format(from);
+}
+
+function renderCalendar() {
+  document.querySelector("#calendar-month-label").textContent = calendarMonth.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  document.querySelector("#invoice-date-range-description").textContent = calendarRange.from && !calendarRange.to ? "Choose an end date to complete the range." : "Choose a start date, then an end date.";
+  invoiceCalendarGrid.replaceChildren();
+  const firstWeekday = calendarMonth.getDay();
+  const daysInMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0).getDate();
+  for (let blank = 0; blank < firstWeekday; blank += 1) invoiceCalendarGrid.appendChild(document.createElement("span"));
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const date = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), day);
+    const value = dateValue(date);
+    const button = document.createElement("button");
+    button.className = "btn calendar-day";
+    button.type = "button";
+    button.dataset.date = value;
+    button.dataset.variant = "ghost";
+    button.dataset.size = "icon-sm";
+    button.setAttribute("role", "gridcell");
+    button.setAttribute("aria-label", date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" }));
+    button.setAttribute("aria-selected", String(value === calendarRange.from || value === calendarRange.to));
+    if (calendarRange.from && calendarRange.to && value > calendarRange.from && value < calendarRange.to) button.dataset.range = "middle";
+    if (value === dateValue(new Date())) button.dataset.today = "";
+    button.textContent = day;
+    invoiceCalendarGrid.appendChild(button);
+  }
+}
+
+function openDateRangePicker() {
+  calendarRange = { from: invoiceDateFrom.value, to: invoiceDateTo.value };
+  const initial = calendarRange.from ? new Date(`${calendarRange.from}T00:00:00`) : new Date();
+  calendarMonth = new Date(initial.getFullYear(), initial.getMonth(), 1);
+  renderCalendar();
+  invoiceDateRangeDialog.showModal();
+}
+
+function invoiceStatusLabel(status) {
+  return status === "close" ? "Paid" : status === "cancelled" ? "Cancelled" : "Pending";
+}
+
+function updateInvoiceSummary(summary) {
+  if (!summary) return;
+
+  [["paid", "paid"], ["pending", "pending"], ["cancelled", "cancelled"]].forEach(([name, key]) => {
+    document.querySelector(`#invoice-${name}-count`).textContent = Number(summary[`${key}_count`] || 0);
+    document.querySelector(`#invoice-${name}-total`).textContent = currency(summary[`${key}_total`]);
+  });
+}
+
+function invoiceRow(invoice) {
+  const row = document.createElement("tr");
+  row.className = "table-row invoice-row";
+  const values = [
+    invoice.sequence || `#${invoice.id}`,
+    invoice.client_name || "Walk-in customer",
+    invoice.date_create ? new Date(invoice.date_create.replace(" ", "T")).toLocaleDateString() : "—",
+  ];
+  values.forEach((value) => {
+    const cell = document.createElement("td");
+    cell.className = "table-cell";
+    cell.textContent = value;
+    row.appendChild(cell);
+  });
+  const status = document.createElement("td");
+  status.className = "table-cell";
+  const badge = document.createElement("span");
+  badge.className = `invoice-status invoice-status-${invoice.invoice_status}`;
+  badge.textContent = invoiceStatusLabel(invoice.invoice_status);
+  status.appendChild(badge);
+  row.appendChild(status);
+  [invoice.amount, invoice.due_balance].forEach((amount) => {
+    const cell = document.createElement("td");
+    cell.className = "table-cell numeric";
+    cell.textContent = currency(amount);
+    row.appendChild(cell);
+  });
+  const actions = document.createElement("td");
+  actions.className = "table-cell invoice-actions";
+  if (invoice.invoice_status === "open") {
+    const payment = document.createElement("form");
+    payment.className = "invoice-payment";
+    payment.dataset.invoiceId = invoice.id;
+    const inputId = `invoice-payment-${invoice.id}`;
+    const label = document.createElement("label");
+    label.className = "label sr-only";
+    label.htmlFor = inputId;
+    label.textContent = `Payment amount for ${invoice.sequence || invoice.id}`;
+    const amount = document.createElement("input");
+    amount.className = "input numeric";
+    amount.id = inputId;
+    amount.type = "number"; amount.min = "0.01"; amount.max = invoice.due_balance; amount.step = "0.01"; amount.required = true;
+    amount.value = Number(invoice.due_balance).toFixed(2);
+    const typeId = `invoice-payment-type-${invoice.id}`;
+    const typeLabel = document.createElement("label");
+    typeLabel.className = "label sr-only";
+    typeLabel.htmlFor = typeId;
+    typeLabel.textContent = "Payment method";
+    const type = document.createElement("select");
+    type.className = "select"; type.id = typeId;
+    type.innerHTML = "<option value=\"CASH\">Cash</option><option value=\"CC\">Card</option>";
+    const pay = document.createElement("button");
+    pay.className = "btn"; pay.type = "submit"; pay.dataset.variant = "outline"; pay.dataset.size = "sm"; pay.textContent = "Pay";
+    payment.append(label, amount, typeLabel, type, pay); actions.appendChild(payment);
+  }
+  if (invoice.invoice_status !== "cancelled") {
+    const cancel = document.createElement("button");
+    cancel.className = "btn invoice-cancel"; cancel.type = "button"; cancel.dataset.variant = "ghost"; cancel.dataset.size = "sm"; cancel.dataset.cancelInvoice = invoice.id; cancel.textContent = "Cancel";
+    actions.appendChild(cancel);
+  }
+  row.appendChild(actions);
+  return row;
+}
+
+function renderInvoices() {
+  invoiceTableBody.replaceChildren(...invoices.map(invoiceRow));
+  if (!invoices.length && !invoiceLoading) invoiceReportStatus.textContent = "No invoices found.";
+}
+
+async function loadInvoices({ reset = false } = {}) {
+  if (invoiceLoading || (!reset && !invoiceHasMore)) return;
+  if (reset) { invoiceCursor = null; invoiceHasMore = true; invoices = []; }
+  invoiceLoading = true;
+  invoiceReportStatus.textContent = invoices.length ? "Loading more invoices…" : "Loading invoices…";
+  try {
+    const page = await salesReport(storeId, invoiceCursor, invoiceSearch.value.trim(), invoiceDateFrom.value, invoiceDateTo.value, invoiceStatusFilter);
+    invoices = invoices.concat(page.entries);
+    invoiceCursor = page.next_cursor;
+    invoiceHasMore = page.has_more;
+    updateInvoiceSummary(page.summary);
+    renderInvoices();
+    invoiceReportStatus.textContent = invoiceHasMore ? "Scroll for more invoices" : `${invoices.length} invoices loaded`;
+  } catch (error) {
+    console.error(error);
+    invoiceReportStatus.textContent = "Invoices could not be loaded. Check the server connection.";
+  } finally { invoiceLoading = false; }
+}
+
+function openInvoiceReport() {
+  customersScreen.hidden = true;
+  checkoutFlow.hidden = true;
+  catalogPanel.dataset.view = "invoices";
+  appShell.classList.add("invoice-view");
+  invoiceReport.hidden = false;
+  updateInvoiceStickyOffset();
+  selectSidebar("sales-report-nav");
+  if (!invoices.length) loadInvoices({ reset: true });
+  requestAnimationFrame(() => document.querySelector("#invoice-report-title").focus());
+}
+
+function closeInvoiceReport() {
+  invoiceReport.hidden = true;
+  if (catalogPanel.dataset.view === "invoices") delete catalogPanel.dataset.view;
+  appShell.classList.remove("invoice-view");
+  selectSidebar("pos-nav");
+}
+
+function selectSidebar(id) {
+  document.querySelectorAll(".sidebar-link").forEach((link) => {
+    link.toggleAttribute("aria-current", link.id === id);
+  });
+}
+
+function openPos(event) {
+  event?.preventDefault();
+  invoiceReport.hidden = true;
+  customersScreen.hidden = true;
+  checkoutFlow.hidden = true;
+  startCheckoutButton.hidden = false;
+  delete catalogPanel.dataset.view;
+  appShell.classList.remove("invoice-view");
+  selectSidebar("pos-nav");
+  productSearch.focus();
+}
+
+function openSettings() {
+  openPos();
+  selectSidebar("settings-nav");
+  const switcher = document.querySelector("#language-switcher");
+  switcher.open = true;
+  switcher.querySelector("summary").focus();
 }
 
 function selectCustomer(customer) {
@@ -274,6 +500,106 @@ orderTitle.addEventListener("click", () => openCustomers("pos"));
 clearCustomerButton.addEventListener("click", () => { selectedCustomer = null; updateCustomerPicker(); });
 document.querySelector("#customers-back").addEventListener("click", closeCustomers);
 customerSearch.addEventListener("input", () => { clearTimeout(customerSearchTimer); customerSearchTimer = setTimeout(loadCustomers, 220); });
+document.querySelector("#pos-nav").addEventListener("click", openPos);
+document.querySelector("#catalog-nav").addEventListener("click", openPos);
+document.querySelector("#sales-report-nav").addEventListener("click", openInvoiceReport);
+document.querySelector("#settings-nav").addEventListener("click", openSettings);
+document.querySelectorAll("[data-status-filter]").forEach((button) => {
+  button.setAttribute("aria-pressed", "false");
+  button.addEventListener("click", () => {
+    invoiceStatusFilter = invoiceStatusFilter === button.dataset.statusFilter ? "" : button.dataset.statusFilter;
+    document.querySelectorAll("[data-status-filter]").forEach((kpi) => {
+      const selected = kpi.dataset.statusFilter === invoiceStatusFilter;
+      kpi.setAttribute("aria-pressed", String(selected));
+      kpi.dataset.variant = selected ? "secondary" : "ghost";
+    });
+    loadInvoices({ reset: true });
+  });
+});
+invoiceSearch.addEventListener("input", () => {
+  clearTimeout(invoiceSearchTimer);
+  invoiceSearchTimer = setTimeout(() => loadInvoices({ reset: true }), 250);
+});
+invoiceFilters.addEventListener("submit", (event) => {
+  event.preventDefault();
+  loadInvoices({ reset: true });
+});
+invoiceDateRangeTrigger.addEventListener("click", openDateRangePicker);
+document.querySelector("#calendar-previous-month").addEventListener("click", () => { calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1); renderCalendar(); });
+document.querySelector("#calendar-next-month").addEventListener("click", () => { calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1); renderCalendar(); });
+invoiceCalendarGrid.addEventListener("click", (event) => {
+  const day = event.target.closest("[data-date]");
+  if (!day) return;
+  const value = day.dataset.date;
+  if (!calendarRange.from || calendarRange.to) calendarRange = { from: value, to: "" };
+  else calendarRange = value < calendarRange.from ? { from: value, to: calendarRange.from } : { from: calendarRange.from, to: value };
+  renderCalendar();
+});
+document.querySelector("#invoice-date-range-clear").addEventListener("click", () => { calendarRange = { from: "", to: "" }; renderCalendar(); });
+document.querySelector("#invoice-date-range-apply").addEventListener("click", () => {
+  invoiceDateFrom.value = calendarRange.from;
+  invoiceDateTo.value = calendarRange.to;
+  invoiceDateRangeTrigger.textContent = rangeLabel(calendarRange.from, calendarRange.to);
+  invoiceDateRangeDialog.close();
+  loadInvoices({ reset: true });
+});
+document.querySelector("#invoice-filters-clear").addEventListener("click", () => {
+  invoiceFilters.reset();
+  invoiceDateRangeTrigger.textContent = "Any date";
+  invoiceStatusFilter = "";
+  document.querySelectorAll("[data-status-filter]").forEach((kpi) => { kpi.setAttribute("aria-pressed", "false"); kpi.dataset.variant = "ghost"; });
+  loadInvoices({ reset: true });
+});
+invoiceTableBody.addEventListener("submit", async (event) => {
+  const form = event.target.closest(".invoice-payment");
+  if (!form) return;
+  event.preventDefault();
+  const invoice = invoices.find((entry) => String(entry.id) === form.dataset.invoiceId);
+  const amount = Number(form.querySelector("input").value);
+  if (!invoice || !Number.isFinite(amount) || amount <= 0 || amount > Number(invoice.due_balance)) return;
+  const submit = form.querySelector("button");
+  submit.disabled = true;
+  try {
+    const sale = await addSalePayment(invoice.id, { amount, type: form.querySelector("select").value });
+    Object.assign(invoice, sale);
+    renderInvoices();
+    invoiceReportStatus.textContent = "Payment recorded.";
+    window.toast?.success({ title: "Payment recorded", description: `${currency(amount)} applied to invoice ${invoice.sequence || invoice.id}.` });
+  } catch (error) {
+    console.error(error);
+    invoiceReportStatus.textContent = error.message;
+    window.toast?.error({ title: "Could not record payment", description: error.message });
+    submit.disabled = false;
+  }
+});
+invoiceTableBody.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-cancel-invoice]");
+  if (!button) return;
+  const invoice = invoices.find((entry) => String(entry.id) === button.dataset.cancelInvoice);
+  if (!invoice) return;
+  invoicePendingCancellation = invoice.id;
+  document.querySelector("#invoice-cancel-details-title").textContent = invoice.sequence || `Invoice #${invoice.id}`;
+  document.querySelector("#invoice-cancel-details").textContent = `${invoice.client_name || "Walk-in customer"} · ${currency(invoice.amount)} · ${invoice.date_create ? new Date(invoice.date_create.replace(" ", "T")).toLocaleDateString() : "No date"}`;
+  invoiceCancelDialog.showModal();
+});
+document.querySelector("#confirm-invoice-cancel").addEventListener("click", async () => {
+  const invoice = invoices.find((entry) => entry.id === invoicePendingCancellation);
+  if (!invoice) return;
+  const confirm = document.querySelector("#confirm-invoice-cancel");
+  confirm.disabled = true;
+  try {
+    const sale = await cancelSale(invoice.id);
+    Object.assign(invoice, sale);
+    renderInvoices();
+    invoiceReportStatus.textContent = "Invoice cancelled.";
+    invoiceCancelDialog.close();
+    window.toast?.success({ title: "Invoice cancelled", description: `Inventory for invoice ${invoice.sequence || invoice.id} was restored.` });
+  } catch (error) {
+    console.error(error);
+    invoiceReportStatus.textContent = error.message;
+    window.toast?.error({ title: "Could not cancel invoice", description: error.message });
+  } finally { confirm.disabled = false; invoicePendingCancellation = null; }
+});
 customerForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!customerForm.reportValidity()) return;
@@ -295,6 +621,9 @@ productGrid.addEventListener("keydown", (event) => {
   }
 });
 new IntersectionObserver((entries) => { if (entries.some((entry) => entry.isIntersecting)) loadProducts(); }, { rootMargin: "360px" }).observe(productSentinel);
+new IntersectionObserver((entries) => {
+  if (!invoiceReport.hidden && entries.some((entry) => entry.isIntersecting)) loadInvoices();
+}, { root: catalogPanel, rootMargin: "360px" }).observe(invoiceSentinel);
 function showCheckoutStage(stage) {
   checkoutStage = stage;
   checkoutFlow.querySelectorAll("[data-stage]").forEach((element) => {

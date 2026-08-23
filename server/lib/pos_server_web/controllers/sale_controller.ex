@@ -2,12 +2,63 @@ defmodule PosServerWeb.SaleController do
   use PosServerWeb, :controller
 
   alias Ecto.Changeset
-  alias PosServer.Retaily.Sales
+  alias PosServer.Retaily.{InventoryContext, Sales, Sql}
+
+  @page_size 100
 
   def index(conn, params) do
     case Sales.list_sales(conn.assigns.current_scope, normalize_filters(params)) do
       {:ok, sales} -> json(conn, %{entries: sales})
       {:error, reason} -> error(conn, reason)
+    end
+  end
+
+  def report(conn, params) do
+    with {:ok, cursor} <- parse_cursor(params["cursor"]),
+         {:ok, store_id} <- parse_store_id(params["store_id"]),
+         {:ok, date_from} <- parse_date(params["date_from"]),
+         {:ok, date_to} <- parse_date(params["date_to"]),
+         {:ok, invoice_status} <- parse_invoice_status(params["invoice_status"]),
+         :ok <- valid_date_range(date_from, date_to),
+         {:ok, _tenant} <- InventoryContext.authorize_store(conn.assigns.current_scope, store_id),
+         {:ok, page} <- Sql.sales_report_page(store_id, cursor, limit: @page_size, search: params["search"], date_from: date_from, date_to: date_to, invoice_status: invoice_status),
+         {:ok, summary} <- Sql.sales_report_summary(store_id, search: params["search"], date_from: date_from, date_to: date_to) do
+      json(conn, %{
+        entries: page.entries,
+        has_more: page.has_more?,
+        next_cursor: page.next_cursor,
+        summary: summary
+      })
+    else
+      {:error, :invalid_cursor} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: "cursor must be a non-negative integer"})
+
+      :error ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{error: "store is not assigned to cashier"})
+
+      {:error, :invalid_store_id} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: "store_id must be a positive integer"})
+
+      {:error, :invalid_date} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: "date filters must use YYYY-MM-DD and date_from cannot be after date_to"})
+
+      {:error, :invalid_invoice_status} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: "invoice_status must be open, close, or cancelled"})
+
+      {:error, reason} ->
+        conn
+        |> put_status(:internal_server_error)
+        |> json(%{error: "could not load sales report", details: inspect(reason)})
     end
   end
 
@@ -79,6 +130,42 @@ defmodule PosServerWeb.SaleController do
     end
   end
   defp parse_id(_), do: :error
+
+  defp parse_store_id(value) do
+    case parse_id(value) do
+      {:ok, store_id} -> {:ok, store_id}
+      :error -> {:error, :invalid_store_id}
+    end
+  end
+
+  defp parse_cursor(nil), do: {:ok, nil}
+
+  defp parse_cursor(cursor) when is_binary(cursor) do
+    case Integer.parse(cursor) do
+      {value, ""} when value >= 0 -> {:ok, value}
+      _ -> {:error, :invalid_cursor}
+    end
+  end
+
+  defp parse_cursor(_), do: {:error, :invalid_cursor}
+
+  defp parse_date(nil), do: {:ok, nil}
+
+  defp parse_date(value) when is_binary(value) do
+    case Date.from_iso8601(value) do
+      {:ok, date} -> {:ok, date}
+      _ -> {:error, :invalid_date}
+    end
+  end
+
+  defp parse_date(_), do: {:error, :invalid_date}
+
+  defp valid_date_range(%Date{} = date_from, %Date{} = date_to) when date_from > date_to, do: {:error, :invalid_date}
+  defp valid_date_range(_, _), do: :ok
+
+  defp parse_invoice_status(nil), do: {:ok, nil}
+  defp parse_invoice_status(status) when status in ["open", "close", "cancelled"], do: {:ok, status}
+  defp parse_invoice_status(_), do: {:error, :invalid_invoice_status}
 
   defp error(conn, %Changeset{} = changeset), do: conn |> put_status(:unprocessable_entity) |> json(%{errors: Changeset.traverse_errors(changeset, fn {message, _} -> message end)})
   defp error(conn, :unauthorized), do: conn |> put_status(:unauthorized) |> json(%{error: "unauthorized"})

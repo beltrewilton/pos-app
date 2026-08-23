@@ -337,7 +337,15 @@ defmodule PosServer.Retaily.Sales do
       on: payment_total.sale_id == sale.id,
       select_merge: %{
         total_paid: coalesce(payment_total.total_paid, ^@zero),
-        due_balance: fragment("? - COALESCE(?, ?)", sale.amount, payment_total.total_paid, ^@zero),
+        due_balance:
+          fragment(
+            "CASE WHEN ? = 'RETURN' THEN ? ELSE ? - COALESCE(?, ?) END",
+            sale.status,
+            ^@zero,
+            sale.amount,
+            payment_total.total_paid,
+            ^@zero
+          ),
         invoice_status:
           fragment(
             "CASE WHEN ? = 'RETURN' THEN 'cancelled' WHEN ? - COALESCE(?, ?) > 0 THEN 'open' ELSE 'close' END",

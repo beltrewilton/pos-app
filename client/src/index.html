@@ -27,12 +27,21 @@
     <link rel="stylesheet" href="./css/app.css" />
   </head>
   <body>
-    <main class="pos-shell">
+    <main class="pos-shell" id="app-shell">
       <nav class="sidebar-rail" aria-label="Primary navigation" data-i18n-aria-label="nav.primary">
-        <a class="sidebar-link" href="#" aria-current="page" aria-label="POS"
+        <a id="pos-nav" class="sidebar-link" href="#" aria-current="page" aria-label="POS"
           ><img src="./assets/icons/pos.svg" alt=""
         /></a>
         <button
+          id="sales-report-nav"
+          class="sidebar-link"
+          type="button"
+          aria-label="Invoice report" data-i18n-aria-label="nav.sales"
+        >
+          <svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20h16"/><path d="M8 6h8"/><path d="M8 10h8"/><path d="M8 14h5"/></svg>
+        </button>
+        <button
+          id="catalog-nav"
           class="sidebar-link"
           type="button"
           aria-label="Catalog" data-i18n-aria-label="nav.catalog"
@@ -40,13 +49,7 @@
           <img src="./assets/icons/catalog.svg" alt="" />
         </button>
         <button
-          class="sidebar-link"
-          type="button"
-          aria-label="Sales history" data-i18n-aria-label="nav.sales"
-        >
-          <img src="./assets/icons/network.svg" alt="" />
-        </button>
-        <button
+          id="settings-nav"
           class="sidebar-link"
           type="button"
           aria-label="Settings" data-i18n-aria-label="nav.settings"
@@ -148,6 +151,44 @@
               <tbody id="customers-table-body"></tbody>
             </table>
           </div>
+        </section>
+        <section id="invoice-report" class="invoice-report" aria-labelledby="invoice-report-title" hidden>
+          <div class="invoice-report-fixed">
+            <header class="topbar invoice-topbar">
+              <div class="brand-lockup">
+                <span class="brand-mark" aria-hidden="true">E</span>
+                <div>
+                  <p class="eyebrow">Sales</p>
+                  <h2 id="invoice-report-title" tabindex="-1">Invoice report</h2>
+                </div>
+              </div>
+              <form id="invoice-filters" class="invoice-filters" novalidate>
+                <div class="search-field">
+                  <img class="search-icon" src="./assets/icons/search.svg" alt="" />
+                  <input id="invoice-search" class="input" type="search" aria-label="Search invoices by customer" autocomplete="off" placeholder="Search by customer name" />
+                </div>
+                <input id="invoice-date-from" type="hidden" />
+                <input id="invoice-date-to" type="hidden" />
+                <button id="invoice-date-range-trigger" class="btn invoice-date-range" type="button" data-variant="outline" data-size="sm" aria-haspopup="dialog">Any date</button>
+                <button class="btn" type="submit" data-variant="outline" data-size="sm">Apply</button>
+                <button id="invoice-filters-clear" class="btn" type="button" data-variant="ghost" data-size="sm">Clear</button>
+              </form>
+            </header>
+            <section class="invoice-summary" aria-label="Invoice status summary">
+              <article class="card invoice-summary-paid"><button class="btn invoice-kpi" type="button" data-variant="ghost" data-status-filter="close" aria-label="Filter invoices by paid status"><div class="card-header"><p class="card-title">Paid</p></div><div class="card-content"><p id="invoice-paid-count" class="invoice-kpi-value numeric">0</p><p id="invoice-paid-total" class="invoice-kpi-total muted numeric">$0.00</p></div></button></article>
+              <article class="card invoice-summary-pending"><button class="btn invoice-kpi" type="button" data-variant="ghost" data-status-filter="open" aria-label="Filter invoices by pending status"><div class="card-header"><p class="card-title">Pending</p></div><div class="card-content"><p id="invoice-pending-count" class="invoice-kpi-value numeric">0</p><p id="invoice-pending-total" class="invoice-kpi-total muted numeric">$0.00</p></div></button></article>
+              <article class="card invoice-summary-cancelled"><button class="btn invoice-kpi" type="button" data-variant="ghost" data-status-filter="cancelled" aria-label="Filter invoices by cancelled status"><div class="card-header"><p class="card-title">Cancelled</p></div><div class="card-content"><p id="invoice-cancelled-count" class="invoice-kpi-value numeric">0</p><p id="invoice-cancelled-total" class="invoice-kpi-total muted numeric">$0.00</p></div></button></article>
+            </section>
+            <p id="invoice-report-status" class="invoice-report-status" role="status"></p>
+          </div>
+          <div class="table-container invoice-table-container">
+            <table class="table invoice-table">
+              <caption class="table-caption">Invoices for the selected store.</caption>
+              <thead><tr class="table-row"><th class="table-head" scope="col">Invoice</th><th class="table-head" scope="col">Customer</th><th class="table-head" scope="col">Date</th><th class="table-head" scope="col">Status</th><th class="table-head" scope="col">Total</th><th class="table-head" scope="col">Balance</th><th class="table-head" scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+              <tbody id="invoice-table-body"></tbody>
+            </table>
+          </div>
+          <div id="invoice-sentinel" aria-hidden="true"></div>
         </section>
         <section id="checkout-flow" class="checkout-flow" aria-live="polite" hidden>
           <header class="checkout-header">
@@ -323,6 +364,23 @@
       </div>
     </dialog>
     <dialog id="receipt-dialog" class="dialog" data-size="sm" aria-labelledby="receipt-dialog-title"><div class="dialog-content"><div class="dialog-header"><h2 id="receipt-dialog-title" class="dialog-title">Sale completed</h2><p class="dialog-description">Would you like to print the receipt?</p></div><div class="dialog-footer"><button id="skip-print" class="btn" type="button" data-variant="outline">No, return to POS</button><button id="print-receipt" class="btn" type="button" data-variant="default">Print receipt</button></div></div></dialog>
+    <dialog id="invoice-cancel-dialog" class="dialog" data-size="sm" role="dialog" aria-modal="true" aria-labelledby="invoice-cancel-title">
+      <div class="dialog-content">
+        <div class="dialog-header"><h2 id="invoice-cancel-title" class="dialog-title">Cancel invoice?</h2><p class="dialog-description">This restores the sold inventory. This action cannot be undone from the report.</p></div>
+        <div class="alert" data-variant="destructive" role="alert"><div class="alert-content"><h5 class="alert-title" id="invoice-cancel-details-title">Selected invoice</h5><p class="alert-description" id="invoice-cancel-details"></p></div></div>
+        <div class="dialog-footer"><button class="btn" type="button" data-variant="outline" data-dialog-close>Keep invoice</button><button id="confirm-invoice-cancel" class="btn" type="button" data-variant="destructive">Cancel invoice</button></div>
+      </div>
+    </dialog>
+    <dialog id="invoice-date-range-dialog" class="dialog" data-size="sm" role="dialog" aria-modal="true" aria-labelledby="invoice-date-range-title">
+      <div class="dialog-content">
+        <div class="dialog-header"><h2 id="invoice-date-range-title" class="dialog-title">Select date range</h2><p id="invoice-date-range-description" class="dialog-description">Choose a start date, then an end date.</p></div>
+        <hr class="separator" role="none" />
+        <div class="calendar-header"><button id="calendar-previous-month" class="btn" type="button" data-variant="ghost" data-size="icon-sm" aria-label="Previous month">‹</button><h3 id="calendar-month-label" class="h4"></h3><button id="calendar-next-month" class="btn" type="button" data-variant="ghost" data-size="icon-sm" aria-label="Next month">›</button></div>
+        <div class="calendar-weekdays" aria-hidden="true"><span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span></div>
+        <div id="invoice-calendar-grid" class="calendar-grid" role="grid" aria-labelledby="calendar-month-label"></div>
+        <div class="dialog-footer"><button id="invoice-date-range-clear" class="btn" type="button" data-variant="ghost">Clear</button><button class="btn" type="button" data-variant="outline" data-dialog-close>Cancel</button><button id="invoice-date-range-apply" class="btn" type="button" data-variant="default">Apply range</button></div>
+      </div>
+    </dialog>
     <dialog id="customer-dialog" class="dialog" role="dialog" aria-modal="true" aria-labelledby="customer-dialog-title">
       <div class="dialog-content">
         <div class="dialog-header"><h2 id="customer-dialog-title" class="dialog-title" data-i18n="customer.create">Create customer</h2><p class="dialog-description" data-i18n="customer.createDescription">Add a customer, then use them on this sale.</p></div>

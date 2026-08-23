@@ -60,6 +60,52 @@ defmodule PosServer.Retaily.Sql do
     end
   end
 
+  @spec sales_report_page(pos_integer(), non_neg_integer() | nil, keyword()) ::
+          {:ok, page()} | {:error, term()}
+  def sales_report_page(store_id, before_id \\ nil, opts \\ []) do
+    tenant = TenantContext.tenant!()
+
+    with :ok <- validate_cursor(before_id),
+         {:ok, page_size} <- page_size(opts),
+         {:ok, store_id} <- store_id(store_id),
+         {:ok, result} <-
+           run(tenant, "sales_report", [
+             before_id,
+             page_size + 1,
+             store_id,
+             normalize_search(Keyword.get(opts, :search)),
+             Keyword.get(opts, :date_from),
+             Keyword.get(opts, :date_to),
+             Keyword.get(opts, :invoice_status)
+           ]) do
+      entries = result |> rows_as_maps() |> Enum.take(page_size)
+      has_more? = result.num_rows > page_size
+
+      {:ok,
+       %{
+         entries: entries,
+         has_more?: has_more?,
+         next_cursor: next_cursor(entries, has_more?)
+       }}
+    end
+  end
+
+  @spec sales_report_summary(pos_integer(), keyword()) :: {:ok, map()} | {:error, term()}
+  def sales_report_summary(store_id, opts \\ []) do
+    tenant = TenantContext.tenant!()
+
+    with {:ok, store_id} <- store_id(store_id),
+         {:ok, result} <-
+           run(tenant, "sales_report_summary", [
+             store_id,
+             normalize_search(Keyword.get(opts, :search)),
+             Keyword.get(opts, :date_from),
+             Keyword.get(opts, :date_to)
+           ]) do
+      {:ok, result |> rows_as_maps() |> List.first()}
+    end
+  end
+
   @spec run(String.t(), String.t(), list()) :: {:ok, Postgrex.Result.t()} | {:error, term()}
   def run(tenant, statement_name, params \\ []) when is_list(params) do
     with {:ok, sql} <- read(statement_name) do
@@ -97,8 +143,10 @@ defmodule PosServer.Retaily.Sql do
     end
   end
 
-  defp store_id(opts) do
-    case Keyword.get(opts, :store_id) do
+  defp store_id(opts) when is_list(opts), do: opts |> Keyword.get(:store_id) |> store_id()
+
+  defp store_id(store_id) do
+    case store_id do
       store_id when is_integer(store_id) and store_id > 0 -> {:ok, store_id}
       _ -> {:error, :invalid_store_id}
     end

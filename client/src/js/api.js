@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://localhost:4000/api";
+export const API_BASE_URL = "http://localhost:4000/api";
 
 export async function health() {
   const response = await fetch(`${API_BASE_URL}/health`);
@@ -50,5 +50,35 @@ export async function createSale(sale) {
     body: JSON.stringify(sale),
   });
   if (!response.ok) throw new Error(`Could not complete sale: ${response.status}`);
+  return response.json();
+}
+
+export async function salesReport(storeId, cursor = null, search = "", dateFrom = "", dateTo = "", invoiceStatus = "") {
+  const url = new URL(`${API_BASE_URL}/sales/report`);
+  url.searchParams.set("store_id", storeId);
+  if (cursor !== null) url.searchParams.set("cursor", cursor);
+  if (search) url.searchParams.set("search", search);
+  if (dateFrom) url.searchParams.set("date_from", dateFrom);
+  if (dateTo) url.searchParams.set("date_to", dateTo);
+  if (invoiceStatus) url.searchParams.set("invoice_status", invoiceStatus);
+
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Could not load invoices: ${response.status}`);
+  return response.json();
+}
+
+export async function addSalePayment(saleId, payment) {
+  const response = await fetch(`${API_BASE_URL}/sales/${saleId}/payments`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payment),
+  });
+  if (!response.ok) throw new Error(`Could not record payment: ${response.status}`);
+  return response.json();
+}
+
+export async function cancelSale(saleId) {
+  const response = await fetch(`${API_BASE_URL}/sales/${saleId}/cancel`, { method: "POST" });
+  if (!response.ok) throw new Error(`Could not cancel invoice: ${response.status}`);
   return response.json();
 }
