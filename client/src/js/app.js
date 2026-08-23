@@ -1,6 +1,8 @@
 import * as printer from "./printer.js";
 import { activeProducts } from "./api.js";
 import { createPos } from "./pos.js";
+import { onLanguageChange, t, translateDocument } from "./i18n.js";
+import { createLanguageSwitcher } from "./language-switcher.js";
 
 const printerStatus = document.querySelector("#printer-status");
 const printButton = document.querySelector("#print-test");
@@ -9,9 +11,12 @@ const productGrid = document.querySelector("#product-grid");
 const productStatus = document.querySelector("#products-status");
 const productSearch = document.querySelector("#product-search");
 const productSentinel = document.querySelector("#products-sentinel");
+const languageSwitcher = createLanguageSwitcher(document.querySelector("#language-switcher"));
 const pos = createPos({
   cartElement: document.querySelector("#cart"),
+  totalTrigger: document.querySelector("#grand-total"),
   totalElement: document.querySelector("#total"),
+  totalBeforeDiscountElement: document.querySelector("#total-before-discount"),
   subtotalElement: document.querySelector("#subtotal"),
   discountElement: document.querySelector("#discount"),
   taxElement: document.querySelector("#tax"),
@@ -26,12 +31,14 @@ const pos = createPos({
   discountInput: document.querySelector("#discount-input"),
   discountInputLabel: document.querySelector("#discount-input-label"),
   discountHelp: document.querySelector("#discount-help"),
+  discountProductImage: document.querySelector("#discount-product-image"),
   discountProductName: document.querySelector("#discount-product-name"),
   discountPreviewAmount: document.querySelector("#discount-preview-amount"),
   discountPreviewDiscount: document.querySelector("#discount-preview-discount"),
   discountPreviewTotal: document.querySelector("#discount-preview-total"),
   clearDialog: document.querySelector("#clear-order-dialog"),
   clearConfirmButton: document.querySelector("#confirm-clear-order"),
+  t,
 });
 
 let cursor = null;
@@ -49,9 +56,9 @@ function productCard(product) {
   const card = document.createElement("article");
   card.className = "card product";
   card.tabIndex = 0; card.setAttribute("role", "button");
-  card.dataset.productId = product.id; card.dataset.name = product.name || "Unnamed product";
+  card.dataset.productId = product.id; card.dataset.name = product.name || t("product.unnamed");
   card.dataset.price = product.price || 0; card.dataset.sub = product.sub; card.dataset.tax = product.tax;
-  card.setAttribute("aria-label", "Add " + (product.name || "Unnamed product") + " to order");
+  card.setAttribute("aria-label", t("product.add", { name: product.name || t("product.unnamed") }));
   const source = imageSource(product.image_raw);
   if (source) {
     const image = document.createElement("img");
@@ -67,16 +74,16 @@ function productCard(product) {
   const content = document.createElement("div");
   content.className = "card-content product-content";
   const name = document.createElement("h2");
-  name.className = "card-title product-name"; name.textContent = product.name || "Unnamed product";
+  name.className = "card-title product-name"; name.textContent = product.name || t("product.unnamed");
   const meta = document.createElement("div");
   meta.className = "product-footer";
   const price = document.createElement("strong");
   price.className = "product-price numeric"; price.textContent = `$${Number(product.price || 0).toFixed(2)}`;
   const inventory = document.createElement("span");
   inventory.className = "inventory-badge numeric";
-  inventory.textContent = Number(product.inventory_quantity || 0) + " in stock";
+  inventory.textContent = t("product.stock", { count: Number(product.inventory_quantity || 0) });
   const code = document.createElement("p");
-  code.className = "product-code"; code.textContent = product.code ? `SKU ${product.code}` : "Tap + to add";
+  code.className = "product-code"; code.textContent = product.code ? `SKU ${product.code}` : t("product.tap");
   meta.append(price, inventory); content.append(name, code, meta); card.appendChild(content);
   return card;
 }
@@ -85,36 +92,36 @@ function renderProducts() {
   const query = productSearch.value.trim().toLocaleLowerCase();
   const visible = query ? products.filter((p) => `${p.name || ""} ${p.code || ""}`.toLocaleLowerCase().includes(query)) : products;
   productGrid.replaceChildren(...visible.map(productCard));
-  if (!visible.length && !loading) productStatus.textContent = query ? "No matching products." : "No active products found.";
+  if (!visible.length && !loading) productStatus.textContent = query ? t("product.emptyMatch") : t("product.none");
 }
 
 async function loadProducts() {
   if (loading || !hasMore) return;
   loading = true;
-  productStatus.textContent = products.length ? "Loading more products…" : "Loading products…";
+  productStatus.textContent = products.length ? t("product.loadingMore") : t("products.loading");
   try {
     const page = await activeProducts(cursor);
     products = products.concat(page.entries);
     cursor = page.next_cursor;
     hasMore = page.has_more;
     renderProducts();
-    productStatus.textContent = hasMore ? "Scroll for more products" : `${products.length} products loaded`;
+    productStatus.textContent = hasMore ? t("product.scroll") : t("product.loaded", { count: products.length });
   } catch (error) {
     console.error(error);
-    productStatus.textContent = "Products could not be loaded. Check the server connection.";
+    productStatus.textContent = t("product.error");
   } finally { loading = false; }
 }
 
 async function updatePrinterStatus() {
   try {
     const status = await printer.status();
-    printerStatus.alt = status.connected ? "Printer connected" : "Printer disconnected";
+    printerStatus.alt = status.connected ? t("printer.connected") : t("printer.disconnected");
     printerStatus.title = printerStatus.alt;
     printerStatus.classList.toggle("connected", status.connected);
     printerStatus.classList.toggle("disconnected", !status.connected);
     return status.connected;
   } catch (error) {
-    console.error(error); printerStatus.alt = "Printer disconnected"; printerStatus.title = printerStatus.alt;
+    console.error(error); printerStatus.alt = t("printer.disconnected"); printerStatus.title = printerStatus.alt;
     printerStatus.classList.remove("connected"); printerStatus.classList.add("disconnected"); return false;
   }
 }
@@ -130,14 +137,16 @@ productGrid.addEventListener("keydown", (event) => {
 });
 new IntersectionObserver((entries) => { if (entries.some((entry) => entry.isIntersecting)) loadProducts(); }, { rootMargin: "360px" }).observe(productSentinel);
 printButton.addEventListener("click", async () => {
-  if (pos.isEmpty()) { printStatus.textContent = "Add an item before printing."; return; }
-  if (!(await updatePrinterStatus())) { printStatus.textContent = "Printer disconnected."; return; }
-  printStatus.textContent = "Printing…"; printButton.disabled = true;
+  if (pos.isEmpty()) { printStatus.textContent = t("print.addItem"); return; }
+  if (!(await updatePrinterStatus())) { printStatus.textContent = t("printer.disconnected"); return; }
+  printStatus.textContent = t("print.printing"); printButton.disabled = true;
   try { printStatus.textContent = await printer.print(pos.receipt()); }
-  catch (error) { console.error(error); printStatus.textContent = `Print error: ${error}`; }
+  catch (error) { console.error(error); printStatus.textContent = t("print.error", { error }); }
   finally { printButton.disabled = false; updatePrinterStatus(); }
 });
 
 pos.render();
+translateDocument();
+onLanguageChange(() => { languageSwitcher.sync(); pos.render(); renderProducts(); updatePrinterStatus(); });
 updatePrinterStatus();
 loadProducts();

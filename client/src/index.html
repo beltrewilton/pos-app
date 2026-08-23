@@ -6,13 +6,19 @@
     <title>Educa POS</title>
     <link rel="stylesheet" href="./vendor/ui/default-semantic-tokens.css" />
     <link rel="stylesheet" href="./vendor/ui/fonts/inter.css" />
-    <link rel="stylesheet" href="./vendor/ui/components/typography/typography.css" />
+    <link
+      rel="stylesheet"
+      href="./vendor/ui/components/typography/typography.css"
+    />
     <link rel="stylesheet" href="./vendor/ui/components/button/button.css" />
     <link rel="stylesheet" href="./vendor/ui/components/input/input.css" />
     <link rel="stylesheet" href="./vendor/ui/components/label/label.css" />
     <link rel="stylesheet" href="./vendor/ui/components/card/card.css" />
     <link rel="stylesheet" href="./vendor/ui/components/form/form.css" />
-    <link rel="stylesheet" href="./vendor/ui/components/separator/separator.css" />
+    <link
+      rel="stylesheet"
+      href="./vendor/ui/components/separator/separator.css"
+    />
     <link rel="stylesheet" href="./vendor/ui/components/alert/alert.css" />
     <link rel="stylesheet" href="./vendor/ui/components/dialog/dialog.css" />
     <link rel="stylesheet" href="./vendor/ui/components/toast/toast.css" />
@@ -22,40 +28,302 @@
   </head>
   <body>
     <main class="pos-shell">
-      <nav class="sidebar-rail" aria-label="Primary navigation">
-        <a class="sidebar-link" href="#" aria-current="page" aria-label="POS"><img src="./assets/icons/pos.svg" alt="" /></a>
-        <button class="sidebar-link" type="button" aria-label="Catalog placeholder"><img src="./assets/icons/catalog.svg" alt="" /></button>
-        <button class="sidebar-link" type="button" aria-label="Sales history placeholder"><img src="./assets/icons/network.svg" alt="" /></button>
-        <button class="sidebar-link" type="button" aria-label="Settings placeholder"><img src="./assets/icons/settings.svg" alt="" /></button>
+      <nav class="sidebar-rail" aria-label="Primary navigation" data-i18n-aria-label="nav.primary">
+        <a class="sidebar-link" href="#" aria-current="page" aria-label="POS"
+          ><img src="./assets/icons/pos.svg" alt=""
+        /></a>
+        <button
+          class="sidebar-link"
+          type="button"
+          aria-label="Catalog" data-i18n-aria-label="nav.catalog"
+        >
+          <img src="./assets/icons/catalog.svg" alt="" />
+        </button>
+        <button
+          class="sidebar-link"
+          type="button"
+          aria-label="Sales history" data-i18n-aria-label="nav.sales"
+        >
+          <img src="./assets/icons/network.svg" alt="" />
+        </button>
+        <button
+          class="sidebar-link"
+          type="button"
+          aria-label="Settings" data-i18n-aria-label="nav.settings"
+        >
+          <img src="./assets/icons/settings.svg" alt="" />
+        </button>
       </nav>
-      <div class="status-strip" aria-label="System status"><img id="printer-status" class="printer-status" src="./assets/icons/printer.svg" alt="Checking printer status" /><img class="network-status" src="./assets/icons/network.svg" alt="Network status unavailable" /></div>
+      <div class="status-strip" aria-label="System status" data-i18n-aria-label="status.system">
+        <img
+          id="printer-status"
+          class="printer-status"
+          src="./assets/icons/printer.svg"
+          alt="Checking printer status" data-i18n-alt="status.printerChecking"
+        /><img
+          class="network-status"
+          src="./assets/icons/network.svg"
+          alt="Network status unavailable" data-i18n-alt="status.networkUnavailable"
+        />
+        <details class="language-switcher" id="language-switcher">
+          <summary aria-label="Change display language">
+            <img src="./assets/icons/language.svg" alt="" />
+          </summary>
+          <div class="language-menu" role="group" aria-label="Language" data-i18n-aria-label="language.menu">
+            <button type="button" data-language="en">English</button>
+            <button type="button" data-language="es">Español</button>
+            <button type="button" data-language="pt">Português</button>
+          </div>
+        </details>
+      </div>
       <section class="catalog-panel" aria-labelledby="pos-title">
         <header class="topbar">
-          <div class="brand-lockup"><span class="brand-mark" aria-hidden="true">E</span><div><p class="eyebrow">Educa retail</p><h1 id="pos-title">Point of Sale</h1></div></div>
-          <div class="topbar-search"><div class="search-field"><img class="search-icon" src="./assets/icons/search.svg" alt="" /><input id="product-search" class="input" type="search" aria-label="Search" placeholder="Search products or scan a barcode" autocomplete="off" /></div><button class="btn" type="button" data-variant="outline" data-size="icon" aria-label="Focus product search" id="search-focus"><img src="./assets/icons/search.svg" alt="" /></button></div>
+          <div class="brand-lockup">
+            <span class="brand-mark" aria-hidden="true">E</span>
+            <div>
+              <p class="eyebrow" data-i18n="brand.retail">Educa retail</p>
+              <h1 id="pos-title" data-i18n="pos.title">Point of Sale</h1>
+            </div>
+          </div>
+          <div class="topbar-search">
+            <div class="search-field">
+              <img
+                class="search-icon"
+                src="./assets/icons/search.svg"
+                alt=""
+              /><input
+                id="product-search"
+                class="input"
+                type="search"
+                aria-label="Search" data-i18n-aria-label="search.label"
+                placeholder="Search products or scan a barcode" data-i18n-placeholder="search.placeholder"
+                autocomplete="off"
+              />
+            </div>
+            <button
+              class="btn"
+              type="button"
+              data-variant="outline"
+              data-size="icon"
+              aria-label="Focus product search" data-i18n-aria-label="search.focus"
+              id="search-focus"
+            >
+              <img src="./assets/icons/search.svg" alt="" />
+            </button>
+          </div>
         </header>
-        <div class="catalog-heading"><div><p class="eyebrow">Catalog</p><h2 class="h3">Products</h2></div><p id="products-status" class="products-status" role="status">Loading products…</p></div>
+        <div class="catalog-heading">
+          <div>
+            <p class="eyebrow" data-i18n="catalog.label">Catalog</p>
+            <h2 class="h3" data-i18n="catalog.products">Products</h2>
+          </div>
+          <p id="products-status" class="products-status" role="status">
+            <span data-i18n="products.loading">Loading products…</span>
+          </p>
+        </div>
         <div id="product-grid" class="product-grid" aria-live="polite"></div>
         <div id="products-sentinel" aria-hidden="true"></div>
       </section>
       <aside class="order-panel" aria-labelledby="order-title">
-        <header class="order-header"><div><p class="eyebrow">Current sale</p><h2 id="order-title" class="h3">Order list</h2></div><button id="clear-order" class="btn" type="button" data-variant="ghost" data-size="sm" disabled>Clear</button></header>
-        <p id="cart-empty" class="cart-empty">Your order is empty. Select a product to begin.</p>
+        <header class="order-header">
+          <div>
+            <p class="eyebrow" data-i18n="order.current">Current sale</p>
+            <h2 id="order-title" class="h3" data-i18n="order.list">Order list</h2>
+          </div>
+          <button
+            id="clear-order"
+            class="btn"
+            type="button"
+            data-variant="ghost"
+            data-size="sm"
+            disabled
+          >
+            <span data-i18n="order.clear">Clear</span>
+          </button>
+        </header>
+        <p id="cart-empty" class="cart-empty">
+          <span data-i18n="order.empty">Your order is empty. Select a product to begin.</span>
+        </p>
         <div id="cart" class="cart-lines" aria-live="polite"></div>
         <footer class="order-summary">
           <hr class="separator" role="none" />
-          <dl class="totals"><div><dt>Items</dt><dd id="items-count">0</dd></div><div><dt>Subtotal</dt><dd id="subtotal" class="numeric">$0.00</dd></div><div><dt>Tax (18%)</dt><dd id="tax" class="numeric">$0.00</dd></div><div><dt>Discount</dt><dd id="discount" class="numeric discount-value">−$0.00</dd></div><div class="grand-total"><dt>Total</dt><dd id="total" class="numeric">$0.00</dd></div></dl>
-          <div class="payment-label"><span>Payment method</span><span class="payment-choice">Cash</span></div>
-          <button id="print-test" class="btn charge-button" type="button" data-variant="default" data-size="lg" disabled>Charge $0.00</button>
+          <dl class="totals">
+            <div>
+              <dt data-i18n="total.items">Items</dt>
+              <dd id="items-count">0</dd>
+            </div>
+            <div>
+              <dt data-i18n="total.subtotal">Subtotal</dt>
+              <dd id="subtotal" class="numeric">$0.00</dd>
+            </div>
+            <div>
+              <dt data-i18n="total.tax">Tax (18%)</dt>
+              <dd id="tax" class="numeric">$0.00</dd>
+            </div>
+            <div>
+              <dt data-i18n="total.discount">Discount</dt>
+              <dd id="discount" class="numeric discount-value">−$0.00</dd>
+            </div>
+            <div
+              id="grand-total"
+              class="grand-total"
+              role="button"
+              tabindex="0"
+              aria-label="Apply order discount. Double click or press Enter." data-i18n-aria-label="discount.orderTrigger"
+            >
+              <dt data-i18n="total.total">Total</dt>
+              <dd>
+                <span id="total-before-discount" class="numeric total-before-discount" hidden>$0.00</span>
+                <span id="total" class="numeric">$0.00</span>
+              </dd>
+            </div>
+          </dl>
+          <div class="payment-label">
+            <span data-i18n="payment.method">Payment method</span><span class="payment-choice" data-i18n="payment.cash">Cash</span>
+          </div>
+          <button
+            id="print-test"
+            class="btn charge-button"
+            type="button"
+            data-variant="default"
+            data-size="lg"
+            disabled
+          >
+            Charge $0.00
+          </button>
           <p id="print-status" class="print-status" role="status"></p>
         </footer>
       </aside>
     </main>
-    <dialog id="discount-dialog" class="dialog" data-size="sm" role="dialog" aria-modal="true" aria-labelledby="discount-title">
-      <div class="dialog-content"><div class="dialog-header"><p class="eyebrow">Line item discount</p><h2 id="discount-title" class="dialog-title">Apply a discount</h2><p id="discount-product-name" class="dialog-description">Choose a percentage for this item.</p></div>
-      <form id="discount-form" class="form" method="dialog"><div class="discount-switch" role="group" aria-label="Discount type"><button class="btn" type="button" data-variant="secondary" data-discount-type="percent" aria-pressed="true" aria-label="Percentage discount">%</button><button class="btn" type="button" data-variant="secondary" data-discount-type="amount" aria-pressed="false" aria-label="Amount discount">$</button></div><div class="form-field"><label id="discount-input-label" class="label" for="discount-input">Discount percentage</label><input id="discount-input" class="input numeric" type="number" inputmode="decimal" min="0" max="100" step="0.01" required aria-describedby="discount-help" /><p id="discount-help" class="field-description">Enter 0 to remove this item discount.</p></div><dl class="discount-preview"><div><dt>Amount</dt><dd id="discount-preview-amount" class="numeric">$0.00</dd></div><div><dt>Discount</dt><dd id="discount-preview-discount" class="numeric">−$0.00</dd></div><div><dt>After discount</dt><dd id="discount-preview-total" class="numeric">$0.00</dd></div></dl><div class="dialog-footer"><button class="btn" type="button" data-variant="outline" data-dialog-close>Cancel</button><button class="btn" type="submit" data-variant="default">Apply discount</button></div></form></div>
+    <dialog
+      id="discount-dialog"
+      class="dialog"
+      data-size="sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="discount-title"
+    >
+      <div class="dialog-content">
+        <div class="dialog-header">
+          <div class="discount-heading">
+            <div>
+              <p class="eyebrow" data-i18n="discount.line">Line item discount</p>
+              <h2 id="discount-title" class="dialog-title" data-i18n="discount.apply">Apply a discount</h2>
+              <p id="discount-product-name" class="dialog-description">
+                <span data-i18n="discount.choose">Choose a percentage for this item.</span>
+              </p>
+            </div>
+            <img
+              id="discount-product-image"
+              class="discount-product-image"
+              alt=""
+              hidden
+            />
+          </div>
+        </div>
+        <form id="discount-form" class="form" method="dialog">
+          <div class="discount-switch" role="group" aria-label="Discount type" data-i18n-aria-label="discount.type">
+            <button
+              class="btn"
+              type="button"
+              data-variant="secondary"
+              data-discount-type="percent"
+              aria-pressed="false"
+              aria-label="Percentage discount" data-i18n-aria-label="discount.percentage"
+            >
+              %</button
+            ><button
+              class="btn"
+              type="button"
+              data-variant="default"
+              data-discount-type="amount"
+              aria-pressed="true"
+              aria-label="Amount discount" data-i18n-aria-label="discount.amountOption"
+            >
+              $
+            </button>
+          </div>
+          <div class="form-field">
+            <label id="discount-input-label" class="label" for="discount-input"
+              data-i18n="discount.amount">Discount amount</label
+            ><input
+              id="discount-input"
+              class="input numeric"
+              type="number"
+              inputmode="decimal"
+              min="0"
+              max="100"
+              step="0.01"
+              required
+              aria-describedby="discount-help"
+            />
+            <p id="discount-help" class="field-description">
+              <span data-i18n="discount.enterItem">Enter 0 to remove this item discount.</span>
+            </p>
+          </div>
+          <dl class="discount-preview">
+            <div>
+              <dt data-i18n="discount.previewAmount">Amount</dt>
+              <dd id="discount-preview-amount" class="numeric">$0.00</dd>
+            </div>
+            <div>
+              <dt data-i18n="total.discount">Discount</dt>
+              <dd id="discount-preview-discount" class="numeric">−$0.00</dd>
+            </div>
+            <div>
+              <dt data-i18n="discount.after">After discount</dt>
+              <dd id="discount-preview-total" class="numeric">$0.00</dd>
+            </div>
+          </dl>
+          <div class="dialog-footer">
+            <button
+              class="btn"
+              type="button"
+              data-variant="outline"
+              data-dialog-close
+            >
+              <span data-i18n="action.cancel">Cancel</span></button
+            ><button class="btn" type="submit" data-variant="default">
+              <span data-i18n="discount.applyAction">Apply discount</span>
+            </button>
+          </div>
+        </form>
+      </div>
     </dialog>
-    <dialog id="clear-order-dialog" class="dialog" data-size="sm" role="dialog" aria-modal="true" aria-labelledby="clear-order-title"><div class="dialog-content"><div class="dialog-header"><h2 id="clear-order-title" class="dialog-title">Clear this order?</h2><p class="dialog-description">All items and line discounts will be removed.</p></div><div class="dialog-footer"><button class="btn" type="button" data-variant="outline" data-dialog-close>Keep order</button><button id="confirm-clear-order" class="btn" type="button" data-variant="destructive">Clear order</button></div></div></dialog>
+    <dialog
+      id="clear-order-dialog"
+      class="dialog"
+      data-size="sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="clear-order-title"
+    >
+      <div class="dialog-content">
+        <div class="dialog-header">
+          <h2 id="clear-order-title" class="dialog-title" data-i18n="clear.title">Clear this order?</h2>
+          <p class="dialog-description">
+            <span data-i18n="clear.description">All items and line discounts will be removed.</span>
+          </p>
+        </div>
+        <div class="dialog-footer">
+          <button
+            class="btn"
+            type="button"
+            data-variant="outline"
+            data-dialog-close
+          >
+            <span data-i18n="clear.keep">Keep order</span></button
+          ><button
+            id="confirm-clear-order"
+            class="btn"
+            type="button"
+            data-variant="destructive"
+          >
+            <span data-i18n="clear.confirm">Clear order</span>
+          </button>
+        </div>
+      </div>
+    </dialog>
     <script src="./vendor/ui/components/dialog/dialog.js"></script>
     <script src="./vendor/ui/components/toast/toast.js"></script>
     <script type="module" src="./js/app.js"></script>
