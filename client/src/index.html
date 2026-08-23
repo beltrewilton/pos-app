@@ -40,21 +40,11 @@
         >
           <svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20h16"/><path d="M8 6h8"/><path d="M8 10h8"/><path d="M8 14h5"/></svg>
         </button>
-        <button
-          id="catalog-nav"
-          class="sidebar-link"
-          type="button"
-          aria-label="Catalog" data-i18n-aria-label="nav.catalog"
-        >
-          <img src="./assets/icons/catalog.svg" alt="" />
+        <button id="inventory-nav" class="sidebar-link" type="button" aria-label="Inventory">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4Z"/><path d="M3 12l9 4 9-4"/><path d="M3 17l9 4 9-4"/></svg>
         </button>
-        <button
-          id="settings-nav"
-          class="sidebar-link"
-          type="button"
-          aria-label="Settings" data-i18n-aria-label="nav.settings"
-        >
-          <img src="./assets/icons/settings.svg" alt="" />
+        <button id="orders-nav" class="sidebar-link" type="button" aria-label="Purchase orders">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l3 3v17H6z"/><path d="M15 2v4h4"/><path d="M9 12h6M9 16h6"/></svg>
         </button>
       </nav>
       <div class="status-strip" aria-label="System status" data-i18n-aria-label="status.system">
@@ -190,6 +180,16 @@
           </div>
           <div id="invoice-sentinel" aria-hidden="true"></div>
         </section>
+        <section id="inventory-screen" class="operations-screen" aria-labelledby="inventory-title" hidden>
+          <div class="operations-fixed"><header class="topbar operations-topbar"><div class="brand-lockup"><span class="brand-mark" aria-hidden="true">E</span><div><p class="eyebrow">Operations</p><h2 id="inventory-title" tabindex="-1">Inventory</h2></div></div><form id="inventory-filters" class="operations-filters"><div class="search-field"><img class="search-icon" src="./assets/icons/search.svg" alt=""/><input id="inventory-search" class="input" type="search" placeholder="Search product" autocomplete="off" /></div><select id="inventory-store" class="select" aria-label="Store or warehouse"><option value="2">Current store</option></select></form></header>
+          <p id="inventory-status" class="operations-status" role="status"></p>
+          </div><div class="table-container operations-table-container"><table class="table operations-table"><caption class="table-caption">Inventory by store.</caption><thead><tr class="table-row"><th class="table-head" scope="col" aria-sort="none"><button class="btn operations-sort" type="button" data-variant="ghost" data-inventory-sort="product_name">Product</button></th><th class="table-head" scope="col" aria-sort="none"><button class="btn operations-sort" type="button" data-variant="ghost" data-inventory-sort="store_name">Store</button></th><th class="table-head" scope="col" aria-sort="none"><button class="btn operations-sort" type="button" data-variant="ghost" data-inventory-sort="quantity">Current quantity</button></th><th class="table-head" scope="col" aria-sort="none"><button class="btn operations-sort" type="button" data-variant="ghost" data-inventory-sort="prev_quantity">Previous quantity</button></th><th class="table-head" scope="col" aria-sort="descending"><button class="btn operations-sort" type="button" data-variant="ghost" data-inventory-sort="last_update">Last updated</button></th><th class="table-head" scope="col" aria-sort="none"><button class="btn operations-sort" type="button" data-variant="ghost" data-inventory-sort="user_updated">Updated by</button></th><th class="table-head" scope="col"><span class="sr-only">Action</span></th></tr></thead><tbody id="inventory-table-body"></tbody></table></div>
+        </section>
+        <section id="orders-screen" class="operations-screen" aria-labelledby="orders-title" hidden>
+          <div class="operations-fixed"><header class="topbar operations-topbar"><div class="brand-lockup"><span class="brand-mark" aria-hidden="true">E</span><div><p class="eyebrow">Operations</p><h2 id="orders-title" tabindex="-1">Purchase orders</h2></div></div><button id="create-order" class="btn" type="button" data-variant="default" aria-haspopup="dialog">Create purchase order</button></header><p id="orders-status" class="operations-status" role="status"></p></div>
+          <div class="table-container operations-table-container"><table class="table operations-table"><caption class="table-caption">Purchase orders for the current store.</caption><thead><tr class="table-row"><th class="table-head" scope="col" aria-sort="none"><button class="btn operations-sort" type="button" data-variant="ghost" data-order-sort="id">Order ID</button></th><th class="table-head" scope="col" aria-sort="none"><button class="btn operations-sort" type="button" data-variant="ghost" data-order-sort="from_origin_id">Source</button></th><th class="table-head" scope="col" aria-sort="none"><button class="btn operations-sort" type="button" data-variant="ghost" data-order-sort="to_store_id">Destination store</button></th><th class="table-head" scope="col" aria-sort="none"><button class="btn operations-sort" type="button" data-variant="ghost" data-order-sort="status">Status</button></th><th class="table-head" scope="col" aria-sort="descending"><button class="btn operations-sort" type="button" data-variant="ghost" data-order-sort="last_updated">Last updated</button></th><th class="table-head" scope="col" aria-sort="none"><button class="btn operations-sort" type="button" data-variant="ghost" data-order-sort="user_requester">Created by</button></th><th class="table-head" scope="col"><span class="sr-only">Action</span></th></tr></thead><tbody id="orders-table-body"></tbody></table></div>
+          <article id="order-detail" class="card order-detail" hidden></article>
+        </section>
         <section id="checkout-flow" class="checkout-flow" aria-live="polite" hidden>
           <header class="checkout-header">
             <div>
@@ -268,6 +268,9 @@
         </footer>
       </aside>
     </main>
+    <dialog id="inventory-dialog" class="dialog" data-size="sm" role="dialog" aria-modal="true" aria-labelledby="inventory-dialog-title"><div class="dialog-content"><div class="dialog-header"><h2 id="inventory-dialog-title" class="dialog-title">Update inventory</h2><p class="dialog-description">Add stock to one product at the selected store.</p></div><form id="inventory-form" class="form dialog-body"><div class="form-field"><label class="label" for="inventory-product">Product</label><select id="inventory-product" class="select" required></select></div><div class="form-field"><label class="label" for="inventory-form-store">Store</label><select id="inventory-form-store" class="select" required><option value="2">Current store</option></select></div><div class="form-field"><label class="label" for="inventory-current">Current quantity</label><input id="inventory-current" class="input" readonly /></div><div class="form-field"><label class="label" for="inventory-quantity">Quantity to add</label><input id="inventory-quantity" class="input" type="number" required /></div><p id="inventory-form-status" class="field-description" role="status"></p><div class="dialog-footer"><button class="btn" type="button" data-variant="outline" data-dialog-close>Cancel</button><button class="btn" type="submit" data-variant="default">Save</button></div></form></div></dialog>
+    <dialog id="order-dialog" class="dialog" data-size="xl" role="dialog" aria-modal="true" aria-labelledby="order-dialog-title"><div class="dialog-content"><div class="dialog-header"><h2 id="order-dialog-title" class="dialog-title">Create purchase order</h2><p class="dialog-description">Add the products requested for this receipt.</p></div><form id="order-form" class="form dialog-body"><div class="order-form-grid"><div class="form-field"><label class="label" for="order-source">Source / provider / store ID</label><input id="order-source" class="input" type="number" min="1" required /></div><div class="form-field"><label class="label" for="order-destination">Destination store</label><select id="order-destination" class="select" required><option value="2">Current store</option></select></div></div><div id="order-lines" class="order-lines"></div><button id="add-order-line" class="btn" type="button" data-variant="outline" data-size="sm">Add product</button><p id="order-form-status" class="field-description" role="status"></p><div class="dialog-footer"><button class="btn" type="button" data-variant="outline" data-dialog-close>Cancel</button><button class="btn" type="submit" data-variant="default">Create order</button></div></form></div></dialog>
+    <dialog id="process-order-dialog" class="dialog" data-size="lg" role="dialog" aria-modal="true" aria-labelledby="process-order-title"><div class="dialog-content"><div class="dialog-header"><h2 id="process-order-title" class="dialog-title">Process order</h2><p class="dialog-description">Confirm observed quantities before inventory is updated.</p></div><form id="process-order-form" class="form dialog-body"><div id="process-order-lines" class="order-lines"></div><p id="process-order-status" class="field-description" role="status"></p><div class="dialog-footer"><button class="btn" type="button" data-variant="outline" data-dialog-close>Cancel</button><button class="btn" type="submit" data-variant="default">Confirm &amp; process</button></div></form></div></dialog>
     <dialog
       id="discount-dialog"
       class="dialog"

@@ -1,0 +1,275 @@
+defmodule PosServer.Retaily.Orders do
+  @moduledoc false
+
+  import Ecto.Query
+
+  alias Ecto.Changeset
+  alias PosServer.{Repo, TenantContext}
+  alias PosServer.Retaily.OrderRequests.{Create, Receive}
+  alias PosServer.Retaily.{Inventory, Product, ProductOrder, ProductOrderLine, Store, User, UserStore}
+
+  def create_order(scope, attrs) do
+    with {:ok, request} <- valid(Create, attrs),
+         {:ok, cashier, tenant} <- cashier(scope),
+         :ok <- cashier_store?(cashier, request.to_store_id, tenant) do
+      Repo.transaction(fn ->
+        with %Store{} <- Repo.get(Store, request.to_store_id, prefix: tenant),
+             :ok <- products_exist?(request.lines, tenant),
+             {:ok, order} <- insert_order(request, cashier.username, tenant),
+             {:ok, _lines} <- insert_lines(request.lines, order, tenant) do
+          order_response(order.id, tenant)
+        else
+          nil -> Repo.rollback(:not_found)
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      end)
+    else
+      :error -> {:error, :forbidden_store}
+      {:error, _reason} = error -> error
+    end
+  end
+
+  def list_orders(scope, store_id) do
+    with {:ok, cashier, tenant} <- cashier(scope),
+         :ok <- cashier_store?(cashier, store_id, tenant) do
+      orders = Repo.all(from(order in ProductOrder, where: order.to_store_id == ^store_id, order_by: [desc: order.date_closed, desc: order.date_opened], preload: [lines: :product]), prefix: tenant)
+      {:ok, Enum.map(orders, &serialize_order/1)}
+    else
+      :error -> {:error, :forbidden_store}
+      {:error, _} = error -> error
+    end
+  end
+
+  def receive_order(scope, order_id, attrs) do
+    with {:ok, receipt} <- valid(Receive, attrs),
+         {:ok, cashier, tenant} <- cashier(scope) do
+      Repo.transaction(fn ->
+        with %ProductOrder{} = order <- locked_order(order_id, tenant),
+             :ok <- cashier_store?(cashier, order.to_store_id, tenant),
+             :ok <- order_open?(order),
+             lines <- locked_lines(order.id, tenant),
+             :ok <- valid_receipt_lines?(receipt.lines, lines),
+             :ok <- receive_lines(lines, receipt, cashier.username, tenant),
+             {:ok, _} <- close_order(order, cashier.username, tenant) do
+          order_response(order.id, tenant)
+        else
+          nil -> Repo.rollback(:not_found)
+          :error -> Repo.rollback(:forbidden_store)
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      end)
+    else
+      :error -> {:error, :forbidden_store}
+      {:error, _reason} = error -> error
+    end
+  end
+
+  def adjust_inventory(scope, attrs) do
+    with {:ok, product_id} <- positive_integer(attrs["product_id"]),
+         {:ok, store_id} <- positive_integer(attrs["store_id"]),
+         {:ok, quantity} <- integer(attrs["quantity"]),
+         {:ok, cashier, tenant} <- cashier(scope),
+         :ok <- cashier_store?(cashier, store_id, tenant) do
+      Repo.transaction(fn ->
+        with %Product{} <- Repo.get(Product, product_id, prefix: tenant),
+             %Inventory{} = inventory <- locked_inventory(product_id, store_id, tenant) do
+          update_inventory!(inventory, quantity, cashier.username, tenant)
+        else
+          nil -> Repo.rollback(:not_found)
+        end
+      end)
+    else
+      :error -> {:error, :forbidden_store}
+      {:error, _reason} = error -> error
+    end
+  end
+
+  defp valid(module, attrs) do
+    changeset = module.changeset(struct(module), attrs)
+    if changeset.valid?, do: {:ok, Changeset.apply_changes(changeset)}, else: {:error, changeset}
+  end
+
+  defp insert_order(request, username, tenant) do
+    %ProductOrder{}
+    |> ProductOrder.changeset(%{
+      name: request.name,
+      memo: request.memo,
+      order_type: request.order_type,
+      from_origin_id: request.from_origin_id,
+      to_store_id: request.to_store_id,
+      user_requester: username,
+      status: "opened"
+    })
+    |> Repo.insert(prefix: tenant)
+  end
+
+  defp insert_lines(lines, order, tenant) do
+    Enum.reduce_while(lines, {:ok, []}, fn line, {:ok, result} ->
+      attrs = %{
+        product_id: line.product_id,
+        from_origin_id: line.from_origin_id || order.from_origin_id,
+        to_store_id: order.to_store_id,
+        product_order_id: order.id,
+        quantity: line.quantity,
+        status: "pending"
+      }
+
+      case %ProductOrderLine{} |> ProductOrderLine.changeset(attrs) |> Repo.insert(prefix: tenant) do
+        {:ok, inserted} -> {:cont, {:ok, [inserted | result]}}
+        {:error, changeset} -> {:halt, {:error, changeset}}
+      end
+    end)
+  end
+
+  defp receive_lines(lines, receipt, username, tenant) do
+    by_id = Map.new(receipt.lines, &{&1.id, &1})
+
+    Enum.reduce_while(lines, :ok, fn line, :ok ->
+      supplied = Map.get(by_id, line.id)
+      observed = if supplied && !is_nil(supplied.quantity_observed), do: supplied.quantity_observed, else: line.quantity
+      memo = if supplied, do: supplied.receiver_memo || receipt.receiver_memo, else: receipt.receiver_memo
+
+      with %Inventory{} = inventory <- locked_inventory(line.product_id, line.to_store_id, tenant),
+           {:ok, _} <- update_received_line(line, observed, memo, username, tenant) do
+        update_inventory!(inventory, observed, username, tenant)
+        {:cont, :ok}
+      else
+        nil -> {:halt, {:error, :inventory_not_found}}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
+
+  defp update_received_line(line, observed, memo, username, tenant) do
+    line
+    |> ProductOrderLine.changeset(%{
+      quantity_observed: observed,
+      status: "received",
+      user_receiver: username,
+      receiver_last_update: now(),
+      receiver_memo: memo
+    })
+    |> Repo.update(prefix: tenant)
+  end
+
+  defp close_order(order, username, tenant) do
+    order
+    |> ProductOrder.changeset(%{status: "received", user_receiver: username, date_closed: now()})
+    |> Repo.update(prefix: tenant)
+  end
+
+  defp update_inventory!(inventory, delta, username, tenant) do
+    previous = inventory.quantity || 0
+
+    inventory
+    |> Inventory.changeset(%{
+      prev_quantity: previous,
+      quantity: previous + delta,
+      last_update: now(),
+      user_updated: username
+    })
+    |> Repo.update!(prefix: tenant)
+  end
+
+  defp products_exist?(lines, tenant) do
+    ids = lines |> Enum.map(& &1.product_id) |> Enum.uniq()
+    count = Repo.aggregate(from(product in Product, where: product.id in ^ids), :count, prefix: tenant)
+
+    if count == length(ids), do: :ok, else: {:error, :product_not_found}
+  end
+
+  defp valid_receipt_lines?(receipt_lines, lines) do
+    ids = MapSet.new(Enum.map(lines, & &1.id))
+    supplied = Enum.map(receipt_lines, & &1.id)
+
+    if length(supplied) == MapSet.size(MapSet.new(supplied)) and
+         Enum.all?(supplied, &MapSet.member?(ids, &1)) do
+      :ok
+    else
+      {:error, :invalid_receipt_lines}
+    end
+  end
+
+  defp order_open?(%ProductOrder{status: "opened"}), do: :ok
+  defp order_open?(_), do: {:error, :order_already_received}
+
+  defp locked_order(id, tenant), do: Repo.one(from(order in ProductOrder, where: order.id == ^id, lock: "FOR UPDATE"), prefix: tenant)
+
+  defp locked_lines(order_id, tenant), do: Repo.all(from(line in ProductOrderLine, where: line.product_order_id == ^order_id, order_by: [asc: line.id], lock: "FOR UPDATE"), prefix: tenant)
+
+  defp locked_inventory(product_id, store_id, tenant), do: Repo.one(from(inventory in Inventory, where: inventory.product_id == ^product_id and inventory.store_id == ^store_id, lock: "FOR UPDATE"), prefix: tenant)
+
+  defp order_response(id, tenant) do
+    Repo.one!(from(order in ProductOrder, where: order.id == ^id, preload: [lines: :product]), prefix: tenant)
+    |> serialize_order()
+  end
+
+  defp serialize_order(order) do
+    %{
+      id: order.id,
+      name: order.name,
+      memo: order.memo,
+      order_type: order.order_type,
+      from_origin_id: order.from_origin_id,
+      to_store_id: order.to_store_id,
+      user_requester: order.user_requester,
+      user_receiver: order.user_receiver,
+      date_opened: order.date_opened,
+      date_closed: order.date_closed,
+      status: order.status,
+      lines: Enum.map(order.lines, &serialize_line/1)
+    }
+  end
+
+  defp serialize_line(line) do
+    %{
+      id: line.id,
+      product_id: line.product_id,
+      product_name: line.product.name,
+      from_origin_id: line.from_origin_id,
+      to_store_id: line.to_store_id,
+      quantity: line.quantity,
+      quantity_observed: line.quantity_observed,
+      status: line.status,
+      user_receiver: line.user_receiver,
+      receiver_last_update: line.receiver_last_update,
+      receiver_memo: line.receiver_memo
+    }
+  end
+
+  defp cashier(%{user: %{name: name}}) when is_binary(name) do
+    tenant = TenantContext.tenant!()
+
+    case Repo.one(from(user in User, where: user.username == ^name and user.is_active == 1), prefix: tenant) do
+      nil -> {:error, :cashier_not_found}
+      user -> {:ok, user, tenant}
+    end
+  end
+
+  defp cashier(_), do: {:error, :unauthorized}
+  defp cashier_store?(cashier, store_id, tenant) do
+    if Repo.exists?(from(link in UserStore, where: link.user_id == ^cashier.id and link.store_id == ^store_id), prefix: tenant), do: :ok, else: :error
+  end
+
+  defp positive_integer(value) when is_integer(value) and value > 0, do: {:ok, value}
+
+  defp positive_integer(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {number, ""} when number > 0 -> {:ok, number}
+      _ -> {:error, :invalid_params}
+    end
+  end
+
+  defp positive_integer(_), do: {:error, :invalid_params}
+  defp integer(value) when is_integer(value), do: {:ok, value}
+
+  defp integer(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {number, ""} -> {:ok, number}
+      _ -> {:error, :invalid_params}
+    end
+  end
+
+  defp integer(_), do: {:error, :invalid_params}
+  defp now, do: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+end

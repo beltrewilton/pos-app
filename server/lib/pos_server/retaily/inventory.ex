@@ -20,6 +20,8 @@ end
 defmodule PosServer.Retaily.Inventory do
   use Ecto.Schema
 
+  import Ecto.Changeset
+
   schema "app_inventory" do
     field :prev_quantity, :integer, default: 0
     field :quantity, :integer
@@ -30,6 +32,12 @@ defmodule PosServer.Retaily.Inventory do
 
     belongs_to :product, PosServer.Retaily.Product
     belongs_to :store, PosServer.Retaily.Store
+  end
+
+  def changeset(inventory, attrs) do
+    inventory
+    |> cast(attrs, [:prev_quantity, :quantity, :last_update, :user_updated, :product_id, :store_id])
+    |> validate_required([:quantity, :product_id, :store_id])
   end
 end
 
@@ -50,6 +58,8 @@ end
 defmodule PosServer.Retaily.ProductOrder do
   use Ecto.Schema
 
+  import Ecto.Changeset
+
   schema "product_order" do
     field :name, :string
     field :memo, :string
@@ -65,10 +75,20 @@ defmodule PosServer.Retaily.ProductOrder do
     has_many :lines, PosServer.Retaily.ProductOrderLine
     has_many :bulk_order_lines, PosServer.Retaily.BulkOrderLine
   end
+
+  def changeset(order, attrs) do
+    order
+    |> cast(attrs, [:name, :memo, :order_type, :user_requester, :user_receiver, :date_opened, :date_closed, :from_origin_id, :to_store_id, :status])
+    |> validate_required([:order_type, :from_origin_id, :to_store_id])
+    |> validate_number(:from_origin_id, greater_than: 0)
+    |> validate_number(:to_store_id, greater_than: 0)
+  end
 end
 
 defmodule PosServer.Retaily.ProductOrderLine do
   use Ecto.Schema
+
+  import Ecto.Changeset
 
   schema "product_order_line" do
     field :from_origin_id, :integer
@@ -83,6 +103,17 @@ defmodule PosServer.Retaily.ProductOrderLine do
     belongs_to :product, PosServer.Retaily.Product
     belongs_to :to_store, PosServer.Retaily.Store
     belongs_to :product_order, PosServer.Retaily.ProductOrder
+  end
+
+  def changeset(line, attrs) do
+    line
+    |> cast(attrs, [:product_id, :from_origin_id, :to_store_id, :product_order_id, :quantity, :quantity_observed, :status, :date_create, :user_receiver, :receiver_last_update, :receiver_memo])
+    |> validate_required([:product_id, :from_origin_id, :to_store_id, :product_order_id, :quantity])
+    |> validate_number(:product_id, greater_than: 0)
+    |> validate_number(:from_origin_id, greater_than: 0)
+    |> validate_number(:to_store_id, greater_than: 0)
+    |> validate_number(:quantity, greater_than: 0)
+    |> validate_number(:quantity_observed, greater_than_or_equal_to: 0)
   end
 end
 

@@ -25,6 +25,31 @@ export async function inventoryQuantities(storeId, productIds) {
   return response.json();
 }
 
+export async function adjustInventory(adjustment) {
+  const response = await fetch(`${API_BASE_URL}/inventory/adjustments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(adjustment) });
+  if (!response.ok) throw new Error(`Could not update inventory: ${response.status}`);
+  return response.json();
+}
+
+export async function productOrders(storeId) {
+  const url = new URL(`${API_BASE_URL}/product-orders`); url.searchParams.set("store_id", storeId);
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Could not load purchase orders: ${response.status}`);
+  return response.json();
+}
+
+export async function createProductOrder(order) {
+  const response = await fetch(`${API_BASE_URL}/product-orders`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(order) });
+  if (!response.ok) throw new Error(`Could not create purchase order: ${response.status}`);
+  return response.json();
+}
+
+export async function receiveProductOrder(id, receipt) {
+  const response = await fetch(`${API_BASE_URL}/product-orders/${id}/receive`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(receipt) });
+  if (!response.ok) throw new Error(`Could not process purchase order: ${response.status}`);
+  return response.json();
+}
+
 export async function customers(search = "") {
   const url = new URL(`${API_BASE_URL}/customers`);
   if (search) url.searchParams.set("search", search);

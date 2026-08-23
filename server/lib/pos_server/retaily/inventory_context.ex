@@ -4,7 +4,14 @@ defmodule PosServer.Retaily.InventoryContext do
   import Ecto.Query
 
   alias PosServer.{Repo, TenantContext}
-  alias PosServer.Retaily.{Inventory, User, UserStore}
+  alias PosServer.Retaily.{Inventory, Product, Store, User, UserStore}
+
+  def list(scope, store_id) do
+    with {:ok, tenant} <- authorize_store(scope, store_id) do
+      entries = Repo.all(from(inventory in Inventory, join: product in Product, on: product.id == inventory.product_id, join: store in Store, on: store.id == inventory.store_id, where: inventory.store_id == ^store_id, order_by: [asc: product.name], select: %{id: inventory.id, product_id: inventory.product_id, product_name: product.name, store_id: inventory.store_id, store_name: store.name, quantity: inventory.quantity, prev_quantity: inventory.prev_quantity, last_update: inventory.last_update, user_updated: inventory.user_updated}), prefix: tenant)
+      {:ok, entries}
+    end
+  end
 
   def quantities(scope, store_id, product_ids) do
     with {:ok, tenant} <- authorize_store(scope, store_id) do

@@ -1,5 +1,5 @@
 import * as printer from "./printer.js";
-import { API_BASE_URL, activeProducts, addSalePayment, cancelSale, createCustomer, createSale, customers, inventoryQuantities, saleDetails, salesReport } from "./api.js";
+import { API_BASE_URL, activeProducts, addSalePayment, adjustInventory, cancelSale, createCustomer, createProductOrder, createSale, customers, inventoryQuantities, productOrders, receiveProductOrder, saleDetails, salesReport } from "./api.js";
 import { createPos } from "./pos.js";
 import { onLanguageChange, t, translateDocument } from "./i18n.js";
 import { createLanguageSwitcher } from "./language-switcher.js";
@@ -90,12 +90,24 @@ let invoiceStatusFilter = "";
 let expandedInvoiceId = null;
 const invoiceDetails = new Map();
 let invoiceSort = { key: "sequence", direction: "desc" };
+const inventoryScreen = document.querySelector("#inventory-screen");
+const ordersScreen = document.querySelector("#orders-screen");
+const inventoryTableBody = document.querySelector("#inventory-table-body");
+const ordersTableBody = document.querySelector("#orders-table-body");
+const inventorySearchInput = document.querySelector("#inventory-search");
+const inventoryStatus = document.querySelector("#inventory-status");
+const ordersStatus = document.querySelector("#orders-status");
+let inventoryEntries = [], purchaseOrders = [], selectedOrder = null;
+let editingInventoryProductId = null;
+let inventorySort = { key: "last_update", direction: "desc" };
+let purchaseOrderSort = { key: "last_updated", direction: "desc" };
 
 function updateInvoiceStickyOffset() {
   invoiceReport.style.setProperty("--invoice-fixed-height", `${invoiceReportFixed.offsetHeight}px`);
 }
 
 new ResizeObserver(updateInvoiceStickyOffset).observe(invoiceReportFixed);
+document.querySelectorAll(".operations-fixed").forEach((fixed) => new ResizeObserver(() => fixed.closest(".operations-screen").style.setProperty("--operations-fixed-height", `${fixed.offsetHeight}px`)).observe(fixed));
 
 function updateCustomerPicker() {
   orderTitle.textContent = selectedCustomer?.name || t("customer.pick");
@@ -572,6 +584,42 @@ function closeInvoiceReport() {
   selectSidebar("pos-nav");
 }
 
+function formatOperationDate(value) { return value ? new Date(String(value).replace(" ", "T")).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—"; }
+function closeOperations() { inventoryScreen.hidden = true; ordersScreen.hidden = true; document.querySelector("#order-detail").hidden = true; }
+function openInventory() { openPos(); closeOperations(); catalogPanel.dataset.view = "inventory"; appShell.classList.add("invoice-view"); inventoryScreen.hidden = false; selectSidebar("inventory-nav"); loadInventory(); requestAnimationFrame(() => document.querySelector("#inventory-title").focus()); }
+function openOrders() { openPos(); closeOperations(); catalogPanel.dataset.view = "orders"; appShell.classList.add("invoice-view"); ordersScreen.hidden = false; selectSidebar("orders-nav"); loadOrders(); requestAnimationFrame(() => document.querySelector("#orders-title").focus()); }
+function sortOperationEntries(entries, sort) { const factor = sort.direction === "asc" ? 1 : -1; return [...entries].sort((a, b) => { const left = a[sort.key] ?? "", right = b[sort.key] ?? ""; return (typeof left === "number" && typeof right === "number" ? left - right : String(left).localeCompare(String(right), undefined, { numeric: true, sensitivity: "base" })) * factor; }); }
+function renderInventory() {
+  const q = inventorySearchInput.value.trim().toLowerCase();
+  const entries = sortOperationEntries(q ? inventoryEntries.filter((e) => String(e.product_name || "").toLowerCase().includes(q)) : inventoryEntries, inventorySort);
+  inventoryTableBody.replaceChildren(...entries.map((entry) => {
+    const row = document.createElement("tr");
+    row.className = "table-row";
+    [entry.product_name || `Product #${entry.product_id}`, entry.store_name || "Current store", entry.quantity ?? 0, entry.prev_quantity ?? "—", formatOperationDate(entry.last_update), entry.user_updated || "—"].forEach((value) => {
+      const cell = document.createElement("td"); cell.className = "table-cell"; cell.textContent = value; row.appendChild(cell);
+    });
+    const action = document.createElement("td"); action.className = "table-cell inventory-row-action";
+    if (editingInventoryProductId === entry.product_id) {
+      action.innerHTML = `<div class="inventory-inline-editor"><label class="sr-only" for="inventory-add-${entry.product_id}">Quantity to add</label><input id="inventory-add-${entry.product_id}" class="input" type="number" inputmode="numeric" placeholder="Add" aria-label="Quantity to add" autofocus><button class="btn" type="button" data-variant="default" data-size="sm" data-save-inventory="${entry.product_id}">Save</button><button class="btn" type="button" data-variant="ghost" data-size="sm" data-cancel-inventory>Cancel</button></div>`;
+    } else {
+      action.innerHTML = `<button class="btn" type="button" data-variant="outline" data-size="sm" data-adjust-product="${entry.product_id}">Update</button>`;
+    }
+    row.appendChild(action);
+    return row;
+  }));
+  inventoryStatus.textContent = entries.length ? `${entries.length} products` : "No inventory found.";
+}
+async function loadInventory() { inventoryStatus.textContent = "Loading inventory…"; try { const response = await fetch(`${API_BASE_URL}/inventory?store_id=${document.querySelector("#inventory-store").value}`); if (!response.ok) throw new Error(); inventoryEntries = (await response.json()).entries; renderInventory(); } catch { inventoryStatus.textContent = "Inventory could not be loaded."; } }
+function renderOrders() { const entries = sortOperationEntries(purchaseOrders, purchaseOrderSort); ordersTableBody.replaceChildren(...entries.map((o) => { const r = document.createElement("tr"); r.className = "table-row"; [`#${o.id}`, o.from_origin_id || "—", o.to_store_id || "—", o.status === "received" ? "Processed" : "Open", formatOperationDate(o.date_opened), o.user_requester || "—"].forEach((v) => { const c = document.createElement("td"); c.className = "table-cell"; c.textContent = v; r.appendChild(c); }); const c = document.createElement("td"); c.className = "table-cell"; c.innerHTML = `<button class="btn" type="button" data-variant="outline" data-size="sm" data-order-detail="${o.id}">View</button>`; r.appendChild(c); return r; })); ordersStatus.textContent = entries.length ? `${entries.length} orders` : "No purchase orders found."; }
+async function loadOrders() { ordersStatus.textContent = "Loading purchase orders…"; try { purchaseOrders = (await productOrders(storeId)).entries.map((order) => ({ ...order, last_updated: order.date_closed || order.date_opened })); renderOrders(); } catch { ordersStatus.textContent = "Purchase orders could not be loaded."; } }
+function showOrderDetail(order) { selectedOrder = order; const detail = document.querySelector("#order-detail"); detail.hidden = false; detail.innerHTML = `<div class="card-header"><div><p class="eyebrow">Order #${order.id}</p><h3 class="card-title">${order.status === "received" ? "Processed" : "Open"}</h3><p class="field-description">Destination store ${order.to_store_id} · Created by ${order.user_requester || "—"}</p></div>${order.status === "opened" ? '<button id="process-order" class="btn" type="button" data-variant="default">Process order</button>' : ""}</div><div class="card-content"><table class="table"><thead><tr class="table-row"><th class="table-head">Product</th><th class="table-head">Requested</th><th class="table-head">Observed</th><th class="table-head">Status</th></tr></thead><tbody>${order.lines.map((l) => `<tr class="table-row"><td class="table-cell">${l.product_name}</td><td class="table-cell">${l.quantity}</td><td class="table-cell">${l.quantity_observed ?? "—"}</td><td class="table-cell">${l.status}</td></tr>`).join("")}</tbody></table></div>`; detail.querySelector("#process-order")?.addEventListener("click", openProcessOrder); }
+function fillProductOptions(select) { const entries = inventoryEntries.length ? inventoryEntries : products.map((product) => ({ product_id: product.id, product_name: product.name })); select.replaceChildren(...entries.map((e) => new Option(e.product_name, e.product_id))); }
+function openInventoryDialog(productId) { const dialog = document.querySelector("#inventory-dialog"), select = document.querySelector("#inventory-product"); fillProductOptions(select); select.value = productId || inventoryEntries[0]?.product_id || ""; updateInventoryCurrent(); dialog.showModal(); }
+function updateInventoryCurrent() { const entry = inventoryEntries.find((e) => String(e.product_id) === document.querySelector("#inventory-product").value); document.querySelector("#inventory-current").value = entry?.quantity ?? 0; }
+function addOrderLine() { const line = document.createElement("div"); line.className = "order-line"; const select = document.createElement("select"); select.className = "select"; select.required = true; fillProductOptions(select); const qty = document.createElement("input"); qty.className = "input"; qty.type = "number"; qty.min = "1"; qty.value = "1"; qty.required = true; const remove = document.createElement("button"); remove.className = "btn"; remove.type = "button"; remove.dataset.variant = "ghost"; remove.textContent = "Remove"; remove.addEventListener("click", () => line.remove()); line.append(select, qty, remove); document.querySelector("#order-lines").appendChild(line); }
+function openOrderDialog() { document.querySelector("#order-form").reset(); document.querySelector("#order-lines").replaceChildren(); addOrderLine(); document.querySelector("#order-dialog").showModal(); }
+function openProcessOrder() { const lines = document.querySelector("#process-order-lines"); lines.replaceChildren(); selectedOrder.lines.forEach((line) => { const row = document.createElement("div"); row.className = "order-line process-line"; row.dataset.lineId = line.id; const name = document.createElement("span"); name.textContent = `${line.product_name} (requested ${line.quantity})`; const observed = document.createElement("input"); observed.className = "input"; observed.type = "number"; observed.min = "0"; observed.value = line.quantity_observed ?? line.quantity; row.append(name, observed); lines.appendChild(row); }); document.querySelector("#process-order-dialog").showModal(); }
+
 function selectSidebar(id) {
   document.querySelectorAll(".sidebar-link").forEach((link) => {
     link.toggleAttribute("aria-current", link.id === id);
@@ -582,6 +630,8 @@ function openPos(event) {
   event?.preventDefault();
   invoiceReport.hidden = true;
   customersScreen.hidden = true;
+  inventoryScreen.hidden = true;
+  ordersScreen.hidden = true;
   checkoutFlow.hidden = true;
   startCheckoutButton.hidden = false;
   delete catalogPanel.dataset.view;
@@ -721,9 +771,43 @@ clearCustomerButton.addEventListener("click", () => { selectedCustomer = null; u
 document.querySelector("#customers-back").addEventListener("click", closeCustomers);
 customerSearch.addEventListener("input", () => { clearTimeout(customerSearchTimer); customerSearchTimer = setTimeout(loadCustomers, 220); });
 document.querySelector("#pos-nav").addEventListener("click", openPos);
-document.querySelector("#catalog-nav").addEventListener("click", openPos);
 document.querySelector("#sales-report-nav").addEventListener("click", openInvoiceReport);
-document.querySelector("#settings-nav").addEventListener("click", openSettings);
+document.querySelector("#inventory-nav").addEventListener("click", openInventory);
+document.querySelector("#orders-nav").addEventListener("click", openOrders);
+document.querySelector("#inventory-screen thead").addEventListener("click", (event) => { const button = event.target.closest("[data-inventory-sort]"); if (!button) return; const key = button.dataset.inventorySort; inventorySort = { key, direction: inventorySort.key === key && inventorySort.direction === "asc" ? "desc" : "asc" }; document.querySelectorAll("[data-inventory-sort]").forEach((item) => item.parentElement.setAttribute("aria-sort", item === button ? (inventorySort.direction === "asc" ? "ascending" : "descending") : "none")); renderInventory(); });
+document.querySelector("#orders-screen thead").addEventListener("click", (event) => { const button = event.target.closest("[data-order-sort]"); if (!button) return; const key = button.dataset.orderSort; purchaseOrderSort = { key, direction: purchaseOrderSort.key === key && purchaseOrderSort.direction === "asc" ? "desc" : "asc" }; document.querySelectorAll("[data-order-sort]").forEach((item) => item.parentElement.setAttribute("aria-sort", item === button ? (purchaseOrderSort.direction === "asc" ? "ascending" : "descending") : "none")); renderOrders(); });
+inventorySearchInput.addEventListener("input", renderInventory);
+document.querySelector("#inventory-store").addEventListener("change", loadInventory);
+inventoryTableBody.addEventListener("click", async (event) => {
+  const update = event.target.closest("[data-adjust-product]");
+  const cancel = event.target.closest("[data-cancel-inventory]");
+  const save = event.target.closest("[data-save-inventory]");
+  if (update) { editingInventoryProductId = Number(update.dataset.adjustProduct); renderInventory(); return; }
+  if (cancel) { editingInventoryProductId = null; renderInventory(); return; }
+  if (!save) return;
+  const productId = Number(save.dataset.saveInventory);
+  const input = document.querySelector(`#inventory-add-${productId}`);
+  const quantity = Number(input.value);
+  if (!Number.isInteger(quantity)) { input.focus(); return; }
+  save.disabled = true;
+  try {
+    await adjustInventory({ product_id: productId, store_id: document.querySelector("#inventory-store").value, quantity });
+    editingInventoryProductId = null;
+    await loadInventory();
+    refreshInventory([productId]).catch(console.error);
+    window.toast?.success({ title: "Inventory updated", description: "The product quantity was refreshed." });
+  } catch (error) {
+    save.disabled = false;
+    inventoryStatus.textContent = error.message;
+  }
+});
+document.querySelector("#inventory-product").addEventListener("change", updateInventoryCurrent);
+document.querySelector("#inventory-form").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const quantity = Number(document.querySelector("#inventory-quantity").value); if (!Number.isInteger(quantity)) return; const status = document.querySelector("#inventory-form-status"); status.textContent = "Saving…"; try { await adjustInventory({ product_id: document.querySelector("#inventory-product").value, store_id: document.querySelector("#inventory-form-store").value, quantity }); document.querySelector("#inventory-dialog").close(); await loadInventory(); refreshInventory([document.querySelector("#inventory-product").value]).catch(console.error); window.toast?.success({ title: "Inventory updated", description: "The product quantity was refreshed." }); } catch (error) { status.textContent = error.message; } });
+document.querySelector("#create-order").addEventListener("click", openOrderDialog);
+document.querySelector("#add-order-line").addEventListener("click", addOrderLine);
+document.querySelector("#order-form").addEventListener("submit", async (event) => { event.preventDefault(); const lines = [...document.querySelectorAll("#order-lines .order-line")].map((line) => ({ product_id: Number(line.querySelector("select").value), quantity: Number(line.querySelector("input").value) })); const status = document.querySelector("#order-form-status"); status.textContent = "Creating…"; try { const order = await createProductOrder({ order_type: "purchase", from_origin_id: Number(document.querySelector("#order-source").value), to_store_id: Number(document.querySelector("#order-destination").value), lines }); document.querySelector("#order-dialog").close(); purchaseOrders.unshift(order); renderOrders(); showOrderDetail(order); window.toast?.success({ title: "Purchase order created", description: `Order #${order.id} is ready to process.` }); } catch (error) { status.textContent = error.message; } });
+ordersTableBody.addEventListener("click", (event) => { const button = event.target.closest("[data-order-detail]"); if (button) showOrderDetail(purchaseOrders.find((order) => String(order.id) === button.dataset.orderDetail)); });
+document.querySelector("#process-order-form").addEventListener("submit", async (event) => { event.preventDefault(); const status = document.querySelector("#process-order-status"); status.textContent = "Processing…"; try { const order = await receiveProductOrder(selectedOrder.id, { lines: [...document.querySelectorAll(".process-line")].map((row) => ({ id: Number(row.dataset.lineId), quantity_observed: Number(row.querySelector("input").value) })) }); document.querySelector("#process-order-dialog").close(); purchaseOrders = purchaseOrders.map((item) => item.id === order.id ? order : item); renderOrders(); showOrderDetail(order); loadInventory(); refreshInventory(order.lines.map((line) => line.product_id)).catch(console.error); window.toast?.success({ title: "Order processed", description: "Inventory quantities were refreshed." }); } catch (error) { status.textContent = error.message; } });
 document.querySelector(".invoice-table thead").addEventListener("click", (event) => {
   const button = event.target.closest("[data-sort]");
   if (!button) return;
