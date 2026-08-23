@@ -2,7 +2,19 @@ defmodule PosServerWeb.InventoryController do
   use PosServerWeb, :controller
 
   alias Ecto.Changeset
-  alias PosServer.Retaily.{InventoryContext, Orders}
+  alias PosServer.Retaily.{InventoryContext, Orders, Sql}
+
+  def summary(conn, params) do
+    with {:ok, store_id} <- positive_integer(params["store_id"]),
+         {:ok, _tenant} <- InventoryContext.authorize_store(conn.assigns.current_scope, store_id),
+         {:ok, summary} <- Sql.inventory_summary(store_id) do
+      json(conn, %{summary: summary})
+    else
+      {:error, :invalid_params} -> conn |> put_status(:bad_request) |> json(%{error: "store_id is required"})
+      :error -> conn |> put_status(:forbidden) |> json(%{error: "store is not assigned to cashier"})
+      {:error, reason} -> conn |> put_status(:unprocessable_entity) |> json(%{error: to_string(reason)})
+    end
+  end
 
   def index(conn, params) do
     with {:ok, store_id} <- positive_integer(params["store_id"]),

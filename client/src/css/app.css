@@ -620,6 +620,19 @@ button {
 .operations-filters .input, .operations-filters .select { width: 100%; }
 .operations-filters .select { width: 180px; }
 .operations-status { min-height: 20px; margin: 10px 0 0; color: var(--muted-foreground); font-size: .82rem; }
+.inventory-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0 0 16px;
+}
+.inventory-summary-card .card-header { padding: .75rem .9rem 0; }
+.inventory-summary-card .card-content { padding: .25rem .9rem .8rem; }
+.inventory-summary-card .card-title { font-size: .85rem; }
+.inventory-kpi-value { margin: 0; font-size: 1.25rem; font-weight: 780; letter-spacing: -.04em; }
+.inventory-kpi-detail { min-height: 2.2em; margin: 3px 0 0; overflow-wrap: anywhere; color: var(--muted-foreground); font-size: .72rem; line-height: 1.35; }
+.inventory-summary-negative { border-top: 3px solid var(--destructive) !important; }
+.inventory-summary-warning { border-top: 3px solid #d38a1c !important; }
 .operations-table-container { overflow: visible; }
 .operations-table { min-width: 900px; }
 .operations-table > thead > .table-row > .table-head { position: sticky; top: var(--operations-fixed-height, 0px); z-index: 2; background: #f6f7f8; text-transform: uppercase; font-size: .68rem; letter-spacing: .06em; }

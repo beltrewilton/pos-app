@@ -43,6 +43,7 @@ defmodule PosServerWeb.Router do
 
     get "/products", ProductController, :index
     get "/inventory", InventoryController, :index
+    get "/inventory/summary", InventoryController, :summary
     post "/inventory/adjustments", InventoryController, :adjust
     post "/product-orders", ProductOrderController, :create
     get "/product-orders", ProductOrderController, :index

@@ -106,6 +106,16 @@ defmodule PosServer.Retaily.Sql do
     end
   end
 
+  @spec inventory_summary(pos_integer()) :: {:ok, map()} | {:error, term()}
+  def inventory_summary(store_id) do
+    tenant = TenantContext.tenant!()
+
+    with {:ok, store_id} <- store_id(store_id),
+         {:ok, result} <- run(tenant, "inventory_summary", [store_id]) do
+      {:ok, result |> rows_as_maps() |> List.first()}
+    end
+  end
+
   @spec run(String.t(), String.t(), list()) :: {:ok, Postgrex.Result.t()} | {:error, term()}
   def run(tenant, statement_name, params \\ []) when is_list(params) do
     with {:ok, sql} <- read(statement_name) do

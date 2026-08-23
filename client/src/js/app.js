@@ -1,5 +1,5 @@
 import * as printer from "./printer.js";
-import { API_BASE_URL, activeProducts, addSalePayment, adjustInventory, cancelSale, createCustomer, createProductOrder, createSale, customers, inventoryQuantities, productOrders, receiveProductOrder, saleDetails, salesReport } from "./api.js";
+import { API_BASE_URL, activeProducts, addSalePayment, adjustInventory, cancelSale, createCustomer, createProductOrder, createSale, customers, inventoryQuantities, inventorySummary, productOrders, receiveProductOrder, saleDetails, salesReport } from "./api.js";
 import { createPos } from "./pos.js";
 import { onLanguageChange, t, translateDocument } from "./i18n.js";
 import { createLanguageSwitcher } from "./language-switcher.js";
@@ -96,6 +96,7 @@ const inventoryTableBody = document.querySelector("#inventory-table-body");
 const ordersTableBody = document.querySelector("#orders-table-body");
 const inventorySearchInput = document.querySelector("#inventory-search");
 const inventoryStatus = document.querySelector("#inventory-status");
+const inventorySummaryGrid = document.querySelector("#inventory-summary");
 const ordersStatus = document.querySelector("#orders-status");
 let inventoryEntries = [], purchaseOrders = [], selectedOrder = null;
 let editingInventoryProductId = null;
@@ -609,7 +610,58 @@ function renderInventory() {
   }));
   inventoryStatus.textContent = entries.length ? `${entries.length} products` : "No inventory found.";
 }
-async function loadInventory() { inventoryStatus.textContent = "Loading inventory…"; try { const response = await fetch(`${API_BASE_URL}/inventory?store_id=${document.querySelector("#inventory-store").value}`); if (!response.ok) throw new Error(); inventoryEntries = (await response.json()).entries; renderInventory(); } catch { inventoryStatus.textContent = "Inventory could not be loaded."; } }
+function percentage(value) { return `${(Number(value || 0) * 100).toFixed(1)}%`; }
+function compactList(items, formatter, empty = "No activity") { return Array.isArray(items) && items.length ? items.map(formatter).join(" · ") : empty; }
+function inventoryMetric(title, value, description, tone = "") {
+  const card = document.createElement("article");
+  card.className = `card inventory-summary-card ${tone}`.trim();
+  const header = document.createElement("div"); header.className = "card-header";
+  const label = document.createElement("p"); label.className = "card-title"; label.textContent = title;
+  const content = document.createElement("div"); content.className = "card-content";
+  const metric = document.createElement("p"); metric.className = "inventory-kpi-value numeric"; metric.textContent = value;
+  const detail = document.createElement("p"); detail.className = "inventory-kpi-detail"; detail.textContent = description;
+  header.appendChild(label); content.append(metric, detail); card.append(header, content);
+  return card;
+}
+function renderInventorySummary(summary) {
+  if (!summary) return;
+  const bestProducts = compactList(summary.best_products, (item) => `${item.product_name}: ${currency(item.net_revenue)}`);
+  const slowestProducts = compactList(summary.slowest_products, (item) => `${item.product_name}: ${Number(item.net_units).toFixed(0)} units`);
+  const salesMix = compactList(summary.sales_mix, (item) => `${item.sale_type || "Sale"}/${item.login || "—"}: ${currency(item.net_sales)}`);
+  const paymentMix = compactList(summary.payment_method_mix, (item) => `${item.type}: ${currency(item.amount)}`);
+  const cards = [
+    inventoryMetric("Inventory valuation", currency(summary.inventory_valuation), `Current store · company total ${currency(summary.company_inventory_valuation)}`),
+    inventoryMetric("Negative-stock exposure", `${Number(summary.negative_stock_sku_count || 0)} SKUs`, `${Number(summary.negative_stock_units || 0)} units · ${currency(summary.negative_stock_value)}`, "inventory-summary-negative"),
+    inventoryMetric("Stockout rate", percentage(summary.zero_stock_rate), `${Number(summary.zero_stock_sku_count || 0)} of ${Number(summary.inventoried_sku_count || 0)} inventoried SKUs`, "inventory-summary-warning"),
+    inventoryMetric("Uncosted inventory", `${Number(summary.uncosted_inventory_sku_count || 0)} SKUs`, `${Number(summary.uncosted_inventory_units || 0)} positive units with missing/zero cost`, "inventory-summary-warning"),
+    inventoryMetric("Net sales · 30 days", currency(summary.net_sales), `${Number(summary.sale_transaction_count || 0)} completed sale transactions`),
+    inventoryMetric("Sales mix · 30 days", currency(summary.net_sales), salesMix),
+    inventoryMetric("Average order", currency(summary.average_order_value), `${Number(summary.units_per_order || 0).toFixed(1)} net units per sale`),
+    inventoryMetric("Best products · 30 days", bestProducts, `Slowest: ${slowestProducts}`),
+    inventoryMetric("Discount rate · 30 days", percentage(summary.discount_rate), `${currency(summary.net_discount)} net discounts`),
+    inventoryMetric("Payment-method mix · 30 days", paymentMix, "Recorded payments on non-return sales"),
+    inventoryMetric("Customer retention · 30 days", `${Number(summary.returning_customer_count || 0)} returning`, `${Number(summary.purchasing_customer_count || 0)} buyers · ${Number(summary.average_purchase_frequency || 0).toFixed(1)} purchases/customer · ${currency(summary.average_customer_value)} avg value`),
+    inventoryMetric("Purchase / transfer flow", `${Number(summary.open_purchase_order_count || 0)} purchase · ${Number(summary.open_transfer_count || 0)} transfer open`, `${Number(summary.closed_purchase_order_count || 0)} purchase / ${Number(summary.closed_transfer_count || 0)} transfer closed · ${percentage(summary.receiving_completion_rate)} received · ${Number(summary.average_closed_order_hours || 0).toFixed(1)}h avg`)
+  ];
+  inventorySummaryGrid.replaceChildren(...cards);
+}
+async function loadInventory() {
+  inventoryStatus.textContent = "Loading inventory…";
+  const storeId = document.querySelector("#inventory-store").value;
+  try {
+    const [inventoryResponse, summaryResponse] = await Promise.all([
+      fetch(`${API_BASE_URL}/inventory?store_id=${storeId}`),
+      inventorySummary(storeId)
+    ]);
+    if (!inventoryResponse.ok) throw new Error();
+    inventoryEntries = (await inventoryResponse.json()).entries;
+    renderInventorySummary(summaryResponse.summary);
+    renderInventory();
+  } catch (error) {
+    console.error(error);
+    inventoryStatus.textContent = "Inventory could not be loaded.";
+  }
+}
 function renderOrders() { const entries = sortOperationEntries(purchaseOrders, purchaseOrderSort); ordersTableBody.replaceChildren(...entries.map((o) => { const r = document.createElement("tr"); r.className = "table-row"; [`#${o.id}`, o.from_origin_id || "—", o.to_store_id || "—", o.status === "received" ? "Processed" : "Open", formatOperationDate(o.date_opened), o.user_requester || "—"].forEach((v) => { const c = document.createElement("td"); c.className = "table-cell"; c.textContent = v; r.appendChild(c); }); const c = document.createElement("td"); c.className = "table-cell"; c.innerHTML = `<button class="btn" type="button" data-variant="outline" data-size="sm" data-order-detail="${o.id}">View</button>`; r.appendChild(c); return r; })); ordersStatus.textContent = entries.length ? `${entries.length} orders` : "No purchase orders found."; }
 async function loadOrders() { ordersStatus.textContent = "Loading purchase orders…"; try { purchaseOrders = (await productOrders(storeId)).entries.map((order) => ({ ...order, last_updated: order.date_closed || order.date_opened })); renderOrders(); } catch { ordersStatus.textContent = "Purchase orders could not be loaded."; } }
 function showOrderDetail(order) { selectedOrder = order; const detail = document.querySelector("#order-detail"); detail.hidden = false; detail.innerHTML = `<div class="card-header"><div><p class="eyebrow">Order #${order.id}</p><h3 class="card-title">${order.status === "received" ? "Processed" : "Open"}</h3><p class="field-description">Destination store ${order.to_store_id} · Created by ${order.user_requester || "—"}</p></div>${order.status === "opened" ? '<button id="process-order" class="btn" type="button" data-variant="default">Process order</button>' : ""}</div><div class="card-content"><table class="table"><thead><tr class="table-row"><th class="table-head">Product</th><th class="table-head">Requested</th><th class="table-head">Observed</th><th class="table-head">Status</th></tr></thead><tbody>${order.lines.map((l) => `<tr class="table-row"><td class="table-cell">${l.product_name}</td><td class="table-cell">${l.quantity}</td><td class="table-cell">${l.quantity_observed ?? "—"}</td><td class="table-cell">${l.status}</td></tr>`).join("")}</tbody></table></div>`; detail.querySelector("#process-order")?.addEventListener("click", openProcessOrder); }
@@ -735,6 +787,10 @@ async function refreshInventory(productIds) {
   const quantities = new Map(page.entries.map((entry) => [Number(entry.product_id), entry.quantity]));
   products = products.map((product) => quantities.has(Number(product.id)) ? { ...product, inventory_quantity: quantities.get(Number(product.id)) } : product);
   renderProducts();
+  if (!inventoryScreen.hidden) {
+    const { summary } = await inventorySummary(document.querySelector("#inventory-store").value);
+    renderInventorySummary(summary);
+  }
 }
 
 function subscribeToInventory() {

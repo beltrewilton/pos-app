@@ -25,6 +25,14 @@ export async function inventoryQuantities(storeId, productIds) {
   return response.json();
 }
 
+export async function inventorySummary(storeId) {
+  const url = new URL(`${API_BASE_URL}/inventory/summary`);
+  url.searchParams.set("store_id", storeId);
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Could not load inventory summary: ${response.status}`);
+  return response.json();
+}
+
 export async function adjustInventory(adjustment) {
   const response = await fetch(`${API_BASE_URL}/inventory/adjustments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(adjustment) });
   if (!response.ok) throw new Error(`Could not update inventory: ${response.status}`);
