@@ -1,5 +1,5 @@
 import * as printer from "./printer.js";
-import { API_BASE_URL, activeProducts, addSalePayment, cancelSale, createCustomer, createSale, customers, inventoryQuantities, salesReport } from "./api.js";
+import { API_BASE_URL, activeProducts, addSalePayment, cancelSale, createCustomer, createSale, customers, inventoryQuantities, saleDetails, salesReport } from "./api.js";
 import { createPos } from "./pos.js";
 import { onLanguageChange, t, translateDocument } from "./i18n.js";
 import { createLanguageSwitcher } from "./language-switcher.js";
@@ -87,6 +87,9 @@ let invoicePendingCancellation = null;
 let calendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let calendarRange = { from: "", to: "" };
 let invoiceStatusFilter = "";
+let expandedInvoiceId = null;
+const invoiceDetails = new Map();
+let invoiceSort = { key: "sequence", direction: "desc" };
 
 function updateInvoiceStickyOffset() {
   invoiceReport.style.setProperty("--invoice-fixed-height", `${invoiceReportFixed.offsetHeight}px`);
@@ -245,20 +248,71 @@ function updateInvoiceSummary(summary) {
   });
 }
 
+function invoicePaymentForm(invoice) {
+  const payment = document.createElement("form");
+  payment.className = "invoice-payment";
+  payment.dataset.invoiceId = invoice.id;
+  const inputId = `invoice-payment-${invoice.id}`;
+  const label = document.createElement("label");
+  label.className = "label sr-only";
+  label.htmlFor = inputId;
+  label.textContent = `Payment amount for ${invoice.sequence || invoice.id}`;
+  const amount = document.createElement("input");
+  amount.className = "input numeric";
+  amount.id = inputId;
+  amount.type = "number"; amount.min = "0.01"; amount.max = invoice.due_balance; amount.step = "0.01"; amount.required = true;
+  amount.value = Number(invoice.due_balance).toFixed(2);
+  payment.dataset.paymentType = "CASH";
+  const methods = document.createElement("div");
+  methods.className = "invoice-payment-methods";
+  methods.setAttribute("role", "group");
+  methods.setAttribute("aria-label", "Payment method");
+  [["CASH", "Cash"], ["CC", "Credit Card"]].forEach(([type, labelText]) => {
+    const method = document.createElement("button");
+    method.className = "btn"; method.type = "button"; method.dataset.paymentType = type;
+    method.dataset.variant = type === "CASH" ? "secondary" : "ghost";
+    method.setAttribute("aria-pressed", String(type === "CASH"));
+    const iconElement = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    iconElement.classList.add("invoice-payment-icon"); iconElement.setAttribute("aria-hidden", "true"); iconElement.setAttribute("viewBox", "0 0 24 24"); iconElement.setAttribute("fill", "none"); iconElement.setAttribute("stroke", "currentColor"); iconElement.setAttribute("stroke-width", "2");
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", type === "CASH" ? "M3 6h18v12H3zM7 12h.01M17 12h.01M12 9a3 3 0 1 0 0 6" : "M3 5h18v14H3zM3 10h18");
+    iconElement.appendChild(path);
+    method.append(iconElement, document.createTextNode(labelText));
+    methods.appendChild(method);
+  });
+  const pay = document.createElement("button");
+  pay.className = "btn"; pay.type = "submit"; pay.dataset.variant = "outline"; pay.textContent = "Pay";
+  payment.append(label, amount, methods, pay);
+  return payment;
+}
+
 function invoiceRow(invoice) {
   const row = document.createElement("tr");
   row.className = "table-row invoice-row";
-  const values = [
-    invoice.sequence || `#${invoice.id}`,
-    invoice.client_name || "Walk-in customer",
-    invoice.date_create ? new Date(invoice.date_create.replace(" ", "T")).toLocaleDateString() : "—",
-  ];
-  values.forEach((value) => {
+  [invoice.sequence || `#${invoice.id}`, invoice.client_name || "Walk-in customer"].forEach((value, index) => {
     const cell = document.createElement("td");
     cell.className = "table-cell";
-    cell.textContent = value;
+    const trigger = document.createElement("button");
+    trigger.className = "btn invoice-detail-trigger";
+    trigger.type = "button";
+    trigger.dataset.variant = "ghost";
+    trigger.dataset.invoiceDetail = invoice.id;
+    trigger.setAttribute("aria-expanded", String(expandedInvoiceId === invoice.id));
+    if (index === 0) {
+      const indicator = document.createElement("span");
+      indicator.className = "invoice-disclosure";
+      indicator.setAttribute("aria-hidden", "true");
+      indicator.textContent = expandedInvoiceId === invoice.id ? "▾" : "▸";
+      trigger.append(indicator);
+    }
+    trigger.append(document.createTextNode(value));
+    cell.appendChild(trigger);
     row.appendChild(cell);
   });
+  const date = document.createElement("td");
+  date.className = "table-cell";
+  date.textContent = invoice.date_create ? new Date(invoice.date_create.replace(" ", "T")).toLocaleDateString() : "—";
+  row.appendChild(date);
   const status = document.createElement("td");
   status.className = "table-cell";
   const badge = document.createElement("span");
@@ -274,32 +328,6 @@ function invoiceRow(invoice) {
   });
   const actions = document.createElement("td");
   actions.className = "table-cell invoice-actions";
-  if (invoice.invoice_status === "open") {
-    const payment = document.createElement("form");
-    payment.className = "invoice-payment";
-    payment.dataset.invoiceId = invoice.id;
-    const inputId = `invoice-payment-${invoice.id}`;
-    const label = document.createElement("label");
-    label.className = "label sr-only";
-    label.htmlFor = inputId;
-    label.textContent = `Payment amount for ${invoice.sequence || invoice.id}`;
-    const amount = document.createElement("input");
-    amount.className = "input numeric";
-    amount.id = inputId;
-    amount.type = "number"; amount.min = "0.01"; amount.max = invoice.due_balance; amount.step = "0.01"; amount.required = true;
-    amount.value = Number(invoice.due_balance).toFixed(2);
-    const typeId = `invoice-payment-type-${invoice.id}`;
-    const typeLabel = document.createElement("label");
-    typeLabel.className = "label sr-only";
-    typeLabel.htmlFor = typeId;
-    typeLabel.textContent = "Payment method";
-    const type = document.createElement("select");
-    type.className = "select"; type.id = typeId;
-    type.innerHTML = "<option value=\"CASH\">Cash</option><option value=\"CC\">Card</option>";
-    const pay = document.createElement("button");
-    pay.className = "btn"; pay.type = "submit"; pay.dataset.variant = "outline"; pay.dataset.size = "sm"; pay.textContent = "Pay";
-    payment.append(label, amount, typeLabel, type, pay); actions.appendChild(payment);
-  }
   if (invoice.invoice_status !== "cancelled") {
     const cancel = document.createElement("button");
     cancel.className = "btn invoice-cancel"; cancel.type = "button"; cancel.dataset.variant = "ghost"; cancel.dataset.size = "sm"; cancel.dataset.cancelInvoice = invoice.id; cancel.textContent = "Cancel";
@@ -309,19 +337,135 @@ function invoiceRow(invoice) {
   return row;
 }
 
+function invoiceDetailsRow(invoice) {
+  const detail = invoiceDetails.get(invoice.id);
+  const row = document.createElement("tr");
+  row.className = "table-row invoice-details-row";
+  const cell = document.createElement("td");
+  cell.className = "table-cell";
+  cell.colSpan = 7;
+  const card = document.createElement("section");
+  card.className = "card invoice-details-card";
+  if (!detail) {
+    const content = document.createElement("div");
+    content.className = "card-content muted";
+    content.textContent = "Loading invoice details…";
+    card.appendChild(content);
+  } else {
+    const header = document.createElement("div");
+    header.className = "card-header";
+    const title = document.createElement("h3");
+    title.className = "card-title";
+    title.textContent = detail.sequence || `Invoice #${detail.id}`;
+    const description = document.createElement("p");
+    description.className = "card-description";
+    description.textContent = `${detail.client?.name || "Walk-in customer"} · ${detail.sale_type || "Sale"} · ${detail.login || "—"}`;
+    const headerCopy = document.createElement("div");
+    headerCopy.append(title, description);
+    header.appendChild(headerCopy);
+    if (detail.invoice_status === "open") header.appendChild(invoicePaymentForm(detail));
+    const content = document.createElement("div");
+    content.className = "card-content";
+    const totals = document.createElement("p");
+    totals.className = "invoice-detail-totals numeric";
+    totals.textContent = `Subtotal ${currency(detail.sub)} · Tax ${currency(detail.tax_amount)} · Discount ${currency(detail.discount)} · Paid ${currency(detail.total_paid)} · Balance ${currency(detail.due_balance)}`;
+    const separator = document.createElement("hr");
+    separator.className = "separator";
+    separator.setAttribute("role", "none");
+    const tableWrap = document.createElement("div");
+    tableWrap.className = "table-container";
+    const table = document.createElement("table");
+    table.className = "table invoice-detail-lines";
+    const caption = document.createElement("caption");
+    caption.className = "table-caption";
+    caption.textContent = "Invoice line items";
+    const head = document.createElement("thead");
+    const headRow = document.createElement("tr");
+    headRow.className = "table-row";
+    ["Product", "Quantity", "Unit price", "Discount", "Total"].forEach((label) => {
+      const th = document.createElement("th");
+      th.className = "table-head"; th.scope = "col"; th.textContent = label; headRow.appendChild(th);
+    });
+    head.appendChild(headRow);
+    const body = document.createElement("tbody");
+    detail.lines.forEach((line) => {
+      const lineRow = document.createElement("tr"); lineRow.className = "table-row";
+      [line.product?.name || "—", line.quantity, currency(line.amount), currency(line.discount), currency(line.total_amount)].forEach((value, index) => {
+        const td = document.createElement("td"); td.className = index ? "table-cell numeric" : "table-cell"; td.textContent = value; lineRow.appendChild(td);
+      });
+      body.appendChild(lineRow);
+    });
+    const paymentSection = document.createElement("tbody");
+    const paymentSectionHeading = document.createElement("tr");
+    paymentSectionHeading.className = "table-row invoice-payment-section";
+    const paymentHeading = document.createElement("th");
+    paymentHeading.className = "table-head";
+    paymentHeading.scope = "rowgroup";
+    paymentHeading.colSpan = 5;
+    paymentHeading.textContent = detail.payments.length ? `Payments · ${detail.invoice_status === "close" ? "Complete" : "Partial"}` : "Payments · None recorded";
+    paymentSectionHeading.appendChild(paymentHeading);
+    paymentSection.appendChild(paymentSectionHeading);
+    if (detail.payments.length) {
+      const paymentColumns = document.createElement("tr");
+      paymentColumns.className = "table-row invoice-payment-columns";
+      ["Payment", "Date", "Method", "Amount", "Status"].forEach((label) => {
+        const th = document.createElement("th");
+        th.className = "table-head";
+        th.scope = "col";
+        th.textContent = label;
+        paymentColumns.appendChild(th);
+      });
+      paymentSection.appendChild(paymentColumns);
+    }
+    detail.payments.forEach((payment) => {
+      const paymentRow = document.createElement("tr");
+      paymentRow.className = "table-row";
+      const values = [
+        "Payment",
+        payment.date_create ? new Date(payment.date_create.replace(" ", "T")).toLocaleDateString() : "—",
+        payment.type === "CC" ? "Credit Card" : "Cash",
+        currency(payment.amount),
+        detail.invoice_status === "close" ? "Complete" : "Partial"
+      ];
+      values.forEach((value, index) => {
+        const paymentCell = document.createElement("td");
+        paymentCell.className = index === 3 ? "table-cell numeric" : "table-cell";
+        paymentCell.textContent = value;
+        paymentRow.appendChild(paymentCell);
+      });
+      paymentSection.appendChild(paymentRow);
+    });
+    table.append(caption, head, body, paymentSection); tableWrap.appendChild(table); content.append(totals, separator, tableWrap); card.append(header, content);
+  }
+  cell.appendChild(card); row.appendChild(cell);
+  return row;
+}
+
 function renderInvoices() {
-  invoiceTableBody.replaceChildren(...invoices.map(invoiceRow));
+  invoiceTableBody.replaceChildren(...invoices.flatMap((invoice) => expandedInvoiceId === invoice.id ? [invoiceRow(invoice), invoiceDetailsRow(invoice)] : [invoiceRow(invoice)]));
   if (!invoices.length && !invoiceLoading) invoiceReportStatus.textContent = "No invoices found.";
+}
+
+function sortInvoices() {
+  const { key, direction } = invoiceSort;
+  const factor = direction === "asc" ? 1 : -1;
+  invoices.sort((left, right) => {
+    const leftValue = key === "sequence" ? left.sequence : left[key];
+    const rightValue = key === "sequence" ? right.sequence : right[key];
+    if (["amount", "due_balance"].includes(key)) return (Number(leftValue || 0) - Number(rightValue || 0)) * factor;
+    return String(leftValue || "").localeCompare(String(rightValue || ""), undefined, { numeric: true, sensitivity: "base" }) * factor;
+  });
 }
 
 async function loadInvoices({ reset = false } = {}) {
   if (invoiceLoading || (!reset && !invoiceHasMore)) return;
-  if (reset) { invoiceCursor = null; invoiceHasMore = true; invoices = []; }
+  if (reset) { invoiceCursor = null; invoiceHasMore = true; invoices = []; expandedInvoiceId = null; }
   invoiceLoading = true;
   invoiceReportStatus.textContent = invoices.length ? "Loading more invoices…" : "Loading invoices…";
   try {
     const page = await salesReport(storeId, invoiceCursor, invoiceSearch.value.trim(), invoiceDateFrom.value, invoiceDateTo.value, invoiceStatusFilter);
     invoices = invoices.concat(page.entries);
+    sortInvoices();
     invoiceCursor = page.next_cursor;
     invoiceHasMore = page.has_more;
     updateInvoiceSummary(page.summary);
@@ -504,6 +648,21 @@ document.querySelector("#pos-nav").addEventListener("click", openPos);
 document.querySelector("#catalog-nav").addEventListener("click", openPos);
 document.querySelector("#sales-report-nav").addEventListener("click", openInvoiceReport);
 document.querySelector("#settings-nav").addEventListener("click", openSettings);
+document.querySelector(".invoice-table thead").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-sort]");
+  if (!button) return;
+  const key = button.dataset.sort;
+  invoiceSort = {
+    key,
+    direction: invoiceSort.key === key && invoiceSort.direction === "asc" ? "desc" : "asc"
+  };
+  document.querySelectorAll(".invoice-sort").forEach((sortButton) => {
+    const active = sortButton === button;
+    sortButton.parentElement.setAttribute("aria-sort", active ? (invoiceSort.direction === "asc" ? "ascending" : "descending") : "none");
+  });
+  sortInvoices();
+  renderInvoices();
+});
 document.querySelectorAll("[data-status-filter]").forEach((button) => {
   button.setAttribute("aria-pressed", "false");
   button.addEventListener("click", () => {
@@ -550,6 +709,39 @@ document.querySelector("#invoice-filters-clear").addEventListener("click", () =>
   document.querySelectorAll("[data-status-filter]").forEach((kpi) => { kpi.setAttribute("aria-pressed", "false"); kpi.dataset.variant = "ghost"; });
   loadInvoices({ reset: true });
 });
+invoiceTableBody.addEventListener("click", async (event) => {
+  const trigger = event.target.closest("[data-invoice-detail]");
+  if (!trigger) return;
+  const invoiceId = Number(trigger.dataset.invoiceDetail);
+  if (expandedInvoiceId === invoiceId) {
+    expandedInvoiceId = null;
+    renderInvoices();
+    return;
+  }
+  expandedInvoiceId = invoiceId;
+  renderInvoices();
+  if (invoiceDetails.has(invoiceId)) return;
+  try {
+    invoiceDetails.set(invoiceId, await saleDetails(invoiceId));
+    if (expandedInvoiceId === invoiceId) renderInvoices();
+  } catch (error) {
+    console.error(error);
+    expandedInvoiceId = null;
+    renderInvoices();
+    window.toast?.error({ title: "Could not load invoice details", description: error.message });
+  }
+});
+invoiceTableBody.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-payment-type]");
+  if (!button || !button.closest(".invoice-payment-methods")) return;
+  const form = button.closest(".invoice-payment");
+  form.dataset.paymentType = button.dataset.paymentType;
+  form.querySelectorAll("[data-payment-type]").forEach((method) => {
+    const selected = method === button;
+    method.dataset.variant = selected ? "secondary" : "ghost";
+    method.setAttribute("aria-pressed", String(selected));
+  });
+});
 invoiceTableBody.addEventListener("submit", async (event) => {
   const form = event.target.closest(".invoice-payment");
   if (!form) return;
@@ -560,8 +752,9 @@ invoiceTableBody.addEventListener("submit", async (event) => {
   const submit = form.querySelector("button");
   submit.disabled = true;
   try {
-    const sale = await addSalePayment(invoice.id, { amount, type: form.querySelector("select").value });
+    const sale = await addSalePayment(invoice.id, { amount, type: form.dataset.paymentType });
     Object.assign(invoice, sale);
+    invoiceDetails.set(invoice.id, sale);
     renderInvoices();
     invoiceReportStatus.textContent = "Payment recorded.";
     window.toast?.success({ title: "Payment recorded", description: `${currency(amount)} applied to invoice ${invoice.sequence || invoice.id}.` });
@@ -590,6 +783,7 @@ document.querySelector("#confirm-invoice-cancel").addEventListener("click", asyn
   try {
     const sale = await cancelSale(invoice.id);
     Object.assign(invoice, sale);
+    invoiceDetails.set(invoice.id, sale);
     renderInvoices();
     invoiceReportStatus.textContent = "Invoice cancelled.";
     invoiceCancelDialog.close();

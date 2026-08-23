@@ -67,6 +67,12 @@ export async function salesReport(storeId, cursor = null, search = "", dateFrom 
   return response.json();
 }
 
+export async function saleDetails(saleId) {
+  const response = await fetch(`${API_BASE_URL}/sales/${saleId}`);
+  if (!response.ok) throw new Error(`Could not load invoice details: ${response.status}`);
+  return response.json();
+}
+
 export async function addSalePayment(saleId, payment) {
   const response = await fetch(`${API_BASE_URL}/sales/${saleId}/payments`, {
     method: "POST",
