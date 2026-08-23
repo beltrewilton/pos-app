@@ -1,5 +1,5 @@
 import * as printer from "./printer.js";
-import { activeProducts, customers, createCustomer, createSale } from "./api.js";
+import { activeProducts, customers, createCustomer, createSale, inventoryQuantities } from "./api.js";
 import { createPos } from "./pos.js";
 import { onLanguageChange, t, translateDocument } from "./i18n.js";
 import { createLanguageSwitcher } from "./language-switcher.js";
@@ -25,6 +25,7 @@ const customerFormStatus = document.querySelector("#customer-form-status");
 const orderTitle = document.querySelector("#order-title");
 const clearCustomerButton = document.querySelector("#clear-customer");
 const languageSwitcher = createLanguageSwitcher(document.querySelector("#language-switcher"));
+const storeId = 2;
 const pos = createPos({
   cartElement: document.querySelector("#cart"),
   totalTrigger: document.querySelector("#grand-total"),
@@ -219,7 +220,7 @@ async function loadProducts() {
   loading = true;
   productStatus.textContent = products.length ? t("product.loadingMore") : t("products.loading");
   try {
-    const page = await activeProducts(cursor);
+    const page = await activeProducts(storeId, cursor);
     products = products.concat(page.entries);
     cursor = page.next_cursor;
     hasMore = page.has_more;
@@ -229,6 +230,29 @@ async function loadProducts() {
     console.error(error);
     productStatus.textContent = t("product.error");
   } finally { loading = false; }
+}
+
+async function refreshInventory(productIds) {
+  const ids = [...new Set(productIds.map(Number))].filter(Number.isInteger);
+  if (!ids.length) return;
+  const page = await inventoryQuantities(storeId, ids);
+  const quantities = new Map(page.entries.map((entry) => [Number(entry.product_id), entry.quantity]));
+  products = products.map((product) => quantities.has(Number(product.id)) ? { ...product, inventory_quantity: quantities.get(Number(product.id)) } : product);
+  renderProducts();
+}
+
+function subscribeToInventory() {
+  const socketUrl = new URL(API_BASE_URL);
+  socketUrl.protocol = socketUrl.protocol === "https:" ? "wss:" : "ws:";
+  socketUrl.pathname = "/socket/websocket";
+  socketUrl.search = "vsn=2.0.0";
+  const socket = new WebSocket(socketUrl);
+
+  socket.addEventListener("open", () => socket.send(JSON.stringify(["1", "1", `inventory:educa:${storeId}`, "phx_join", {}])));
+  socket.addEventListener("message", (event) => {
+    const [, , , name, payload] = JSON.parse(event.data);
+    if (name === "inventory_changed") refreshInventory(payload.product_ids).catch(console.error);
+  });
 }
 
 async function updatePrinterStatus() {
@@ -342,7 +366,7 @@ document.querySelector("#payment-lines").addEventListener("click", (event) => { 
 document.querySelector("#payment-lines").addEventListener("change", () => { updatePaymentChoice(); updatePaymentCompletion(); });
 document.querySelector("#payment-lines").addEventListener("input", updatePaymentCompletion);
 document.querySelector("#credit-toggle").addEventListener("click", (event) => { const active = event.currentTarget.getAttribute("aria-pressed") !== "true"; event.currentTarget.setAttribute("aria-pressed", String(active)); event.currentTarget.dataset.variant = active ? "default" : "outline"; document.querySelector("#payment-inputs").hidden = active; document.querySelector("#complete-sale").disabled = false; updatePaymentChoice(); });
-document.querySelector("#complete-sale").addEventListener("click", async () => { const complete = document.querySelector("#complete-sale"); const credit = document.querySelector("#credit-toggle").getAttribute("aria-pressed") === "true"; const payments = [...document.querySelectorAll(".payment-line")].map((line) => ({ type: line.querySelector("select").value, amount: Number(line.querySelector("input").value) || 0 })).filter((line) => line.amount); if (!credit && payments.reduce((sum, line) => sum + line.amount, 0) < pos.total()) return; const receipt = pos.receipt(); complete.disabled = true; try { await createSale({ store_id: 2, client_id: selectedCustomer.id, sequence_type: document.querySelector("[data-sequence][data-variant=default]").dataset.sequence, status: credit ? "CREDIT" : "CASH", sale_type: receipt.delivery ? "FOR_DELIVER" : "IN_SHOP", delivery_charge: receipt.delivery, lines: receipt.items.map((item) => ({ product_id: Number(item.id), quantity: item.qty, discount: item.discount })), payments: credit ? [] : payments }); completedReceipt = receipt; resetCompletedOrder(); closeCheckout(); document.querySelector("#receipt-dialog").showModal(); } catch (error) { checkoutStatus.textContent = error.message; complete.disabled = false; } });
+document.querySelector("#complete-sale").addEventListener("click", async () => { const complete = document.querySelector("#complete-sale"); const credit = document.querySelector("#credit-toggle").getAttribute("aria-pressed") === "true"; const payments = [...document.querySelectorAll(".payment-line")].map((line) => ({ type: line.querySelector("select").value, amount: Number(line.querySelector("input").value) || 0 })).filter((line) => line.amount); if (!credit && payments.reduce((sum, line) => sum + line.amount, 0) < pos.total()) return; const receipt = pos.receipt(); complete.disabled = true; try { await createSale({ store_id: storeId, client_id: selectedCustomer.id, sequence_type: document.querySelector("[data-sequence][data-variant=default]").dataset.sequence, status: credit ? "CREDIT" : "CASH", sale_type: receipt.delivery ? "FOR_DELIVER" : "IN_SHOP", delivery_charge: receipt.delivery, lines: receipt.items.map((item) => ({ product_id: Number(item.id), quantity: item.qty, discount: item.discount })), payments: credit ? [] : payments }); await refreshInventory(receipt.items.map((item) => item.id)).catch(console.error); completedReceipt = receipt; resetCompletedOrder(); closeCheckout(); document.querySelector("#receipt-dialog").showModal(); } catch (error) { checkoutStatus.textContent = error.message; complete.disabled = false; } });
 document.querySelector("#skip-print").addEventListener("click", () => { document.querySelector("#receipt-dialog").close(); completedReceipt = null; });
 document.querySelector("#print-receipt").addEventListener("click", async () => { try { if (completedReceipt) await printer.print(completedReceipt); } finally { document.querySelector("#receipt-dialog").close(); completedReceipt = null; } });
 
@@ -360,3 +384,4 @@ onLanguageChange(() => {
 updateCustomerPicker();
 updatePrinterStatus();
 loadProducts();
+subscribeToInventory();

@@ -4,6 +4,7 @@ defmodule PosServerWeb.SaleControllerTest do
   import Ecto.Query
 
   alias PosServer.Accounts
+  alias PosServer.InventoryEvents
   alias PosServer.Repo
   alias PosServer.Retaily.{Client, Inventory, PricingList, Product, Sale, SaleLine, SalePaid, Sequence, Store, User, UserStore}
 
@@ -30,6 +31,7 @@ defmodule PosServerWeb.SaleControllerTest do
 
   test "creates the paid discounted delivery sale from 363886", %{walex_conn: conn} do
     before_quantity = inventory_quantity(19_463)
+    Phoenix.PubSub.subscribe(PosServer.PubSub, InventoryEvents.topic(@tenant, 2))
     sale = create_delivery_sale(conn)
 
     assert sale["invoice_status"] == "close"
@@ -42,6 +44,14 @@ defmodule PosServerWeb.SaleControllerTest do
     assert header.amount == Decimal.new("3290.00")
     assert header.discount == Decimal.new("110.00")
     assert header.delivery_charge == Decimal.new("200.00")
+    assert_receive {:inventory_changed, %{type: "inventory_changed", product_ids: [19_463]}}
+
+    quantities =
+      authenticated_conn_for("walex")
+      |> get(~p"/api/inventory?store_id=2&product_ids=19463")
+      |> json_response(:ok)
+
+    assert quantities == %{"entries" => [%{"product_id" => 19_463, "quantity" => before_quantity - 1}]}
   end
 
   test "creates, pays, and closes the credit sale from 363873", %{walex_conn: conn} do
@@ -87,6 +97,8 @@ defmodule PosServerWeb.SaleControllerTest do
     sale = create_delivery_sale(conn)
     assert inventory_quantity(19_463) == before_quantity - 1
 
+    Phoenix.PubSub.subscribe(PosServer.PubSub, InventoryEvents.topic(@tenant, 2))
+
     cancelled =
       authenticated_conn_for("walex")
       |> post(~p"/api/sales/#{sale["id"]}/cancel")
@@ -95,6 +107,14 @@ defmodule PosServerWeb.SaleControllerTest do
     assert cancelled["status"] == "RETURN"
     assert cancelled["invoice_status"] == "cancelled"
     assert inventory_quantity(19_463) == before_quantity
+    assert_receive {:inventory_changed, %{type: "inventory_changed", product_ids: [19_463]}}
+
+    quantities =
+      authenticated_conn_for("walex")
+      |> get(~p"/api/inventory?store_id=2&product_ids=19463")
+      |> json_response(:ok)
+
+    assert quantities == %{"entries" => [%{"product_id" => 19_463, "quantity" => before_quantity}]}
 
     again =
       authenticated_conn_for("walex")

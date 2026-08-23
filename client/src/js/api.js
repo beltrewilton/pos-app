@@ -6,12 +6,22 @@ export async function health() {
   return response.json();
 }
 
-export async function activeProducts(cursor = null) {
+export async function activeProducts(storeId, cursor = null) {
   const url = new URL(`${API_BASE_URL}/products`);
+  url.searchParams.set("store_id", storeId);
   if (cursor !== null) url.searchParams.set("cursor", cursor);
 
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Could not load products: ${response.status}`);
+  return response.json();
+}
+
+export async function inventoryQuantities(storeId, productIds) {
+  const url = new URL(`${API_BASE_URL}/inventory`);
+  url.searchParams.set("store_id", storeId);
+  url.searchParams.set("product_ids", productIds.join(","));
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Could not refresh inventory: ${response.status}`);
   return response.json();
 }
 

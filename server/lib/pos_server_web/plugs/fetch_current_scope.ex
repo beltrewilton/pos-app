@@ -10,10 +10,11 @@ defmodule PosServerWeb.Plugs.FetchCurrentScope do
 
   @tenant "educa"
   @cashier "walex"
+  @store_id 2
 
   def init(opts), do: opts
 
   def call(conn, _opts) do
-    assign(conn, :current_scope, Scope.for_user(%User{name: @cashier, tenant: @tenant}))
+    assign(conn, :current_scope, Scope.for_user(%User{name: @cashier, tenant: @tenant}, store_id: @store_id))
   end
 end

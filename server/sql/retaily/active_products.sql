@@ -26,6 +26,7 @@ WITH catalog AS (
     SELECT SUM(app_inventory.quantity) AS available_quantity
     FROM {{prefix}}.app_inventory AS app_inventory
     WHERE app_inventory.product_id = product.id
+      AND app_inventory.store_id = $4
   ) AS inventory ON TRUE
   WHERE product.active = 1
 )

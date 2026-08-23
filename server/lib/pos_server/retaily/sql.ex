@@ -26,7 +26,8 @@ defmodule PosServer.Retaily.Sql do
 
     with :ok <- validate_cursor(after_id),
          {:ok, page_size} <- page_size(opts),
-         {:ok, result} <- run(tenant, "active_products", [after_id, page_size + 1, @tax_rate]) do
+         {:ok, store_id} <- store_id(opts),
+         {:ok, result} <- run(tenant, "active_products", [after_id, page_size + 1, @tax_rate, store_id]) do
       entries = result |> rows_as_maps() |> Enum.take(page_size)
       has_more? = result.num_rows > page_size
 
@@ -93,6 +94,13 @@ defmodule PosServer.Retaily.Sql do
     case Keyword.get(opts, :limit, 50) do
       limit when is_integer(limit) and limit > 0 and limit <= @max_page_size -> {:ok, limit}
       _ -> {:error, {:invalid_page_size, "must be between 1 and #{@max_page_size}"}}
+    end
+  end
+
+  defp store_id(opts) do
+    case Keyword.get(opts, :store_id) do
+      store_id when is_integer(store_id) and store_id > 0 -> {:ok, store_id}
+      _ -> {:error, :invalid_store_id}
     end
   end
 

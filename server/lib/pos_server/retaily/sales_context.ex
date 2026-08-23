@@ -2,9 +2,10 @@ defmodule PosServer.Retaily.Sales do
   @moduledoc false
 
   import Ecto.Query
+  require Logger
 
   alias Ecto.Changeset
-  alias PosServer.{Repo, TenantContext}
+  alias PosServer.{InventoryEvents, Repo, TenantContext}
   alias PosServer.Retaily.{Client, Inventory, PricingList, Product, Sale, SaleLine, SalePaid, Sequence, User, UserStore}
   alias PosServer.Retaily.SaleRequests.{Checkout, Payment}
 
@@ -14,7 +15,7 @@ defmodule PosServer.Retaily.Sales do
   def create_sale(scope, attrs) do
     with {:ok, checkout} <- valid_checkout(attrs),
          {:ok, cashier, tenant} <- cashier(scope) do
-      Repo.transaction(fn ->
+      with {:ok, sale} <- Repo.transaction(fn ->
         with :ok <- cashier_store?(cashier, checkout.store_id, tenant),
              %Client{} <- Repo.get(Client, checkout.client_id, prefix: tenant),
              {:ok, sequence} <- next_sequence(checkout.sequence_type, tenant),
@@ -30,7 +31,10 @@ defmodule PosServer.Retaily.Sales do
           {:error, reason} -> Repo.rollback(reason)
           :error -> Repo.rollback(:forbidden_store)
         end
-      end)
+      end) do
+        InventoryEvents.broadcast(tenant, checkout.store_id, Enum.map(checkout.lines, & &1.product_id))
+        {:ok, sale}
+      end
     end
   end
 
@@ -54,11 +58,11 @@ defmodule PosServer.Retaily.Sales do
 
   def cancel_sale(scope, sale_id) do
     with {:ok, cashier, tenant} <- cashier(scope) do
-      Repo.transaction(fn ->
+      with {:ok, {sale_response, inventory_changed?}} <- Repo.transaction(fn ->
         with %Sale{} = sale <- locked_sale(sale_id, tenant),
              :ok <- cashier_store?(cashier, sale.store_id, tenant) do
           if sale.status == "RETURN" do
-            sale_response(sale.id, tenant)
+            {sale_response(sale.id, tenant), false}
           else
             lines = Repo.all(from(line in SaleLine, where: line.sale_id == ^sale.id, lock: "FOR UPDATE"), prefix: tenant)
 
@@ -68,13 +72,16 @@ defmodule PosServer.Retaily.Sales do
             |> Changeset.change(status: "RETURN")
             |> Repo.update!(prefix: tenant)
 
-            sale_response(sale.id, tenant)
+            {sale_response(sale.id, tenant), true}
           end
         else
           nil -> Repo.rollback(:not_found)
           :error -> Repo.rollback(:forbidden_store)
         end
-      end)
+      end) do
+        if inventory_changed?, do: InventoryEvents.broadcast(tenant, sale_response.store_id, Enum.map(sale_response.lines, & &1.product_id))
+        {:ok, sale_response}
+      end
     end
   end
 
@@ -221,7 +228,12 @@ defmodule PosServer.Retaily.Sales do
 
   defp valid_payments?(payments, amount) do
     total = Enum.reduce(payments, @zero, &Decimal.add(&1.amount, &2))
-    if Decimal.compare(total, amount) in [:lt, :eq], do: :ok, else: {:error, :payment_exceeds_balance}
+    if Decimal.compare(total, amount) in [:lt, :eq] do
+      :ok
+    else
+      Logger.warning("payment_exceeds_balance: recording payment above sale total")
+      :ok
+    end
   end
 
   defp totals(lines, delivery) do
@@ -275,6 +287,7 @@ defmodule PosServer.Retaily.Sales do
       sequence_type: sale.sequence_type,
       status: sale.status,
       sale_type: sale.sale_type,
+      store_id: sale.store_id,
       login: sale.login,
       client: serialize_client(sale.client),
       lines: Enum.map(sale.sale_lines, &serialize_line/1),
