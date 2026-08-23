@@ -9,7 +9,30 @@ const productGrid = document.querySelector("#product-grid");
 const productStatus = document.querySelector("#products-status");
 const productSearch = document.querySelector("#product-search");
 const productSentinel = document.querySelector("#products-sentinel");
-const pos = createPos({ cartElement: document.querySelector("#cart"), totalElement: document.querySelector("#total"), productGrid });
+const pos = createPos({
+  cartElement: document.querySelector("#cart"),
+  totalElement: document.querySelector("#total"),
+  subtotalElement: document.querySelector("#subtotal"),
+  discountElement: document.querySelector("#discount"),
+  taxElement: document.querySelector("#tax"),
+  itemCountElement: document.querySelector("#items-count"),
+  emptyElement: document.querySelector("#cart-empty"),
+  clearButton: document.querySelector("#clear-order"),
+  chargeButton: document.querySelector("#print-test"),
+  productGrid,
+  discountDialog: document.querySelector("#discount-dialog"),
+  discountForm: document.querySelector("#discount-form"),
+  discountTypeButtons: document.querySelectorAll("[data-discount-type]"),
+  discountInput: document.querySelector("#discount-input"),
+  discountInputLabel: document.querySelector("#discount-input-label"),
+  discountHelp: document.querySelector("#discount-help"),
+  discountProductName: document.querySelector("#discount-product-name"),
+  discountPreviewAmount: document.querySelector("#discount-preview-amount"),
+  discountPreviewDiscount: document.querySelector("#discount-preview-discount"),
+  discountPreviewTotal: document.querySelector("#discount-preview-total"),
+  clearDialog: document.querySelector("#clear-order-dialog"),
+  clearConfirmButton: document.querySelector("#confirm-clear-order"),
+});
 
 let cursor = null;
 let hasMore = true;
@@ -25,6 +48,10 @@ function imageSource(raw) {
 function productCard(product) {
   const card = document.createElement("article");
   card.className = "card product";
+  card.tabIndex = 0; card.setAttribute("role", "button");
+  card.dataset.productId = product.id; card.dataset.name = product.name || "Unnamed product";
+  card.dataset.price = product.price || 0; card.dataset.sub = product.sub; card.dataset.tax = product.tax;
+  card.setAttribute("aria-label", "Add " + (product.name || "Unnamed product") + " to order");
   const source = imageSource(product.image_raw);
   if (source) {
     const image = document.createElement("img");
@@ -42,14 +69,15 @@ function productCard(product) {
   const name = document.createElement("h2");
   name.className = "card-title product-name"; name.textContent = product.name || "Unnamed product";
   const meta = document.createElement("div");
-  meta.className = "product-meta";
+  meta.className = "product-footer";
   const price = document.createElement("strong");
   price.className = "product-price numeric"; price.textContent = `$${Number(product.price || 0).toFixed(2)}`;
-  const add = document.createElement("button");
-  add.className = "btn product-add"; add.type = "button"; add.dataset.variant = "outline"; add.dataset.size = "sm";
-  add.dataset.productId = product.id; add.dataset.name = product.name || "Unnamed product"; add.dataset.price = product.price || 0;
-  add.textContent = "Add to order"; add.setAttribute("aria-label", `Add ${product.name || "Unnamed product"} to order`);
-  meta.append(price); content.append(name, meta, add); card.appendChild(content);
+  const inventory = document.createElement("span");
+  inventory.className = "inventory-badge numeric";
+  inventory.textContent = Number(product.inventory_quantity || 0) + " in stock";
+  const code = document.createElement("p");
+  code.className = "product-code"; code.textContent = product.code ? `SKU ${product.code}` : "Tap + to add";
+  meta.append(price, inventory); content.append(name, code, meta); card.appendChild(content);
   return card;
 }
 
@@ -80,17 +108,26 @@ async function loadProducts() {
 async function updatePrinterStatus() {
   try {
     const status = await printer.status();
-    printerStatus.textContent = `Printer: ${status.connected ? "Connected" : "Disconnected"}`;
+    printerStatus.alt = status.connected ? "Printer connected" : "Printer disconnected";
+    printerStatus.title = printerStatus.alt;
     printerStatus.classList.toggle("connected", status.connected);
     printerStatus.classList.toggle("disconnected", !status.connected);
     return status.connected;
   } catch (error) {
-    console.error(error); printerStatus.textContent = "Printer: Disconnected";
+    console.error(error); printerStatus.alt = "Printer disconnected"; printerStatus.title = printerStatus.alt;
     printerStatus.classList.remove("connected"); printerStatus.classList.add("disconnected"); return false;
   }
 }
 
 productSearch.addEventListener("input", renderProducts);
+document.querySelector("#search-focus").addEventListener("click", () => productSearch.focus());
+productGrid.addEventListener("keydown", (event) => {
+  const product = event.target.closest("[data-product-id]");
+  if (product && (event.key === "Enter" || event.key === " ")) {
+    event.preventDefault();
+    product.click();
+  }
+});
 new IntersectionObserver((entries) => { if (entries.some((entry) => entry.isIntersecting)) loadProducts(); }, { rootMargin: "360px" }).observe(productSentinel);
 printButton.addEventListener("click", async () => {
   if (pos.isEmpty()) { printStatus.textContent = "Add an item before printing."; return; }

@@ -11,7 +11,8 @@ WITH catalog AS (
     product.image_raw,
     product.active,
     product.user_modified,
-    product.archived
+    product.archived,
+    COALESCE(inventory.available_quantity, 0) AS inventory_quantity
   FROM {{prefix}}.product AS product
   LEFT JOIN LATERAL (
     SELECT pricing_list.price
@@ -21,6 +22,11 @@ WITH catalog AS (
     ORDER BY pricing_list.id DESC
     LIMIT 1
   ) AS default_price ON TRUE
+  LEFT JOIN LATERAL (
+    SELECT SUM(app_inventory.quantity) AS available_quantity
+    FROM {{prefix}}.app_inventory AS app_inventory
+    WHERE app_inventory.product_id = product.id
+  ) AS inventory ON TRUE
   WHERE product.active = 1
 )
 SELECT
