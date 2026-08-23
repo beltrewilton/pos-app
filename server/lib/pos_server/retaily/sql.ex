@@ -11,6 +11,7 @@ defmodule PosServer.Retaily.Sql do
 
   @sql_directory Path.expand("../../../sql/retaily", __DIR__)
   @max_page_size 100
+  @tax_rate Decimal.new("0.18")
 
   @type page :: %{
           entries: [map()],
@@ -25,7 +26,7 @@ defmodule PosServer.Retaily.Sql do
 
     with :ok <- validate_cursor(after_id),
          {:ok, page_size} <- page_size(opts),
-         {:ok, result} <- run(tenant, "active_products", [after_id, page_size + 1]) do
+         {:ok, result} <- run(tenant, "active_products", [after_id, page_size + 1, @tax_rate]) do
       entries = result |> rows_as_maps() |> Enum.take(page_size)
       has_more? = result.num_rows > page_size
 

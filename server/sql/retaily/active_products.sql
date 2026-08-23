@@ -1,18 +1,34 @@
+WITH catalog AS (
+  SELECT
+    product.id,
+    product.name,
+    product.cost,
+    COALESCE(default_price.price, product.price) AS price,
+    product.margin,
+    product.code,
+    product.img_path,
+    product.date_create,
+    product.image_raw,
+    product.active,
+    product.user_modified,
+    product.archived
+  FROM {{prefix}}.product AS product
+  LEFT JOIN LATERAL (
+    SELECT pricing_list.price
+    FROM {{prefix}}.pricing_list
+    WHERE pricing_list.product_id = product.id
+      AND pricing_list.pricing_id = 1
+    ORDER BY pricing_list.id DESC
+    LIMIT 1
+  ) AS default_price ON TRUE
+  WHERE product.active = 1
+)
 SELECT
-  id,
-  name,
-  cost,
-  price,
-  margin,
-  code,
-  img_path,
-  date_create,
-  image_raw,
-  active,
-  user_modified,
-  archived
-FROM {{prefix}}.product
-WHERE active = 1
-  AND ($1::bigint IS NULL OR id > $1)
-ORDER BY id ASC
+  catalog.*,
+  round(catalog.price::numeric / (1 + $3::numeric), 2) AS sub,
+  round(catalog.price::numeric - round(catalog.price::numeric / (1 + $3::numeric), 2), 2) AS tax
+FROM catalog
+WHERE catalog.price IS NOT NULL
+  AND ($1::bigint IS NULL OR catalog.id > $1)
+ORDER BY catalog.id ASC
 LIMIT $2;
