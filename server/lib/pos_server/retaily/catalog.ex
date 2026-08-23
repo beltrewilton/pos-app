@@ -85,6 +85,8 @@ end
 defmodule PosServer.Retaily.Client do
   use Ecto.Schema
 
+  import Ecto.Changeset
+
   schema "client" do
     field :name, :string
     field :document_id, :string
@@ -93,5 +95,11 @@ defmodule PosServer.Retaily.Client do
     field :email, :string
     field :date_create, :naive_datetime
     field :wholesaler, :integer
+
+    def changeset(client, attrs) do
+      client
+      |> cast(attrs, [:name, :document_id, :address, :celphone, :email, :wholesaler])
+      |> validate_required([:name])
+    end
   end
 end

@@ -77,6 +77,7 @@
         </details>
       </div>
       <section class="catalog-panel" aria-labelledby="pos-title">
+        <div class="catalog-content">
         <header class="topbar">
           <div class="brand-lockup">
             <span class="brand-mark" aria-hidden="true">E</span>
@@ -123,6 +124,25 @@
         </div>
         <div id="product-grid" class="product-grid" aria-live="polite"></div>
         <div id="products-sentinel" aria-hidden="true"></div>
+        </div>
+        <section id="checkout-flow" class="checkout-flow" aria-live="polite" hidden>
+          <header class="checkout-header">
+            <div>
+              <p class="eyebrow" data-i18n="checkout.label">Checkout</p>
+              <h1 id="checkout-title" class="h3" data-i18n="checkout.customer.title">Select customer</h1>
+            </div>
+            <button id="checkout-cancel" class="btn" type="button" data-variant="outline" data-i18n="checkout.backSale">Back to sale</button>
+          </header>
+          <ol class="checkout-steps" aria-label="Checkout progress">
+            <li data-checkout-step="customer" aria-current="step" data-i18n="checkout.stepCustomer">1. Customer</li><li data-checkout-step="payment" data-i18n="checkout.stepPayment">2. Payment</li><li data-checkout-step="setup" data-i18n="checkout.stepSetup">3. Final setup</li><li data-checkout-step="pay" data-i18n="checkout.stepPay">4. Pay</li>
+          </ol>
+          <div class="checkout-stage-wrap">
+            <section class="checkout-stage" data-stage="customer" aria-labelledby="customer-stage-title"><div class="checkout-stage-copy"><p class="eyebrow" data-i18n="checkout.stepOne">Step 1 of 4</p><h2 id="customer-stage-title" class="h2" tabindex="-1" data-i18n="checkout.customer.title">Select customer</h2><p class="muted" data-i18n="checkout.customer.empty">Customer selection will be added here.</p></div><div class="checkout-actions"><button class="btn" type="button" data-variant="default" data-checkout-next="payment" data-i18n="checkout.continuePayment">Continue to payment</button></div></section>
+            <section class="checkout-stage" data-stage="payment" aria-labelledby="payment-stage-title" hidden><div class="checkout-stage-copy"><p class="eyebrow" data-i18n="checkout.stepTwo">Step 2 of 4</p><h2 id="payment-stage-title" class="h2" tabindex="-1" data-i18n="checkout.payment.title">Payment</h2><p class="muted" data-i18n="checkout.payment.empty">Payment options will be added here.</p></div><div class="checkout-actions"><button class="btn" type="button" data-variant="outline" data-checkout-back="customer" data-i18n="action.back">Back</button><button class="btn" type="button" data-variant="default" data-checkout-next="setup" data-i18n="checkout.continueSetup">Continue to final setup</button></div></section>
+            <section class="checkout-stage" data-stage="setup" aria-labelledby="setup-stage-title" hidden><div class="checkout-stage-copy"><p class="eyebrow" data-i18n="checkout.stepThree">Step 3 of 4</p><h2 id="setup-stage-title" class="h2" tabindex="-1" data-i18n="checkout.setup.title">Final setup</h2><p class="muted" data-i18n="checkout.setup.empty">Final sale settings will be added here.</p></div><div class="checkout-actions"><button class="btn" type="button" data-variant="outline" data-checkout-back="payment" data-i18n="action.back">Back</button><button class="btn" type="button" data-variant="default" data-checkout-next="pay" data-i18n="checkout.continuePay">Continue to pay</button></div></section>
+            <section class="checkout-stage" data-stage="pay" aria-labelledby="pay-stage-title" hidden><div class="checkout-stage-copy"><p class="eyebrow" data-i18n="checkout.stepFour">Step 4 of 4</p><h2 id="pay-stage-title" class="h2" tabindex="-1" data-i18n="checkout.pay.title">Pay</h2><p class="muted" data-i18n="checkout.pay.empty">Choose how to complete this sale.</p></div><div class="checkout-actions"><button class="btn" type="button" data-variant="outline" data-checkout-back="setup" data-i18n="action.back">Back</button><button id="pay-credit" class="btn" type="button" data-variant="secondary" data-i18n="checkout.payCredit">Pay on credit</button><button id="print-test" class="btn charge-button" type="button" data-variant="default" data-size="lg" disabled>Charge $0.00</button></div><p id="checkout-status" class="print-status" role="status"></p></section>
+          </div>
+        </section>
       </section>
       <aside class="order-panel" aria-labelledby="order-title">
         <header class="order-header">
@@ -181,16 +201,7 @@
           <div class="payment-label">
             <span data-i18n="payment.method">Payment method</span><span class="payment-choice" data-i18n="payment.cash">Cash</span>
           </div>
-          <button
-            id="print-test"
-            class="btn charge-button"
-            type="button"
-            data-variant="default"
-            data-size="lg"
-            disabled
-          >
-            Charge $0.00
-          </button>
+          <button id="start-checkout" class="btn charge-button" type="button" data-variant="default" data-size="lg" disabled data-i18n="checkout.continue">Continue</button>
           <p id="print-status" class="print-status" role="status"></p>
         </footer>
       </aside>

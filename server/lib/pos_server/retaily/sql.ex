@@ -39,6 +39,26 @@ defmodule PosServer.Retaily.Sql do
     end
   end
 
+  @spec recent_clients_page(non_neg_integer() | nil, String.t() | nil, keyword()) ::
+          {:ok, page()} | {:error, term()}
+  def recent_clients_page(before_id \\ nil, search \\ nil, opts \\ []) do
+    tenant = TenantContext.tenant!()
+
+    with :ok <- validate_cursor(before_id),
+         {:ok, page_size} <- page_size(opts),
+         {:ok, result} <- run(tenant, "recent_clients", [before_id, normalize_search(search), page_size + 1]) do
+      entries = result |> rows_as_maps() |> Enum.take(page_size)
+      has_more? = result.num_rows > page_size
+
+      {:ok,
+       %{
+         entries: entries,
+         has_more?: has_more?,
+         next_cursor: next_cursor(entries, has_more?)
+       }}
+    end
+  end
+
   @spec run(String.t(), String.t(), list()) :: {:ok, Postgrex.Result.t()} | {:error, term()}
   def run(tenant, statement_name, params \\ []) when is_list(params) do
     with {:ok, sql} <- read(statement_name) do
@@ -79,6 +99,9 @@ defmodule PosServer.Retaily.Sql do
   defp validate_cursor(nil), do: :ok
   defp validate_cursor(cursor) when is_integer(cursor) and cursor >= 0, do: :ok
   defp validate_cursor(_cursor), do: {:error, :invalid_cursor}
+
+  defp normalize_search(search) when is_binary(search), do: String.trim(search)
+  defp normalize_search(_search), do: nil
 
   defp valid_statement_name(name) when is_binary(name) do
     if Regex.match?(~r/\A[a-z0-9_]+\z/, name), do: :ok, else: {:error, :invalid_statement}

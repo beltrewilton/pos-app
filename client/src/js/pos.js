@@ -1,5 +1,5 @@
 export function createPos(options) {
-  const { cartElement, totalTrigger, totalElement, totalBeforeDiscountElement, subtotalElement, discountElement, taxElement, itemCountElement, emptyElement, clearButton, chargeButton, productGrid, discountDialog, discountForm, discountTypeButtons, discountInput, discountInputLabel, discountHelp, discountProductImage, discountProductName, discountPreviewAmount, discountPreviewDiscount, discountPreviewTotal, clearDialog, clearConfirmButton, t } = options;
+  const { cartElement, totalTrigger, totalElement, totalBeforeDiscountElement, subtotalElement, discountElement, taxElement, itemCountElement, emptyElement, clearButton, chargeButton, checkoutButton, productGrid, discountDialog, discountForm, discountTypeButtons, discountInput, discountInputLabel, discountHelp, discountProductImage, discountProductName, discountPreviewAmount, discountPreviewDiscount, discountPreviewTotal, clearDialog, clearConfirmButton, t } = options;
   const cart = [];
   let discountTarget = null;
   let discountType = "amount";
@@ -37,6 +37,7 @@ export function createPos(options) {
     emptyElement.hidden = !isEmpty;
     clearButton.disabled = isEmpty;
     chargeButton.disabled = isEmpty;
+    if (checkoutButton) checkoutButton.disabled = isEmpty;
     subtotalElement.textContent = money(subTotal());
     taxElement.textContent = money(taxTotal());
     discountElement.textContent = "−" + money(discountTotal());

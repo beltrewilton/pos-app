@@ -7,6 +7,10 @@ import { createLanguageSwitcher } from "./language-switcher.js";
 const printerStatus = document.querySelector("#printer-status");
 const printButton = document.querySelector("#print-test");
 const printStatus = document.querySelector("#print-status");
+const checkoutFlow = document.querySelector("#checkout-flow");
+const checkoutStatus = document.querySelector("#checkout-status");
+const catalogPanel = document.querySelector(".catalog-panel");
+const startCheckoutButton = document.querySelector("#start-checkout");
 const productGrid = document.querySelector("#product-grid");
 const productStatus = document.querySelector("#products-status");
 const productSearch = document.querySelector("#product-search");
@@ -24,6 +28,7 @@ const pos = createPos({
   emptyElement: document.querySelector("#cart-empty"),
   clearButton: document.querySelector("#clear-order"),
   chargeButton: document.querySelector("#print-test"),
+  checkoutButton: startCheckoutButton,
   productGrid,
   discountDialog: document.querySelector("#discount-dialog"),
   discountForm: document.querySelector("#discount-form"),
@@ -45,6 +50,7 @@ let cursor = null;
 let hasMore = true;
 let loading = false;
 let products = [];
+let checkoutStage = "customer";
 
 function imageSource(raw) {
   if (!raw) return null;
@@ -136,17 +142,72 @@ productGrid.addEventListener("keydown", (event) => {
   }
 });
 new IntersectionObserver((entries) => { if (entries.some((entry) => entry.isIntersecting)) loadProducts(); }, { rootMargin: "360px" }).observe(productSentinel);
-printButton.addEventListener("click", async () => {
+function showCheckoutStage(stage) {
+  checkoutStage = stage;
+  checkoutFlow.querySelectorAll("[data-stage]").forEach((element) => {
+    element.hidden = element.dataset.stage !== stage;
+  });
+  checkoutFlow.querySelectorAll("[data-checkout-step]").forEach((element) => {
+    const active = element.dataset.checkoutStep === stage;
+    if (active) element.setAttribute("aria-current", "step");
+    else element.removeAttribute("aria-current");
+  });
+  const title = checkoutFlow.querySelector(`[data-stage="${stage}"] h2`)?.textContent;
+  document.querySelector("#checkout-title").textContent = title || "Checkout";
+  checkoutStatus.textContent = "";
+  requestAnimationFrame(() => checkoutFlow.querySelector(`[data-stage="${stage}"] h2`)?.focus?.());
+}
+
+function openCheckout() {
   if (pos.isEmpty()) { printStatus.textContent = t("print.addItem"); return; }
-  if (!(await updatePrinterStatus())) { printStatus.textContent = t("printer.disconnected"); return; }
-  printStatus.textContent = t("print.printing"); printButton.disabled = true;
-  try { printStatus.textContent = await printer.print(pos.receipt()); }
-  catch (error) { console.error(error); printStatus.textContent = t("print.error", { error }); }
-  finally { printButton.disabled = false; updatePrinterStatus(); }
+  catalogPanel.dataset.view = "checkout";
+  checkoutFlow.hidden = false;
+  showCheckoutStage("customer");
+}
+
+function closeCheckout() {
+  checkoutFlow.hidden = true;
+  delete catalogPanel.dataset.view;
+  startCheckoutButton.focus();
+}
+
+async function completePayment(mode) {
+  const statusTarget = checkoutStatus;
+  if (!(await updatePrinterStatus())) { statusTarget.textContent = t("printer.disconnected"); return; }
+  statusTarget.textContent = t("print.printing");
+  printButton.disabled = true;
+  document.querySelector("#pay-credit").disabled = true;
+  try {
+    statusTarget.textContent = await printer.print({ ...pos.receipt(), payment_method: mode });
+  } catch (error) {
+    console.error(error);
+    statusTarget.textContent = t("print.error", { error });
+  } finally {
+    printButton.disabled = false;
+    document.querySelector("#pay-credit").disabled = false;
+    updatePrinterStatus();
+  }
+}
+
+startCheckoutButton.addEventListener("click", openCheckout);
+document.querySelector("#checkout-cancel").addEventListener("click", closeCheckout);
+checkoutFlow.addEventListener("click", (event) => {
+  const next = event.target.closest("[data-checkout-next]");
+  const back = event.target.closest("[data-checkout-back]");
+  if (next) showCheckoutStage(next.dataset.checkoutNext);
+  if (back) showCheckoutStage(back.dataset.checkoutBack);
 });
+printButton.addEventListener("click", () => completePayment("cash"));
+document.querySelector("#pay-credit").addEventListener("click", () => completePayment("credit"));
 
 pos.render();
 translateDocument();
-onLanguageChange(() => { languageSwitcher.sync(); pos.render(); renderProducts(); updatePrinterStatus(); });
+onLanguageChange(() => {
+  languageSwitcher.sync();
+  pos.render();
+  renderProducts();
+  updatePrinterStatus();
+  if (!checkoutFlow.hidden) showCheckoutStage(checkoutStage);
+});
 updatePrinterStatus();
 loadProducts();
