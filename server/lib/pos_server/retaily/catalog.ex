@@ -1,5 +1,6 @@
 defmodule PosServer.Retaily.Product do
   use Ecto.Schema
+  import Ecto.Changeset
 
   schema "product" do
     field :name, :string
@@ -16,6 +17,13 @@ defmodule PosServer.Retaily.Product do
     has_many :inventory_entries, PosServer.Retaily.Inventory
     has_many :pricing_entries, PosServer.Retaily.PricingList
     has_many :order_lines, PosServer.Retaily.ProductOrderLine
+  end
+
+  def changeset(product, attrs) do
+    product
+    |> cast(attrs, [:name, :cost, :margin, :code, :img_path, :image_raw, :active, :user_modified, :date_create, :archived])
+    |> validate_required([:name])
+    |> validate_number(:cost, greater_than_or_equal_to: 0)
   end
 end
 
@@ -52,6 +60,7 @@ end
 
 defmodule PosServer.Retaily.PricingList do
   use Ecto.Schema
+  import Ecto.Changeset
 
   schema "pricing_list" do
     field :price, :float
@@ -60,6 +69,13 @@ defmodule PosServer.Retaily.PricingList do
 
     belongs_to :product, PosServer.Retaily.Product
     belongs_to :pricing, PosServer.Retaily.Pricing
+  end
+
+  def changeset(entry, attrs) do
+    entry
+    |> cast(attrs, [:price, :user_modified, :date_create, :product_id, :pricing_id])
+    |> validate_required([:price, :product_id, :pricing_id])
+    |> validate_number(:price, greater_than_or_equal_to: 0)
   end
 end
 

@@ -42,6 +42,11 @@ defmodule PosServerWeb.Router do
     pipe_through :tenant_api
 
     get "/products", ProductController, :index
+    get "/products/:id", ProductCreateController, :show
+    post "/products", ProductCreateController, :create
+    patch "/products/:id", ProductCreateController, :update
+    post "/products/:id/prices", ProductCreateController, :set_prices
+    get "/pricing-lists", PricingController, :index
     get "/inventory", InventoryController, :index
     get "/inventory/summary", InventoryController, :summary
     post "/inventory/adjustments", InventoryController, :adjust

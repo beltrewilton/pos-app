@@ -1,5 +1,6 @@
 import * as printer from "./printer.js";
-import { API_BASE_URL, activeProducts, addSalePayment, adjustInventory, cancelSale, createCustomer, createProductOrder, createSale, customers, inventoryQuantities, inventorySummary, productOrders, purchaseSources, receiveProductOrder, saleDetails, salesReport } from "./api.js";
+import Pica from "../vendor/pica/pica.mjs";
+import { API_BASE_URL, activeProducts, addSalePayment, adjustInventory, cancelSale, createCustomer, createProduct, createProductOrder, createSale, customers, inventoryQuantities, inventorySummary, pricingLists, product, productOrders, purchaseSources, receiveProductOrder, saleDetails, salesReport, setProductPrices, updateProduct } from "./api.js";
 import { createPos } from "./pos.js";
 import { onLanguageChange, t, translateDocument } from "./i18n.js";
 import { createLanguageSwitcher } from "./language-switcher.js";
@@ -40,6 +41,10 @@ const orderTitle = document.querySelector("#order-title");
 const clearCustomerButton = document.querySelector("#clear-customer");
 const languageSwitcher = createLanguageSwitcher(document.querySelector("#language-switcher"));
 const storeId = 2;
+const imageResizer = new Pica();
+const MAX_PRODUCT_IMAGE_BYTES = 10 * 1024 * 1024;
+document.querySelector('[data-inventory-sort="quantity"]').textContent = "Current qty.";
+document.querySelector('[data-inventory-sort="prev_quantity"]').textContent = "Previous qty.";
 const pos = createPos({
   cartElement: document.querySelector("#cart"),
   totalTrigger: document.querySelector("#grand-total"),
@@ -104,6 +109,13 @@ let inventoryEntries = [], purchaseOrders = [], purchaseOrderSources = [], purch
 let editingInventoryProductId = null;
 let inventorySort = { key: "last_update", direction: "desc" };
 let inventoryFilter = "";
+let pendingProductSelection = null;
+let pendingProductRefresh = null;
+let createdProduct = null;
+let editingProductId = null;
+let preparedProductImage = null;
+let imagePreparationTask = null;
+let selectedProductImageFile = null;
 let purchaseOrderSort = { key: "last_updated", direction: "desc" };
 let purchaseOrderStatusFilter = "";
 
@@ -601,8 +613,10 @@ function renderInventory() {
     const row = document.createElement("tr");
     row.className = "table-row";
     row.dataset.inventoryProductId = entry.product_id;
-    [entry.product_name || `Product #${entry.product_id}`, entry.product_code || "—", entry.store_name || "Current store", currency(entry.product_cost), entry.quantity ?? 0, entry.prev_quantity ?? "—", formatOperationDate(entry.last_update), entry.user_updated || "—"].forEach((value) => {
-      const cell = document.createElement("td"); cell.className = "table-cell"; cell.textContent = value; row.appendChild(cell);
+    [entry.product_name || `Product #${entry.product_id}`, entry.product_code || "—", entry.store_name || "Current store", currency(entry.product_cost), entry.product_price == null ? "—" : currency(entry.product_price), entry.quantity ?? 0, entry.prev_quantity ?? "—", formatOperationDate(entry.last_update), entry.user_updated || "—"].forEach((value, index) => {
+      const cell = document.createElement("td"); cell.className = "table-cell";
+      if (index === 0) { const button = document.createElement("button"); button.className = "btn"; button.type = "button"; button.dataset.variant = "link"; button.dataset.editProduct = entry.product_id; button.textContent = value; cell.appendChild(button); } else cell.textContent = value;
+      row.appendChild(cell);
     });
     const action = document.createElement("td"); action.className = "table-cell inventory-row-action";
     if (editingInventoryProductId === entry.product_id) {
@@ -710,7 +724,7 @@ function showOrderDetail(order) {
   const isOpen = order.status === "opened";
   const discrepancy = hasCountingDiscrepancy(order);
   const detail = document.querySelector("#order-detail");
-  detail.innerHTML = `<div class="card-header"><div><p class="eyebrow">Order #${order.id}</p><h3 class="card-title">${["received", "closed"].includes(order.status) ? "Closed" : "Open"}${discrepancy ? ' <span class="counting-warning" role="img" aria-label="Counting discrepancy" title="Observed quantities differ from requested quantities">⚠</span>' : ""}</h3><p class="field-description">${order.from_origin_name || "External source"} → ${order.to_store_name || "—"} · Created by ${order.user_requester || "—"} · ${formatOperationDate(order.date_opened)}</p></div><div class="purchase-order-actions"><button class="btn" type="button" data-variant="outline" data-size="sm" data-order-navigation="previous" ${position <= 0 ? "disabled" : ""}>Previous</button><button class="btn" type="button" data-variant="outline" data-size="sm" data-order-navigation="next" ${position === purchaseOrders.length - 1 ? "disabled" : ""}>Next</button>${isOpen ? '<button id="count-order" class="btn" type="button" data-variant="default">Start Counting</button>' : ""}</div></div><div class="card-content"><div class="purchase-order-summary"><span>Total order cost</span><strong class="numeric">${currency(orderCost(order))}</strong><span>Cost difference</span><strong class="numeric">${currency(orderCostDifference(order))}</strong></div><div class="table-container purchase-order-lines-scroll"><table class="table purchase-order-lines-table"><caption class="table-caption">Products in this purchase order.</caption><thead><tr class="table-row"><th class="table-head">Product</th><th class="table-head">SKU</th><th class="table-head">Current quantity</th><th class="table-head">Requested</th><th class="table-head">Observed</th><th class="table-head">Item cost</th><th class="table-head">Cost difference</th><th class="table-head">Status</th></tr></thead><tbody>${order.lines.map((line) => `<tr class="table-row"><td class="table-cell">${line.product_name}</td><td class="table-cell">${line.product_code || "—"}</td><td class="table-cell numeric">${line.current_quantity ?? 0}</td><td class="table-cell numeric">${line.quantity}</td><td class="table-cell observed-cell"><input class="input numeric observed-input" type="number" min="0" value="${line.quantity_observed ?? line.quantity}" aria-label="Observed quantity for ${line.product_name}" data-observed-input data-line-id="${line.id}" disabled></td><td class="table-cell numeric">${currency(lineCost(line, order))}</td><td class="table-cell numeric">${currency(lineCostDifference(line, order))}</td><td class="table-cell">${line.status}</td></tr>`).join("")}</tbody></table></div></div>`;
+  detail.innerHTML = `<div class="card-header"><div><p class="eyebrow">Order #${order.id}</p><h3 class="card-title">${["received", "closed"].includes(order.status) ? "Closed" : "Open"}${discrepancy ? ' <span class="counting-warning" role="img" aria-label="Counting discrepancy" title="Observed quantities differ from requested quantities">⚠</span>' : ""}</h3><p class="field-description">${order.from_origin_name || "External source"} → ${order.to_store_name || "—"} · Created by ${order.user_requester || "—"} · ${formatOperationDate(order.date_opened)}</p></div><div class="purchase-order-actions"><button class="btn" type="button" data-variant="outline" data-size="sm" data-order-navigation="previous" ${position <= 0 ? "disabled" : ""}>Previous</button><button class="btn" type="button" data-variant="outline" data-size="sm" data-order-navigation="next" ${position === purchaseOrders.length - 1 ? "disabled" : ""}>Next</button>${isOpen ? '<button id="count-order" class="btn" type="button" data-variant="default">Start Counting</button>' : ""}</div></div><div class="card-content"><div class="table-container purchase-order-lines-scroll"><table class="table purchase-order-lines-table"><caption class="table-caption">Products in this purchase order.</caption><thead><tr class="table-row"><th class="table-head">Product</th><th class="table-head">SKU</th><th class="table-head">Current quantity</th><th class="table-head">Requested</th><th class="table-head">Observed</th><th class="table-head">Item cost</th><th class="table-head">Cost difference</th><th class="table-head">Status</th></tr></thead><tbody>${order.lines.map((line) => `<tr class="table-row"><td class="table-cell"><button class="btn" type="button" data-variant="link" data-order-product-edit="${line.product_id}">${line.product_name}</button></td><td class="table-cell">${line.product_code || "—"}</td><td class="table-cell numeric">${line.current_quantity ?? 0}</td><td class="table-cell numeric">${line.quantity}</td><td class="table-cell observed-cell"><input class="input numeric observed-input" type="number" min="0" value="${line.quantity_observed ?? line.quantity}" aria-label="Observed quantity for ${line.product_name}" data-observed-input data-line-id="${line.id}" disabled></td><td class="table-cell numeric">${currency(lineCost(line, order))}</td><td class="table-cell numeric">${currency(lineCostDifference(line, order))}</td><td class="table-cell">${line.status}</td></tr>`).join("")}</tbody><tfoot><tr class="purchase-order-total-row"><td colspan="5"></td><td class="numeric purchase-order-total-amount">${currency(orderCost(order))}</td><td class="numeric purchase-order-difference-amount">${currency(orderCostDifference(order))}</td><td></td></tr></tfoot></table></div></div>`;
   const observedInputs = [...detail.querySelectorAll("[data-observed-input]")];
   const countButton = detail.querySelector("#count-order");
   let counting = false;
@@ -737,28 +751,98 @@ function showOrderDetail(order) {
     }
   });
   detail.querySelectorAll("[data-order-navigation]").forEach((button) => button.addEventListener("click", () => showOrderDetail(purchaseOrders[position + (button.dataset.orderNavigation === "previous" ? -1 : 1)])));
+  detail.querySelectorAll("[data-order-product-edit]").forEach((button) => button.addEventListener("click", () => openProductEditor(Number(button.dataset.orderProductEdit), () => loadOrders().then(() => showOrderDetail(purchaseOrders.find((item) => item.id === order.id))))));
   requestAnimationFrame(() => document.querySelector("#purchase-order-title").focus());
 }
 function openPurchaseOrderCreate() { ordersScreen.hidden = true; purchaseOrderScreen.hidden = false; const detail = document.querySelector("#order-detail"); const sources = purchaseOrderSources.map((source) => `<option value="${source.id}">${source.name}</option>`).join(""); detail.innerHTML = `<div class="card-header"><div><p class="eyebrow">Operations</p><h3 class="card-title">Create purchase order</h3><p class="field-description">Add products and confirm the requested quantities.</p></div></div><form id="purchase-order-create-form" class="form card-content"><div class="order-form-grid"><div class="form-field"><label class="label" for="purchase-order-source">Source / provider</label><select id="purchase-order-source" class="select" required><option value="" disabled selected>Select a source</option>${sources}</select></div><div class="form-field"><label class="label" for="purchase-order-destination">Destination store</label><input id="purchase-order-destination" class="input" type="text" value="Current store" readonly></div></div><div id="order-lines" class="order-lines"></div><button id="add-order-line" class="btn" type="button" data-variant="outline" data-size="sm">Add product</button><p id="purchase-order-create-status" class="field-description" role="status"></p><div class="form-actions"><button class="btn" type="submit" data-variant="default">Create order</button></div></form>`; detail.querySelector("#add-order-line").addEventListener("click", () => addOrderLine(true)); detail.querySelector("form").addEventListener("submit", createPurchaseOrder); addOrderLine(true); requestAnimationFrame(() => document.querySelector("#purchase-order-source").focus()); }
 async function createPurchaseOrder(event) { event.preventDefault(); const lines = orderLinesPayload(); const status = document.querySelector("#purchase-order-create-status"); if (!lines.length) { status.textContent = "Add at least one product and quantity."; return; } status.textContent = "Creating…"; try { const order = await createProductOrder({ order_type: "purchase", from_origin_id: Number(document.querySelector("#purchase-order-source").value), to_store_id: storeId, lines }); purchaseOrders.unshift(order); renderOrders(); showOrderDetail(order); window.toast?.success({ title: "Purchase order created", description: `Order #${order.id} is ready to process.` }); } catch (error) { status.textContent = error.message; } }
 function fillProductOptions(select) { const entries = inventoryEntries.length ? inventoryEntries : products.map((product) => ({ product_id: product.id, product_name: product.name })); select.replaceChildren(...entries.map((e) => new Option(e.product_name, e.product_id))); }
+function openProductDialog(onCreated = null) {
+  pendingProductSelection = onCreated;
+  pendingProductRefresh = null;
+  createdProduct = null;
+  editingProductId = null;
+  const dialog = document.querySelector("#product-dialog");
+  document.querySelector("#product-form").reset();
+  preparedProductImage = null;
+  imagePreparationTask = null;
+  selectedProductImageFile = null;
+  document.querySelector("#product-form button[type='submit']").disabled = false;
+  document.querySelector("#product-image-help").textContent = "Drop an image here or choose a file (max 10 MB). It will be resized and stored as Base64.";
+  setProductImagePreview(null);
+  document.querySelector("#product-dialog-title").textContent = "Create product";
+  document.querySelector("#product-form-status").textContent = "";
+  loadProductPricingFields();
+  dialog.showModal();
+  requestAnimationFrame(() => document.querySelector("#product-name").focus());
+}
+async function openProductEditor(productId, onSaved = null) {
+  openProductDialog();
+  pendingProductRefresh = onSaved;
+  const status = document.querySelector("#product-form-status");
+  status.textContent = "Loading product…";
+  try {
+    const item = await product(productId);
+    editingProductId = item.id;
+    document.querySelector("#product-dialog-title").textContent = "Edit product";
+    document.querySelector("#product-name").value = item.name || "";
+    document.querySelector("#product-code").value = item.code || "";
+    document.querySelector("#product-cost").value = item.cost ?? 0;
+    setProductImagePreview(imageSource(item.image_raw));
+    await loadProductPricingFields(item.prices || []);
+    status.textContent = "";
+  } catch (error) { status.textContent = error.message; }
+}
+function finishProductCreation() {
+  document.querySelector("#product-dialog").close();
+  pendingProductSelection = null;
+  createdProduct = null;
+}
+async function loadProductPricingFields(existingPrices = []) {
+  const fields = document.querySelector("#product-pricing-fields");
+  fields.textContent = "Loading pricing lists…";
+  try {
+    const { entries } = await pricingLists();
+    const prices = new Map(existingPrices.map((entry) => [Number(entry.pricing_id), entry.price]));
+    fields.replaceChildren(...entries.map((list) => {
+      const row = document.createElement("div"); row.className = "product-price-row"; row.dataset.pricingId = list.id;
+      const label = document.createElement("label"); label.className = "label"; label.htmlFor = `product-price-${list.id}`; label.textContent = list.label || `Pricing list #${list.id}`;
+      const input = document.createElement("input"); input.id = label.htmlFor; input.className = "input"; input.type = "number"; input.min = "0"; input.step = "0.01"; input.placeholder = "Price"; input.value = prices.get(Number(list.id)) ?? ""; input.setAttribute("aria-label", `Price for ${label.textContent}`);
+      row.append(label, input); return row;
+    }));
+    if (!entries.length) fields.textContent = "No active pricing lists are available.";
+  } catch (error) { fields.textContent = error.message; }
+}
 function openInventoryDialog(productId) { const dialog = document.querySelector("#inventory-dialog"), select = document.querySelector("#inventory-product"); fillProductOptions(select); select.value = productId || inventoryEntries[0]?.product_id || ""; updateInventoryCurrent(); dialog.showModal(); }
 function updateInventoryCurrent() { const entry = inventoryEntries.find((e) => String(e.product_id) === document.querySelector("#inventory-product").value); document.querySelector("#inventory-current").value = entry?.quantity ?? 0; }
 function orderLineProducts() { return inventoryEntries.length ? inventoryEntries : products.map((product) => ({ product_id: product.id, product_name: product.name, inventory_quantity: product.inventory_quantity })); }
 function orderLinesPayload() { return [...document.querySelectorAll("#order-lines .order-line")].map((line) => ({ product_id: Number(line.dataset.productId), quantity: Number(line.querySelector("input[type='number']").value) })).filter((line) => line.product_id > 0 && line.quantity > 0); }
-function addOrderLine(empty = true) { const line = document.createElement("div"); line.className = "order-line"; const picker = document.createElement("div"); picker.className = "product-combobox"; const product = document.createElement("input"); product.className = "input"; product.type = "text"; product.placeholder = "Search products…"; product.autocomplete = "off"; product.spellcheck = false; product.setAttribute("autocorrect", "off"); product.setAttribute("autocapitalize", "off"); product.setAttribute("role", "combobox"); product.setAttribute("aria-label", "Product"); product.setAttribute("aria-autocomplete", "list"); product.setAttribute("aria-expanded", "false"); const results = document.createElement("ul"); results.className = "product-combobox-list"; results.id = `order-products-${crypto.randomUUID()}`; results.setAttribute("role", "listbox"); results.hidden = true; product.setAttribute("aria-controls", results.id); const current = document.createElement("input"); current.className = "input numeric"; current.type = "text"; current.readOnly = true; current.value = "—"; current.setAttribute("aria-label", "Current inventory quantity"); const qty = document.createElement("input"); qty.className = "input"; qty.type = "number"; qty.min = "1"; qty.required = !empty; qty.setAttribute("aria-label", "Requested quantity"); const remove = document.createElement("button"); remove.className = "btn"; remove.type = "button"; remove.dataset.variant = "ghost"; remove.dataset.size = "sm"; remove.textContent = "Remove";
+function addOrderLine(empty = true) { const line = document.createElement("div"); line.className = "order-line"; const edit = document.createElement("button"); edit.className = "btn"; edit.type = "button"; edit.dataset.variant = "outline"; edit.dataset.size = "icon-sm"; edit.setAttribute("aria-label", "Edit selected product"); edit.disabled = true; edit.textContent = "✎"; const picker = document.createElement("div"); picker.className = "product-combobox"; const product = document.createElement("input"); product.className = "input"; product.type = "text"; product.placeholder = "Search products…"; product.autocomplete = "off"; product.spellcheck = false; product.setAttribute("autocorrect", "off"); product.setAttribute("autocapitalize", "off"); product.setAttribute("role", "combobox"); product.setAttribute("aria-label", "Product"); product.setAttribute("aria-autocomplete", "list"); product.setAttribute("aria-expanded", "false"); const create = document.createElement("button"); create.className = "btn"; create.type = "button"; create.dataset.variant = "outline"; create.dataset.size = "icon-sm"; create.setAttribute("aria-label", "Create product"); create.textContent = "+"; const results = document.createElement("ul"); results.className = "product-combobox-list"; results.id = `order-products-${crypto.randomUUID()}`; results.setAttribute("role", "listbox"); results.hidden = true; product.setAttribute("aria-controls", results.id); const current = document.createElement("input"); current.className = "input numeric"; current.type = "text"; current.readOnly = true; current.value = "—"; current.setAttribute("aria-label", "Current inventory quantity"); const qty = document.createElement("input"); qty.className = "input"; qty.type = "number"; qty.min = "1"; qty.required = !empty; qty.setAttribute("aria-label", "Requested quantity"); const remove = document.createElement("button"); remove.className = "btn"; remove.type = "button"; remove.dataset.variant = "ghost"; remove.dataset.size = "sm"; remove.textContent = "Remove";
   let matches = [], activeIndex = -1;
   const close = () => { results.hidden = true; product.setAttribute("aria-expanded", "false"); activeIndex = -1; };
-  const choose = (entry) => { line.dataset.productId = entry.product_id; product.value = entry.product_code ? `${entry.product_name} · ${entry.product_code}` : entry.product_name; current.value = entry.quantity ?? entry.inventory_quantity ?? 0; close(); qty.focus(); };
+  const choose = async (entry) => {
+    line.dataset.productId = entry.product_id;
+    product.value = entry.product_code ? `${entry.product_name} · ${entry.product_code}` : entry.product_name;
+    current.value = entry.quantity ?? entry.inventory_quantity ?? 0;
+    edit.disabled = false; close(); qty.focus();
+    try {
+      const { entries } = await inventoryQuantities(storeId, [Number(entry.product_id)]);
+      const refreshed = entries.find((item) => Number(item.product_id) === Number(entry.product_id));
+      if (String(line.dataset.productId) === String(entry.product_id)) current.value = refreshed?.quantity ?? 0;
+    } catch {
+      if (String(line.dataset.productId) === String(entry.product_id)) current.value = entry.quantity ?? entry.inventory_quantity ?? 0;
+    }
+  };
   const render = () => { const query = product.value.trim().toLowerCase(); matches = orderLineProducts().filter((entry) => `${entry.product_name} ${entry.product_code || ""}`.toLowerCase().includes(query)).slice(0, 50); results.replaceChildren(...matches.map((entry, index) => { const option = document.createElement("li"); option.id = `order-product-${crypto.randomUUID()}`; option.setAttribute("role", "option"); option.setAttribute("aria-selected", String(index === activeIndex)); option.textContent = entry.product_code ? `${entry.product_name} · ${entry.product_code}` : entry.product_name; option.addEventListener("mousedown", (event) => { event.preventDefault(); choose(entry); }); return option; })); results.hidden = matches.length === 0; product.setAttribute("aria-expanded", String(matches.length > 0)); product.setAttribute("aria-activedescendant", activeIndex >= 0 ? results.children[activeIndex]?.id || "" : ""); };
-  product.addEventListener("input", () => { delete line.dataset.productId; activeIndex = -1; render(); }); product.addEventListener("focus", render); product.addEventListener("keydown", (event) => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); if (!matches.length) render(); activeIndex = event.key === "ArrowUp" && activeIndex < 0 ? matches.length - 1 : Math.max(0, Math.min(matches.length - 1, activeIndex + (event.key === "ArrowDown" ? 1 : -1))); render(); } else if (event.key === "Home" && matches.length) { event.preventDefault(); activeIndex = 0; render(); } else if (event.key === "End" && matches.length) { event.preventDefault(); activeIndex = matches.length - 1; render(); } else if (event.key === "Enter" && matches.length) { event.preventDefault(); choose(matches[Math.max(activeIndex, 0)]); } else if (event.key === "Escape") close(); }); product.addEventListener("blur", () => setTimeout(close, 120));
-  qty.addEventListener("keydown", (event) => { if (event.key !== "Enter") return; event.preventDefault(); if (!line.dataset.productId || !qty.validity.valid) return; addOrderLine(true); line.nextElementSibling?.querySelector("[role='combobox']")?.focus(); }); remove.addEventListener("click", () => line.remove()); picker.append(product, results); line.append(picker, current, qty, remove); document.querySelector("#order-lines").appendChild(line); }
+  product.addEventListener("input", () => { delete line.dataset.productId; edit.disabled = true; activeIndex = -1; render(); }); product.addEventListener("focus", render); product.addEventListener("keydown", (event) => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); if (!matches.length) render(); activeIndex = event.key === "ArrowUp" && activeIndex < 0 ? matches.length - 1 : Math.max(0, Math.min(matches.length - 1, activeIndex + (event.key === "ArrowDown" ? 1 : -1))); render(); } else if (event.key === "Home" && matches.length) { event.preventDefault(); activeIndex = 0; render(); } else if (event.key === "End" && matches.length) { event.preventDefault(); activeIndex = matches.length - 1; render(); } else if (event.key === "Enter" && matches.length) { event.preventDefault(); choose(matches[Math.max(activeIndex, 0)]); } else if (event.key === "Escape") close(); }); product.addEventListener("blur", () => setTimeout(close, 120));
+  qty.addEventListener("keydown", (event) => { if (event.key !== "Enter") return; event.preventDefault(); if (!line.dataset.productId || !qty.validity.valid) return; addOrderLine(true); line.nextElementSibling?.querySelector("[role='combobox']")?.focus(); }); edit.addEventListener("click", () => openProductEditor(Number(line.dataset.productId), (updated) => { product.value = updated.code ? `${updated.name} · ${updated.code}` : updated.name; })); create.addEventListener("click", () => openProductDialog((newProduct) => choose({ product_id: newProduct.id, product_name: newProduct.name, product_code: newProduct.code, quantity: 0 }))); remove.addEventListener("click", () => line.remove()); picker.append(product, create, results); line.append(edit, picker, current, qty, remove); document.querySelector("#order-lines").appendChild(line); }
 function openOrderDialog() { document.querySelector("#order-form").reset(); document.querySelector("#order-lines").replaceChildren(); addOrderLine(); document.querySelector("#order-dialog").showModal(); }
 function openProcessOrder() { const lines = document.querySelector("#process-order-lines"); lines.replaceChildren(); selectedOrder.lines.forEach((line) => { const row = document.createElement("div"); row.className = "order-line process-line"; row.dataset.lineId = line.id; const name = document.createElement("span"); name.textContent = `${line.product_name} (requested ${line.quantity})`; const observed = document.createElement("input"); observed.className = "input"; observed.type = "number"; observed.min = "0"; observed.value = line.quantity_observed ?? line.quantity; row.append(name, observed); lines.appendChild(row); }); document.querySelector("#process-order-dialog").showModal(); }
 
 function selectSidebar(id) {
   document.querySelectorAll(".sidebar-link").forEach((link) => {
-    link.toggleAttribute("aria-current", link.id === id);
+    if (link.id === id) link.setAttribute("aria-current", "page");
+    else link.removeAttribute("aria-current");
   });
 }
 
@@ -931,6 +1015,8 @@ inventorySummaryGrid.addEventListener("click", (event) => {
   loadInventory();
 });
 inventoryTableBody.addEventListener("click", async (event) => {
+  const editProduct = event.target.closest("[data-edit-product]");
+  if (editProduct) { openProductEditor(Number(editProduct.dataset.editProduct)); return; }
   const update = event.target.closest("[data-adjust-product]");
   const cancel = event.target.closest("[data-cancel-inventory]");
   const save = event.target.closest("[data-save-inventory]");
@@ -954,6 +1040,105 @@ inventoryTableBody.addEventListener("click", async (event) => {
   }
 });
 document.querySelector("#inventory-product").addEventListener("change", updateInventoryCurrent);
+document.querySelector("#create-product").addEventListener("click", () => openProductDialog());
+const productImageInput = document.querySelector("#product-image");
+const productImageDropzone = document.querySelector("#product-image-dropzone");
+const productImagePreview = document.createElement("img");
+productImagePreview.className = "product-image-preview";
+productImagePreview.alt = "Product image preview";
+productImagePreview.hidden = true;
+productImageDropzone.prepend(productImagePreview);
+function setProductImagePreview(source) {
+  productImagePreview.hidden = !source;
+  if (source) productImagePreview.src = source;
+  else productImagePreview.removeAttribute("src");
+}
+const setProductImage = async (file) => {
+  if (!file || !file.type.startsWith("image/")) return;
+  const help = productImageDropzone.querySelector(".field-description");
+  if (file.size > MAX_PRODUCT_IMAGE_BYTES) {
+    productImageInput.value = "";
+    preparedProductImage = null;
+    selectedProductImageFile = null;
+    setProductImagePreview(null);
+    help.textContent = "Image must be 10 MB or smaller.";
+    return;
+  }
+  selectedProductImageFile = file;
+  help.textContent = "Resizing image…";
+  try {
+    const source = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    source.src = objectUrl;
+    await source.decode();
+    const width = 100;
+    const height = Math.max(1, Math.round(source.naturalHeight * (width / source.naturalWidth)));
+    const canvas = document.createElement("canvas"); canvas.width = width; canvas.height = height;
+    await imageResizer.resize(source, canvas);
+    const blob = await imageResizer.toBlob(canvas, "image/jpeg", 0.82);
+    URL.revokeObjectURL(objectUrl);
+    preparedProductImage = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(blob); });
+    setProductImagePreview(preparedProductImage);
+    help.textContent = `${file.name} resized to ${width} × ${height}px and ready as Base64.`;
+  } catch (error) { preparedProductImage = null; help.textContent = `Image could not be prepared: ${error.message}`; }
+};
+function imageMimeType(name) {
+  const extension = name.split(".").pop()?.toLowerCase();
+  return ({ jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif", bmp: "image/bmp" })[extension] || "application/octet-stream";
+}
+productImageDropzone.addEventListener("dragenter", (event) => { event.preventDefault(); event.stopPropagation(); productImageDropzone.dataset.dragging = "true"; });
+productImageDropzone.addEventListener("dragover", (event) => { event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = "copy"; productImageDropzone.dataset.dragging = "true"; });
+productImageDropzone.addEventListener("dragleave", (event) => { event.preventDefault(); delete productImageDropzone.dataset.dragging; });
+productImageDropzone.addEventListener("drop", (event) => { event.preventDefault(); event.stopPropagation(); delete productImageDropzone.dataset.dragging; const file = event.dataTransfer?.files?.[0]; const help = productImageDropzone.querySelector(".field-description"); if (!file) { help.textContent = "Drop an image file here."; return; } imagePreparationTask = setProductImage(file); });
+productImageDropzone.addEventListener("keydown", (event) => { if (["Enter", " "].includes(event.key)) { event.preventDefault(); productImageInput.click(); } });
+productImageInput.addEventListener("change", () => { imagePreparationTask = setProductImage(productImageInput.files[0]); });
+window.addEventListener("dragover", (event) => { if (document.querySelector("#product-dialog").open) event.preventDefault(); });
+window.addEventListener("drop", (event) => { if (document.querySelector("#product-dialog").open) event.preventDefault(); });
+window.__TAURI__?.webview?.getCurrentWebview?.().onDragDropEvent(async ({ payload }) => {
+  const dialog = document.querySelector("#product-dialog");
+  if (!dialog.open) return;
+  if (payload.type === "over") { productImageDropzone.dataset.dragging = "true"; return; }
+  if (payload.type === "leave") { delete productImageDropzone.dataset.dragging; return; }
+  if (payload.type !== "drop" || !payload.paths?.[0]) return;
+  delete productImageDropzone.dataset.dragging;
+  const help = productImageDropzone.querySelector(".field-description");
+  help.textContent = "Reading dropped image…";
+  try {
+    const bytes = await window.__TAURI__.core.invoke("read_dropped_image", { path: payload.paths[0] });
+    const name = String(payload.paths[0]).split(/[\\/]/).pop() || "dropped-image";
+    const file = new File([new Uint8Array(bytes)], name, { type: imageMimeType(name) });
+    imagePreparationTask = setProductImage(file);
+  } catch (error) { help.textContent = `Image could not be read: ${error}`; }
+});
+document.querySelector("#product-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget, status = document.querySelector("#product-form-status"), file = selectedProductImageFile;
+  if (imagePreparationTask) await imagePreparationTask;
+  if (file && !preparedProductImage) { status.textContent = "Choose a valid image or remove it before saving."; return; }
+  const imageRaw = preparedProductImage || "";
+  const prices = [...form.querySelectorAll("[data-pricing-id]")].map((row) => ({ pricing_id: Number(row.dataset.pricingId), price: row.querySelector("input").value })).filter((entry) => entry.price !== "");
+  const product = { store_id: document.querySelector("#inventory-store").value, name: document.querySelector("#product-name").value.trim(), code: document.querySelector("#product-code").value.trim(), cost: Number(document.querySelector("#product-cost").value || 0), image_raw: imageRaw };
+  if (!file && editingProductId) delete product.image_raw;
+  status.textContent = editingProductId || createdProduct ? "Saving…" : "Creating…"; form.querySelector("button[type='submit']").disabled = true;
+  try {
+    if (editingProductId) {
+      createdProduct = await updateProduct(editingProductId, product);
+    } else if (!createdProduct) {
+      createdProduct = await createProduct(product);
+      products.unshift({ ...createdProduct, inventory_quantity: 0 });
+      inventoryEntries.unshift({ product_id: createdProduct.id, product_name: createdProduct.name, product_code: createdProduct.code, product_cost: createdProduct.cost, product_price: null, store_name: "Current store", quantity: 0, prev_quantity: 0 });
+      pendingProductSelection?.(createdProduct); renderInventory();
+    }
+    if (prices.length) await setProductPrices(createdProduct.id, prices);
+    await loadInventory(createdProduct.id);
+    if (editingProductId) {
+      products = products.map((item) => item.id === createdProduct.id ? { ...item, ...createdProduct } : item);
+      pendingProductRefresh?.(createdProduct);
+      window.toast?.success({ title: "Product updated", description: "Product details were refreshed." });
+    } else window.toast?.success({ title: "Product created", description: prices.length ? "Product and pricing-list entries were saved." : "Product was created without selling prices." });
+    finishProductCreation();
+  } catch (error) { status.textContent = createdProduct ? `Product created. ${error.message}` : error.message; form.querySelector("button[type='submit']").disabled = false; }
+});
 document.querySelector("#inventory-form").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const productId = document.querySelector("#inventory-product").value; const quantity = Number(document.querySelector("#inventory-quantity").value); if (!Number.isInteger(quantity)) return; const status = document.querySelector("#inventory-form-status"); status.textContent = "Saving…"; try { await adjustInventory({ product_id: productId, store_id: document.querySelector("#inventory-form-store").value, quantity }); document.querySelector("#inventory-dialog").close(); await loadInventory(productId); refreshInventory([productId]).catch(console.error); window.toast?.success({ title: "Inventory updated", description: "The product quantity was refreshed." }); } catch (error) { status.textContent = error.message; } });
 document.querySelector("#create-order").addEventListener("click", openPurchaseOrderCreate);
 document.querySelector("#purchase-order-back").addEventListener("click", () => { purchaseOrderScreen.hidden = true; ordersScreen.hidden = false; requestAnimationFrame(() => document.querySelector("#orders-title").focus()); });

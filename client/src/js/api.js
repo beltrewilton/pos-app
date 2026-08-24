@@ -16,6 +16,32 @@ export async function activeProducts(storeId, cursor = null) {
   return response.json();
 }
 
+export async function createProduct(product) {
+  const response = await fetch(`${API_BASE_URL}/products`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(product) });
+  if (!response.ok) throw new Error(`Could not create product: ${response.status}`);
+  return response.json();
+}
+export async function product(productId) {
+  const response = await fetch(`${API_BASE_URL}/products/${productId}`);
+  if (!response.ok) throw new Error(`Could not load product: ${response.status}`);
+  return response.json();
+}
+export async function updateProduct(productId, attrs) {
+  const response = await fetch(`${API_BASE_URL}/products/${productId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(attrs) });
+  if (!response.ok) throw new Error(`Could not update product: ${response.status}`);
+  return response.json();
+}
+export async function pricingLists() {
+  const response = await fetch(`${API_BASE_URL}/pricing-lists`);
+  if (!response.ok) throw new Error(`Could not load pricing lists: ${response.status}`);
+  return response.json();
+}
+export async function setProductPrices(productId, prices) {
+  const response = await fetch(`${API_BASE_URL}/products/${productId}/prices`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prices }) });
+  if (!response.ok) throw new Error(`Could not save product prices: ${response.status}`);
+  return response.json();
+}
+
 export async function inventoryQuantities(storeId, productIds) {
   const url = new URL(`${API_BASE_URL}/inventory`);
   url.searchParams.set("store_id", storeId);
