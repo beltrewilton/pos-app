@@ -46,6 +46,11 @@
         <button id="orders-nav" class="sidebar-link" type="button" aria-label="Purchase orders">
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l3 3v17H6z"/><path d="M15 2v4h4"/><path d="M9 12h6M9 16h6"/></svg>
         </button>
+        <button id="mobile-cart-nav" class="sidebar-link mobile-cart-nav" type="button" aria-controls="order-panel" aria-expanded="false" aria-label="Current sale">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 3 2 2 2.4 10.2a2 2 0 0 0 2 1.6h7.8a2 2 0 0 0 1.9-1.4L21 8H7"/><circle cx="10" cy="21" r="1"/><circle cx="18" cy="21" r="1"/></svg>
+          <span id="mobile-cart-count" class="mobile-cart-count" aria-live="polite" hidden>0</span>
+          <span>Sale</span>
+        </button>
       </nav>
       <div class="status-strip" aria-label="System status" data-i18n-aria-label="status.system">
         <img
@@ -92,7 +97,7 @@
                 aria-label="Search" data-i18n-aria-label="search.label"
                 placeholder="Search products or scan a barcode" data-i18n-placeholder="search.placeholder"
                 autocomplete="off"
-              />
+              /><button id="product-search-clear" class="btn search-clear" type="button" data-variant="ghost" data-size="icon" aria-label="Clear product search" hidden>×</button>
             </div>
             <button
               class="btn"
@@ -115,9 +120,7 @@
             <span data-i18n="products.loading">Loading products…</span>
           </p>
         </div>
-        <button id="mobile-cart-trigger" class="btn mobile-cart-trigger" type="button" data-variant="default" aria-controls="order-panel" aria-expanded="false">
-          View sale
-        </button>
+        <button id="mobile-cart-trigger" class="btn mobile-cart-trigger" type="button" data-variant="default" aria-controls="order-panel" aria-expanded="false">View sale</button>
         <div id="product-grid" class="product-grid" aria-live="polite"></div>
         <div id="products-sentinel" aria-hidden="true"></div>
         </div>

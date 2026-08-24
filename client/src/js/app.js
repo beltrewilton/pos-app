@@ -45,8 +45,11 @@ const customerPurchasesStatus = document.querySelector("#customer-purchases-stat
 const customerPurchasesBody = document.querySelector("#customer-purchases-body");
 const orderPanel = document.querySelector("#order-panel");
 const mobileCartTrigger = document.querySelector("#mobile-cart-trigger");
+const mobileCartNav = document.querySelector("#mobile-cart-nav");
+const mobileCartCount = document.querySelector("#mobile-cart-count");
 const mobileCartClose = document.querySelector("#mobile-cart-close");
 const mobileCartBackdrop = document.querySelector("#mobile-cart-backdrop");
+const productSearchClear = document.querySelector("#product-search-clear");
 const languageSwitcher = createLanguageSwitcher(document.querySelector("#language-switcher"));
 const storeId = 2;
 const imageResizer = new Pica();
@@ -62,6 +65,7 @@ const pos = createPos({
   discountElement: document.querySelector("#discount"),
   taxElement: document.querySelector("#tax"),
   itemCountElement: document.querySelector("#items-count"),
+  itemCountBadge: mobileCartCount,
   emptyElement: document.querySelector("#cart-empty"),
   clearButton: document.querySelector("#clear-order"),
   chargeButton: document.querySelector("#print-test"),
@@ -89,6 +93,7 @@ let hasMore = true;
 let loading = false;
 let products = [];
 let checkoutStage = "customer";
+let checkoutOpening = false;
 let selectedCustomer = null;
 let customerSearchTimer;
 let completedReceipt = null;
@@ -129,18 +134,24 @@ let purchaseOrderSort = { key: "last_updated", direction: "desc" };
 let purchaseOrderStatusFilter = "";
 
 const mobileQuery = window.matchMedia("(max-width: 640px)");
-function setMobileCart(open) {
+function setMobileCart(open, { restoreFocus = true } = {}) {
   if (!mobileQuery.matches) return;
   orderPanel.classList.toggle("is-mobile-open", open);
   mobileCartBackdrop.classList.toggle("is-visible", open);
-  mobileCartTrigger.setAttribute("aria-expanded", String(open));
-  orderPanel.setAttribute("role", "dialog");
-  orderPanel.setAttribute("aria-modal", "true");
+  [mobileCartTrigger, mobileCartNav].forEach((trigger) => trigger.setAttribute("aria-expanded", String(open)));
+  if (open) {
+    orderPanel.setAttribute("role", "dialog");
+    orderPanel.setAttribute("aria-modal", "true");
+  } else {
+    orderPanel.removeAttribute("role");
+    orderPanel.removeAttribute("aria-modal");
+  }
   catalogPanel.toggleAttribute("inert", open);
   if (open) requestAnimationFrame(() => mobileCartClose.focus());
-  else mobileCartTrigger.focus();
+  else if (restoreFocus) mobileCartNav.focus();
 }
 mobileCartTrigger.addEventListener("click", () => setMobileCart(true));
+mobileCartNav.addEventListener("click", () => setMobileCart(true));
 mobileCartClose.addEventListener("click", () => setMobileCart(false));
 mobileCartBackdrop.addEventListener("click", () => setMobileCart(false));
 document.addEventListener("keydown", (event) => { if (event.key === "Escape" && orderPanel.classList.contains("is-mobile-open")) setMobileCart(false); });
@@ -148,7 +159,7 @@ mobileQuery.addEventListener("change", () => {
   if (mobileQuery.matches) return;
   orderPanel.classList.remove("is-mobile-open");
   mobileCartBackdrop.classList.remove("is-visible");
-  mobileCartTrigger.setAttribute("aria-expanded", "false");
+  [mobileCartTrigger, mobileCartNav].forEach((trigger) => trigger.setAttribute("aria-expanded", "false"));
   orderPanel.removeAttribute("role");
   orderPanel.removeAttribute("aria-modal");
   catalogPanel.removeAttribute("inert");
@@ -302,8 +313,8 @@ function resetCompletedOrder() {
 function customerRow(customer) {
   const row = document.createElement("tr");
   row.className = "table-row";
-  const values = [customer.name || "—", customer.celphone || "—", customer.email || "—"];
-  values.forEach((value) => { const cell = document.createElement("td"); cell.className = "table-cell"; cell.textContent = value; row.appendChild(cell); });
+  const values = [[t("customer.name"), customer.name || "—"], [t("customer.phone"), customer.celphone || "—"], [t("customer.email"), customer.email || "—"]];
+  values.forEach(([label, value]) => { const cell = document.createElement("td"); cell.className = "table-cell"; cell.dataset.label = label; cell.textContent = value; row.appendChild(cell); });
   const action = document.createElement("td"); action.className = "table-cell customer-action";
   const choose = document.createElement("button"); choose.className = "btn"; choose.type = "button"; choose.dataset.variant = "outline"; choose.dataset.size = "sm"; choose.dataset.customerId = customer.id; choose.textContent = t("customer.choose"); choose.setAttribute("aria-label", `${t("customer.choose")}: ${customer.name || ""}`); action.appendChild(choose); row.appendChild(action);
   return row;
@@ -331,14 +342,15 @@ function openCustomers(returnTo = "pos") {
   catalogPanel.dataset.view = "customers";
   customersScreen.hidden = false;
   loadCustomers();
-  requestAnimationFrame(() => document.querySelector("#customers-title").focus());
+  requestAnimationFrame(() => (mobileQuery.matches ? customerSearch : document.querySelector("#customers-title")).focus());
 }
 
 function closeCustomers() {
   customersScreen.hidden = true;
   if (catalogPanel.dataset.view === "customers") delete catalogPanel.dataset.view;
   if (customerReturn === "checkout") { catalogPanel.dataset.view = "checkout"; checkoutFlow.hidden = false; showCheckoutStage("customer"); }
-  else orderTitle.focus();
+  else if (customerReturn === "cart") { setMobileCart(true); }
+  else (mobileQuery.matches ? mobileCartNav : orderTitle).focus();
 }
 
 function currency(value) {
@@ -1123,8 +1135,15 @@ async function updatePrinterStatus() {
   }
 }
 
-productSearch.addEventListener("input", renderProducts);
-orderTitle.addEventListener("click", () => openCustomers("pos"));
+productSearch.addEventListener("input", () => { productSearchClear.hidden = !productSearch.value; renderProducts(); });
+productSearch.addEventListener("search", () => { productSearchClear.hidden = !productSearch.value; renderProducts(); });
+productSearch.addEventListener("keydown", (event) => { if (event.key === "Enter") renderProducts(); });
+productSearchClear.addEventListener("click", () => { productSearch.value = ""; productSearchClear.hidden = true; renderProducts(); productSearch.focus(); });
+orderTitle.addEventListener("click", () => {
+  const returnTo = mobileQuery.matches && orderPanel.classList.contains("is-mobile-open") ? "cart" : "pos";
+  if (returnTo === "cart") setMobileCart(false);
+  openCustomers(returnTo);
+});
 clearCustomerButton.addEventListener("click", () => { selectedCustomer = null; updateCustomerPicker(); });
 customerPurchasesButton.addEventListener("click", openCustomerPurchases);
 document.querySelector("#customers-back").addEventListener("click", closeCustomers);
@@ -1470,12 +1489,23 @@ function showCheckoutStage(stage) {
   requestAnimationFrame(() => checkoutFlow.querySelector(`[data-stage="${stage}"] h2`)?.focus?.());
 }
 
-function openCheckout() {
+async function openCheckout() {
   if (pos.isEmpty()) { printStatus.textContent = t("print.addItem"); return; }
+  if (checkoutOpening) return;
+  checkoutOpening = true;
+  if (mobileQuery.matches && orderPanel.classList.contains("is-mobile-open")) {
+    setMobileCart(false, { restoreFocus: false });
+    await new Promise((resolve) => window.setTimeout(resolve, 220));
+  }
   catalogPanel.dataset.view = "checkout";
   startCheckoutButton.hidden = true;
   checkoutFlow.hidden = false;
   showCheckoutStage(selectedCustomer ? "payment" : "customer");
+  requestAnimationFrame(() => {
+    const focusTarget = selectedCustomer ? document.querySelector("#add-payment-line") : document.querySelector("#customer-picker");
+    focusTarget?.focus();
+    checkoutOpening = false;
+  });
 }
 
 function closeCheckout() {
@@ -1525,6 +1555,7 @@ document.querySelector("#add-payment-line").addEventListener("click", () => { co
 document.querySelector("#payment-lines").addEventListener("click", (event) => { const button = event.target.closest("[data-remove-payment]"); if (!button) return; button.closest(".payment-line").remove(); document.querySelector("#payment-lines").dispatchEvent(new Event("input", { bubbles: true })); updatePaymentChoice(); });
 document.querySelector("#payment-lines").addEventListener("change", () => { updatePaymentChoice(); updatePaymentCompletion(); });
 document.querySelector("#payment-lines").addEventListener("input", updatePaymentCompletion);
+document.querySelector("#payment-lines").addEventListener("focusin", (event) => { if (mobileQuery.matches && event.target.matches("input")) event.target.scrollIntoView({ behavior: "smooth", block: "center" }); });
 document.querySelector("#credit-toggle").addEventListener("click", (event) => { const active = event.currentTarget.getAttribute("aria-pressed") !== "true"; event.currentTarget.setAttribute("aria-pressed", String(active)); event.currentTarget.dataset.variant = active ? "default" : "outline"; document.querySelector("#payment-inputs").hidden = active; document.querySelector("#complete-sale").disabled = false; updatePaymentChoice(); });
 document.querySelector("#complete-sale").addEventListener("click", async () => { const complete = document.querySelector("#complete-sale"); const credit = document.querySelector("#credit-toggle").getAttribute("aria-pressed") === "true"; const payments = [...document.querySelectorAll(".payment-line")].map((line) => ({ type: line.querySelector("select").value, amount: Number(line.querySelector("input").value) || 0 })).filter((line) => line.amount); if (!credit && payments.reduce((sum, line) => sum + line.amount, 0) < pos.total()) return; const receipt = pos.receipt(); complete.disabled = true; try { await createSale({ store_id: storeId, client_id: selectedCustomer.id, sequence_type: document.querySelector("[data-sequence][data-variant=default]").dataset.sequence, status: credit ? "CREDIT" : "CASH", sale_type: receipt.delivery ? "FOR_DELIVER" : "IN_SHOP", delivery_charge: receipt.delivery, lines: receipt.items.map((item) => ({ product_id: Number(item.id), quantity: item.qty, discount: item.discount })), payments: credit ? [] : payments }); await refreshInventory(receipt.items.map((item) => item.id)).catch(console.error); completedReceipt = { ...receipt, language: getLanguage() }; resetCompletedOrder(); closeCheckout(); document.querySelector("#receipt-dialog").showModal(); } catch (error) { checkoutStatus.textContent = error.message; complete.disabled = false; } });
 document.querySelector("#skip-print").addEventListener("click", () => { document.querySelector("#receipt-dialog").close(); completedReceipt = null; });

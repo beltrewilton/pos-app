@@ -1,5 +1,5 @@
 export function createPos(options) {
-  const { cartElement, totalTrigger, totalElement, totalBeforeDiscountElement, subtotalElement, discountElement, taxElement, itemCountElement, emptyElement, clearButton, chargeButton, checkoutButton, productGrid, discountDialog, discountForm, discountTypeButtons, discountInput, discountInputLabel, discountHelp, discountProductImage, discountProductName, discountPreviewAmount, discountPreviewDiscount, discountPreviewTotal, clearDialog, clearConfirmButton, t, formatCurrency } = options;
+  const { cartElement, totalTrigger, totalElement, totalBeforeDiscountElement, subtotalElement, discountElement, taxElement, itemCountElement, itemCountBadge, emptyElement, clearButton, chargeButton, checkoutButton, productGrid, discountDialog, discountForm, discountTypeButtons, discountInput, discountInputLabel, discountHelp, discountProductImage, discountProductName, discountPreviewAmount, discountPreviewDiscount, discountPreviewTotal, clearDialog, clearConfirmButton, t, formatCurrency } = options;
   const cart = [];
   let discountTarget = null;
   let discountType = "amount";
@@ -47,7 +47,12 @@ export function createPos(options) {
       totalBeforeDiscountElement.textContent = money(subtotal());
     }
     totalElement.textContent = money(total());
-    itemCountElement.textContent = String(items());
+    const itemCount = items();
+    itemCountElement.textContent = String(itemCount);
+    if (itemCountBadge) {
+      itemCountBadge.hidden = itemCount === 0;
+      itemCountBadge.textContent = String(itemCount);
+    }
     if (chargeButton) chargeButton.textContent = t("charge", { amount: money(total()) });
   }
 
