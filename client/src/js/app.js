@@ -50,6 +50,10 @@ const mobileCartCount = document.querySelector("#mobile-cart-count");
 const mobileCartClose = document.querySelector("#mobile-cart-close");
 const mobileCartBackdrop = document.querySelector("#mobile-cart-backdrop");
 const productSearchClear = document.querySelector("#product-search-clear");
+const mobileNavigation = document.querySelector("#mobile-navigation");
+const mobileNavigationClose = document.querySelector("#mobile-navigation-close");
+let mobileNavigationTrigger = null;
+let mobileNavigationRestoreFocus = true;
 const languageSwitcher = createLanguageSwitcher(document.querySelector("#language-switcher"));
 const storeId = 2;
 const imageResizer = new Pica();
@@ -134,6 +138,61 @@ let purchaseOrderSort = { key: "last_updated", direction: "desc" };
 let purchaseOrderStatusFilter = "";
 
 const mobileQuery = window.matchMedia("(max-width: 640px)");
+
+function navigationIcon() {
+  return `<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>`;
+}
+
+function closeMobileNavigation({ restoreFocus = true } = {}) {
+  mobileNavigationRestoreFocus = restoreFocus;
+  if (mobileNavigation.open) mobileNavigation.close();
+}
+
+function openMobileNavigation(trigger) {
+  if (!mobileQuery.matches || mobileNavigation.open) return;
+  mobileNavigationTrigger = trigger;
+  trigger.setAttribute("aria-expanded", "true");
+  mobileNavigation.showModal();
+}
+
+document.querySelectorAll(".topbar").forEach((topbar) => {
+  const trigger = document.createElement("button");
+  trigger.className = "btn mobile-navigation-trigger";
+  trigger.type = "button";
+  trigger.dataset.variant = "ghost";
+  trigger.dataset.size = "icon";
+  trigger.setAttribute("aria-label", "Open navigation");
+  trigger.setAttribute("aria-controls", "mobile-navigation");
+  trigger.setAttribute("aria-expanded", "false");
+  trigger.innerHTML = navigationIcon();
+  trigger.addEventListener("click", () => openMobileNavigation(trigger));
+  topbar.prepend(trigger);
+});
+
+const primaryTopbar = document.querySelector(".catalog-content > .topbar");
+if (primaryTopbar) {
+  const cartTrigger = document.createElement("button");
+  cartTrigger.className = "btn mobile-topbar-cart";
+  cartTrigger.type = "button";
+  cartTrigger.dataset.variant = "ghost";
+  cartTrigger.dataset.size = "icon";
+  cartTrigger.setAttribute("aria-label", "Open current sale");
+  cartTrigger.setAttribute("aria-controls", "order-panel");
+  cartTrigger.innerHTML = `<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 3 2 2 2.4 10.2a2 2 0 0 0 2 1.6h7.8a2 2 0 0 0 1.9-1.4L21 8H7"/><circle cx="10" cy="21" r="1"/><circle cx="18" cy="21" r="1"/></svg>`;
+  cartTrigger.addEventListener("click", () => setMobileCart(true));
+  primaryTopbar.append(cartTrigger);
+}
+
+mobileNavigationClose.addEventListener("click", () => closeMobileNavigation());
+mobileNavigation.addEventListener("click", (event) => {
+  if (event.target === mobileNavigation) closeMobileNavigation();
+});
+mobileNavigation.addEventListener("close", () => {
+  mobileNavigationTrigger?.setAttribute("aria-expanded", "false");
+  if (mobileNavigationRestoreFocus) mobileNavigationTrigger?.focus();
+  mobileNavigationRestoreFocus = true;
+});
+
 function setMobileCart(open, { restoreFocus = true } = {}) {
   if (!mobileQuery.matches) return;
   orderPanel.classList.toggle("is-mobile-open", open);
@@ -156,6 +215,7 @@ mobileCartClose.addEventListener("click", () => setMobileCart(false));
 mobileCartBackdrop.addEventListener("click", () => setMobileCart(false));
 document.addEventListener("keydown", (event) => { if (event.key === "Escape" && orderPanel.classList.contains("is-mobile-open")) setMobileCart(false); });
 mobileQuery.addEventListener("change", () => {
+  if (!mobileQuery.matches) closeMobileNavigation({ restoreFocus: false });
   if (mobileQuery.matches) return;
   orderPanel.classList.remove("is-mobile-open");
   mobileCartBackdrop.classList.remove("is-visible");
@@ -341,6 +401,7 @@ function openCustomers(returnTo = "pos") {
   customerReturn = returnTo;
   catalogPanel.dataset.view = "customers";
   customersScreen.hidden = false;
+  if (returnTo === "pos") selectSidebar("customers-nav");
   loadCustomers();
   requestAnimationFrame(() => (mobileQuery.matches ? customerSearch : document.querySelector("#customers-title")).focus());
 }
@@ -350,7 +411,7 @@ function closeCustomers() {
   if (catalogPanel.dataset.view === "customers") delete catalogPanel.dataset.view;
   if (customerReturn === "checkout") { catalogPanel.dataset.view = "checkout"; checkoutFlow.hidden = false; showCheckoutStage("customer"); }
   else if (customerReturn === "cart") { setMobileCart(true); }
-  else (mobileQuery.matches ? mobileCartNav : orderTitle).focus();
+  else { selectSidebar("pos-nav"); (mobileQuery.matches ? mobileCartNav : orderTitle).focus(); }
 }
 
 function currency(value) {
@@ -490,9 +551,11 @@ function invoicePaymentForm(invoice) {
 function invoiceRow(invoice) {
   const row = document.createElement("tr");
   row.className = "table-row invoice-row";
+  const labels = ["Invoice", "Customer", "Date", "Status", "Total", "Balance", "Actions"];
   [invoice.sequence || `#${invoice.id}`, invoice.client_name || "Walk-in customer"].forEach((value, index) => {
     const cell = document.createElement("td");
     cell.className = "table-cell";
+    cell.dataset.label = labels[index];
     const trigger = document.createElement("button");
     trigger.className = "btn invoice-detail-trigger";
     trigger.type = "button";
@@ -512,23 +575,27 @@ function invoiceRow(invoice) {
   });
   const date = document.createElement("td");
   date.className = "table-cell";
+  date.dataset.label = labels[2];
   date.textContent = invoice.date_create ? new Date(invoice.date_create.replace(" ", "T")).toLocaleDateString() : "—";
   row.appendChild(date);
   const status = document.createElement("td");
   status.className = "table-cell";
+  status.dataset.label = labels[3];
   const badge = document.createElement("span");
   badge.className = `invoice-status invoice-status-${invoice.invoice_status}`;
   badge.textContent = invoiceStatusLabel(invoice.invoice_status);
   status.appendChild(badge);
   row.appendChild(status);
-  [invoice.amount, invoice.due_balance].forEach((amount) => {
+  [invoice.amount, invoice.due_balance].forEach((amount, index) => {
     const cell = document.createElement("td");
     cell.className = "table-cell numeric";
+    cell.dataset.label = labels[index + 4];
     cell.textContent = currency(amount);
     row.appendChild(cell);
   });
   const actions = document.createElement("td");
   actions.className = "table-cell invoice-actions";
+  actions.dataset.label = labels[6];
   if (invoice.invoice_status !== "cancelled") {
     const cancel = document.createElement("button");
     cancel.className = "btn invoice-cancel"; cancel.type = "button"; cancel.dataset.variant = "ghost"; cancel.dataset.size = "sm"; cancel.dataset.cancelInvoice = invoice.id; cancel.textContent = t("ui.cancel");
@@ -759,12 +826,14 @@ function renderInventory() {
     const row = document.createElement("tr");
     row.className = "table-row";
     row.dataset.inventoryProductId = entry.product_id;
+    const labels = ["Product", "SKU", "Store", "Cost", "Price", "Current quantity", "Previous quantity", "Last updated", "Updated by"];
     [entry.product_name || `Product #${entry.product_id}`, entry.product_code || "—", entry.store_name || "Current store", currency(entry.product_cost), entry.product_price == null ? "—" : currency(entry.product_price), entry.quantity ?? 0, entry.prev_quantity ?? "—", formatOperationDate(entry.last_update), entry.user_updated || "—"].forEach((value, index) => {
       const cell = document.createElement("td"); cell.className = "table-cell";
+      cell.dataset.label = labels[index];
       if (index === 0) { const button = document.createElement("button"); button.className = "btn"; button.type = "button"; button.dataset.variant = "link"; button.dataset.editProduct = entry.product_id; button.textContent = value; cell.appendChild(button); } else cell.textContent = value;
       row.appendChild(cell);
     });
-    const action = document.createElement("td"); action.className = "table-cell inventory-row-action";
+    const action = document.createElement("td"); action.className = "table-cell inventory-row-action"; action.dataset.label = "Actions";
     if (editingInventoryProductId === entry.product_id) {
       action.innerHTML = `<div class="inventory-inline-editor"><label class="sr-only" for="inventory-add-${entry.product_id}">Quantity to add</label><input id="inventory-add-${entry.product_id}" class="input" type="number" inputmode="numeric" placeholder="Add" aria-label="Quantity to add"><button class="btn" type="button" data-variant="default" data-size="sm" data-save-inventory="${entry.product_id}">Save</button><button class="btn" type="button" data-variant="ghost" data-size="sm" data-cancel-inventory>Cancel</button></div>`;
     } else {
@@ -860,7 +929,7 @@ function orderCost(order) { return order.lines.reduce((total, line) => total + l
 function orderCostDifference(order) { return order.lines.reduce((total, line) => total + lineCostDifference(line, order), 0); }
 function hasCountingDiscrepancy(order) { return orderIsClosed(order) && order.lines.some((line) => Number(line.quantity_observed ?? line.quantity) !== Number(line.quantity)); }
 function renderOrderStatusSummary() { ordersSummary.replaceChildren(...Object.entries(purchaseOrderStatusCounts).map(([status, count]) => { const card = document.createElement("article"); card.className = "card inventory-summary-card"; const button = document.createElement("button"); button.className = "btn inventory-kpi"; button.type = "button"; button.dataset.orderStatus = status; button.dataset.variant = purchaseOrderStatusFilter === status ? "secondary" : "ghost"; button.setAttribute("aria-pressed", String(purchaseOrderStatusFilter === status)); button.setAttribute("aria-label", `${purchaseOrderStatusFilter === status ? "Clear" : "Filter"} ${status} purchase orders`); button.innerHTML = `<div class="card-header"><p class="card-title">${status}</p></div><div class="card-content"><p class="inventory-kpi-value numeric">${count}</p><p class="inventory-kpi-detail">Purchase orders</p></div>`; button.addEventListener("click", () => { purchaseOrderStatusFilter = purchaseOrderStatusFilter === status ? "" : status; loadOrders(); }); card.appendChild(button); return card; })); }
-function renderOrders() { const entries = sortOperationEntries(purchaseOrders, purchaseOrderSort); ordersTableBody.replaceChildren(...entries.map((order) => { const closed = orderIsClosed(order); const discrepancy = hasCountingDiscrepancy(order); const row = document.createElement("tr"); row.className = `table-row purchase-order-row purchase-order-${closed ? "received" : "open"}`; const values = [`#${order.id}`, order.from_origin_name || "External source", order.to_store_name || "—", currency(orderCost(order)), currency(orderCostDifference(order)), closed ? "Closed" : "Open", formatOperationDate(order.date_opened), order.user_requester || "—"]; values.forEach((value, index) => { const cell = document.createElement("td"); cell.className = `table-cell${[3, 4].includes(index) ? " numeric" : ""}`; cell.textContent = value; if (index === 5 && discrepancy) { const warning = document.createElement("span"); warning.className = "counting-warning"; warning.setAttribute("role", "img"); warning.setAttribute("aria-label", "Counting discrepancy"); warning.title = "Observed quantities differ from requested quantities"; warning.textContent = "⚠"; cell.append(" ", warning); } row.appendChild(cell); }); const action = document.createElement("td"); action.className = "table-cell"; action.innerHTML = `<button class="btn" type="button" data-variant="outline" data-size="sm" data-order-detail="${order.id}">View</button>`; row.appendChild(action); return row; })); ordersStatus.textContent = entries.length ? `${entries.length} orders` : "No purchase orders found."; }
+function renderOrders() { const entries = sortOperationEntries(purchaseOrders, purchaseOrderSort); const labels = ["Order", "Source", "Destination", "Order cost", "Cost difference", "Status", "Date", "Created by"]; ordersTableBody.replaceChildren(...entries.map((order) => { const closed = orderIsClosed(order); const discrepancy = hasCountingDiscrepancy(order); const row = document.createElement("tr"); row.className = `table-row purchase-order-row purchase-order-${closed ? "received" : "open"}`; const values = [`#${order.id}`, order.from_origin_name || "External source", order.to_store_name || "—", currency(orderCost(order)), currency(orderCostDifference(order)), closed ? "Closed" : "Open", formatOperationDate(order.date_opened), order.user_requester || "—"]; values.forEach((value, index) => { const cell = document.createElement("td"); cell.className = `table-cell${[3, 4].includes(index) ? " numeric" : ""}`; cell.dataset.label = labels[index]; cell.textContent = value; if (index === 5 && discrepancy) { const warning = document.createElement("span"); warning.className = "counting-warning"; warning.setAttribute("role", "img"); warning.setAttribute("aria-label", "Counting discrepancy"); warning.title = "Observed quantities differ from requested quantities"; warning.textContent = "⚠"; cell.append(" ", warning); } row.appendChild(cell); }); const action = document.createElement("td"); action.className = "table-cell"; action.dataset.label = "Actions"; action.innerHTML = `<button class="btn" type="button" data-variant="outline" data-size="sm" data-order-detail="${order.id}">View</button>`; row.appendChild(action); return row; })); ordersStatus.textContent = entries.length ? `${entries.length} orders` : "No purchase orders found."; }
 async function loadOrders() { ordersStatus.textContent = "Loading purchase orders…"; try { const [orders, sources] = await Promise.all([productOrders(storeId, purchaseOrderStatusFilter), purchaseSources(storeId)]); purchaseOrders = orders.entries.map((order) => ({ ...order, last_updated: order.date_closed || order.date_opened })); purchaseOrderStatusCounts = orders.status_counts || {}; purchaseOrderSources = sources.entries; renderOrderStatusSummary(); renderOrders(); } catch { ordersStatus.textContent = "Purchase orders could not be loaded."; } }
 function showOrderDetail(order) {
   selectedOrder = order;
@@ -870,11 +939,11 @@ function showOrderDetail(order) {
   const isOpen = order.status === "opened";
   const discrepancy = hasCountingDiscrepancy(order);
   const detail = document.querySelector("#order-detail");
-  detail.innerHTML = `<div class="card-header"><div><p class="eyebrow">Order #${order.id}</p><h3 class="card-title">${["received", "closed"].includes(order.status) ? "Closed" : "Open"}${discrepancy ? ' <span class="counting-warning" role="img" aria-label="Counting discrepancy" title="Observed quantities differ from requested quantities">⚠</span>' : ""}</h3><p class="field-description">${order.from_origin_name || "External source"} → ${order.to_store_name || "—"} · Created by ${order.user_requester || "—"} · ${formatOperationDate(order.date_opened)}</p></div><div class="purchase-order-actions"><button class="btn" type="button" data-variant="outline" data-size="sm" data-order-navigation="previous" ${position <= 0 ? "disabled" : ""}>Previous</button><button class="btn" type="button" data-variant="outline" data-size="sm" data-order-navigation="next" ${position === purchaseOrders.length - 1 ? "disabled" : ""}>Next</button>${isOpen ? '<button id="count-order" class="btn" type="button" data-variant="default">Start Counting</button>' : ""}</div></div><div class="card-content"><div class="table-container purchase-order-lines-scroll"><table class="table purchase-order-lines-table"><caption class="table-caption">Products in this purchase order.</caption><thead><tr class="table-row"><th class="table-head">Product</th><th class="table-head">SKU</th><th class="table-head">Current quantity</th><th class="table-head">Requested</th><th class="table-head">Observed</th><th class="table-head">Item cost</th><th class="table-head">Cost difference</th><th class="table-head">Status</th></tr></thead><tbody>${order.lines.map((line) => `<tr class="table-row"><td class="table-cell"><button class="btn" type="button" data-variant="link" data-order-product-edit="${line.product_id}">${line.product_name}</button></td><td class="table-cell">${line.product_code || "—"}</td><td class="table-cell numeric">${line.current_quantity ?? 0}</td><td class="table-cell numeric">${line.quantity}</td><td class="table-cell observed-cell"><input class="input numeric observed-input" type="number" min="0" value="${line.quantity_observed ?? line.quantity}" aria-label="Observed quantity for ${line.product_name}" data-observed-input data-line-id="${line.id}" disabled></td><td class="table-cell numeric">${currency(lineCost(line, order))}</td><td class="table-cell numeric">${currency(lineCostDifference(line, order))}</td><td class="table-cell">${line.status}</td></tr>`).join("")}</tbody><tfoot><tr class="purchase-order-total-row"><td colspan="5"></td><td class="numeric purchase-order-total-amount">${currency(orderCost(order))}</td><td class="numeric purchase-order-difference-amount">${currency(orderCostDifference(order))}</td><td></td></tr></tfoot></table></div></div>`;
+  detail.innerHTML = `<div class="card-header"><div><p class="eyebrow">Order #${order.id}</p><h3 class="card-title">${["received", "closed"].includes(order.status) ? "Closed" : "Open"}${discrepancy ? ' <span class="counting-warning" role="img" aria-label="Counting discrepancy" title="Observed quantities differ from requested quantities">⚠</span>' : ""}</h3><p class="field-description">${order.from_origin_name || "External source"} → ${order.to_store_name || "—"} · Created by ${order.user_requester || "—"} · ${formatOperationDate(order.date_opened)}</p></div><div class="purchase-order-actions"><button class="btn" type="button" data-variant="outline" data-size="sm" data-order-navigation="previous" ${position <= 0 ? "disabled" : ""}>Previous</button><button class="btn" type="button" data-variant="outline" data-size="sm" data-order-navigation="next" ${position === purchaseOrders.length - 1 ? "disabled" : ""}>Next</button>${isOpen ? '<button id="count-order" class="btn" type="button" data-variant="default">Start Counting</button>' : ""}</div></div><div class="card-content"><div class="table-container purchase-order-lines-scroll"><table class="table purchase-order-lines-table"><caption class="table-caption">Products in this purchase order.</caption><thead><tr class="table-row"><th class="table-head">Product</th><th class="table-head">SKU</th><th class="table-head">Current quantity</th><th class="table-head">Requested</th><th class="table-head">Observed</th><th class="table-head">Item cost</th><th class="table-head">Cost difference</th><th class="table-head">Status</th></tr></thead><tbody>${order.lines.map((line) => `<tr class="table-row"><td class="table-cell"><button class="btn" type="button" data-variant="link" data-order-product-edit="${line.product_id}">${line.product_name}</button></td><td class="table-cell">${line.product_code || "—"}</td><td class="table-cell numeric">${line.current_quantity ?? 0}</td><td class="table-cell numeric">${line.quantity}</td><td class="table-cell observed-cell"><input class="input numeric observed-input" type="number" inputmode="numeric" min="0" value="${line.quantity_observed ?? line.quantity}" aria-label="Observed quantity for ${line.product_name}" data-observed-input data-line-id="${line.id}" disabled></td><td class="table-cell numeric">${currency(lineCost(line, order))}</td><td class="table-cell numeric">${currency(lineCostDifference(line, order))}</td><td class="table-cell">${line.status}</td></tr>`).join("")}</tbody><tfoot><tr class="purchase-order-total-row"><td colspan="5"></td><td class="numeric purchase-order-total-amount">${currency(orderCost(order))}</td><td class="numeric purchase-order-difference-amount">${currency(orderCostDifference(order))}</td><td></td></tr></tfoot></table></div></div>`;
   const observedInputs = [...detail.querySelectorAll("[data-observed-input]")];
   const countButton = detail.querySelector("#count-order");
   let counting = false;
-  const focusObserved = (index) => observedInputs[Math.max(0, Math.min(index, observedInputs.length - 1))]?.focus();
+  const focusObserved = (index) => { const input = observedInputs[Math.max(0, Math.min(index, observedInputs.length - 1))]; input?.scrollIntoView({ block: "center", behavior: "smooth" }); input?.focus({ preventScroll: true }); };
   observedInputs.forEach((input, index) => input.addEventListener("keydown", (event) => { if (!counting || !["Enter", "ArrowDown", "ArrowUp"].includes(event.key)) return; event.preventDefault(); focusObserved(index + (event.key === "ArrowUp" ? -1 : 1)); }));
   countButton?.addEventListener("click", async () => {
     if (!counting) { counting = true; observedInputs.forEach((input) => { input.disabled = false; }); countButton.textContent = "Process Order"; focusObserved(0); return; }
@@ -989,6 +1058,11 @@ function selectSidebar(id) {
   document.querySelectorAll(".sidebar-link").forEach((link) => {
     if (link.id === id) link.setAttribute("aria-current", "page");
     else link.removeAttribute("aria-current");
+  });
+  const targetById = { "pos-nav": "pos", "sales-report-nav": "sales", "inventory-nav": "inventory", "orders-nav": "orders", "customers-nav": "customers", "settings-nav": "settings" };
+  const target = targetById[id];
+  document.querySelectorAll(".mobile-navigation-link[data-navigation-target]").forEach((link) => {
+    link.toggleAttribute("aria-current", link.dataset.navigationTarget === target);
   });
 }
 
@@ -1152,6 +1226,20 @@ document.querySelector("#pos-nav").addEventListener("click", openPos);
 document.querySelector("#sales-report-nav").addEventListener("click", openInvoiceReport);
 document.querySelector("#inventory-nav").addEventListener("click", openInventory);
 document.querySelector("#orders-nav").addEventListener("click", openOrders);
+document.querySelectorAll(".mobile-navigation-link[data-navigation-target]").forEach((item) => {
+  item.addEventListener("click", () => {
+    const actions = {
+      pos: openPos,
+      customers: () => openCustomers("pos"),
+      sales: openInvoiceReport,
+      inventory: openInventory,
+      orders: openOrders,
+      settings: openSettings,
+    };
+    closeMobileNavigation({ restoreFocus: false });
+    actions[item.dataset.navigationTarget]?.();
+  });
+});
 document.querySelector("#inventory-screen thead").addEventListener("click", (event) => { const button = event.target.closest("[data-inventory-sort]"); if (!button) return; const key = button.dataset.inventorySort; inventorySort = { key, direction: inventorySort.key === key && inventorySort.direction === "asc" ? "desc" : "asc" }; document.querySelectorAll("[data-inventory-sort]").forEach((item) => item.parentElement.setAttribute("aria-sort", item === button ? (inventorySort.direction === "asc" ? "ascending" : "descending") : "none")); renderInventory(); });
 document.querySelector("#orders-screen thead").addEventListener("click", (event) => { const button = event.target.closest("[data-order-sort]"); if (!button) return; const key = button.dataset.orderSort; purchaseOrderSort = { key, direction: purchaseOrderSort.key === key && purchaseOrderSort.direction === "asc" ? "desc" : "asc" }; document.querySelectorAll("[data-order-sort]").forEach((item) => item.parentElement.setAttribute("aria-sort", item === button ? (purchaseOrderSort.direction === "asc" ? "ascending" : "descending") : "none")); renderOrders(); });
 inventorySearchInput.addEventListener("input", renderInventory);
@@ -1299,6 +1387,10 @@ document.querySelector("#purchase-order-back").addEventListener("click", () => {
 document.querySelector("#add-order-line").addEventListener("click", addOrderLine);
 document.querySelector("#order-form").addEventListener("submit", async (event) => { event.preventDefault(); const lines = [...document.querySelectorAll("#order-lines .order-line")].map((line) => ({ product_id: Number(line.querySelector("select").value), quantity: Number(line.querySelector("input[type='number']").value) })); const status = document.querySelector("#order-form-status"); status.textContent = "Creating…"; try { const order = await createProductOrder({ order_type: "purchase", from_origin_id: Number(document.querySelector("#order-source").value), to_store_id: Number(document.querySelector("#order-destination").value), lines }); document.querySelector("#order-dialog").close(); purchaseOrders.unshift(order); renderOrders(); showOrderDetail(order); window.toast?.success({ title: "Purchase order created", description: `Order #${order.id} is ready to process.` }); } catch (error) { status.textContent = error.message; } });
 ordersTableBody.addEventListener("click", (event) => { const button = event.target.closest("[data-order-detail]"); if (button) showOrderDetail(purchaseOrders.find((order) => String(order.id) === button.dataset.orderDetail)); });
+ordersTableBody.addEventListener("click", (event) => {
+  if (event.target.closest("button, input")) return;
+  event.target.closest(".purchase-order-row")?.querySelector("[data-order-detail]")?.click();
+});
 document.querySelector("#process-order-form").addEventListener("submit", async (event) => { event.preventDefault(); const status = document.querySelector("#process-order-status"); status.textContent = "Processing…"; try { const order = await receiveProductOrder(selectedOrder.id, { lines: [...document.querySelectorAll(".process-line")].map((row) => ({ id: Number(row.dataset.lineId), quantity_observed: Number(row.querySelector("input").value) })) }); document.querySelector("#process-order-dialog").close(); purchaseOrders = purchaseOrders.map((item) => item.id === order.id ? order : item); renderOrders(); showOrderDetail(order); loadInventory(); refreshInventory(order.lines.map((line) => line.product_id)).catch(console.error); window.toast?.success({ title: "Order processed", description: "Inventory quantities were refreshed." }); } catch (error) { status.textContent = error.message; } });
 document.querySelector(".invoice-table thead").addEventListener("click", (event) => {
   const button = event.target.closest("[data-sort]");
@@ -1382,6 +1474,10 @@ invoiceTableBody.addEventListener("click", async (event) => {
     renderInvoices();
     window.toast?.error({ title: "Could not load invoice details", description: error.message });
   }
+});
+invoiceTableBody.addEventListener("click", (event) => {
+  if (event.target.closest("button, input, form")) return;
+  event.target.closest(".invoice-row")?.querySelector("[data-invoice-detail]")?.click();
 });
 invoiceTableBody.addEventListener("click", (event) => {
   const button = event.target.closest("[data-payment-type]");
