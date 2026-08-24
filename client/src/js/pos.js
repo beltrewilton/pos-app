@@ -1,12 +1,12 @@
 export function createPos(options) {
-  const { cartElement, totalTrigger, totalElement, totalBeforeDiscountElement, subtotalElement, discountElement, taxElement, itemCountElement, emptyElement, clearButton, chargeButton, checkoutButton, productGrid, discountDialog, discountForm, discountTypeButtons, discountInput, discountInputLabel, discountHelp, discountProductImage, discountProductName, discountPreviewAmount, discountPreviewDiscount, discountPreviewTotal, clearDialog, clearConfirmButton, t } = options;
+  const { cartElement, totalTrigger, totalElement, totalBeforeDiscountElement, subtotalElement, discountElement, taxElement, itemCountElement, emptyElement, clearButton, chargeButton, checkoutButton, productGrid, discountDialog, discountForm, discountTypeButtons, discountInput, discountInputLabel, discountHelp, discountProductImage, discountProductName, discountPreviewAmount, discountPreviewDiscount, discountPreviewTotal, clearDialog, clearConfirmButton, t, formatCurrency } = options;
   const cart = [];
   let discountTarget = null;
   let discountType = "amount";
   let orderDiscount = 0;
   let orderDiscountType = "amount";
   let delivery = 0;
-  const money = (value) => "$" + value.toFixed(2);
+  const money = (value) => formatCurrency(value);
   const lineGross = (item) => item.price * item.qty;
   const lineDiscount = (item) => item.discountType === "amount" ? Math.min(item.discount, lineGross(item)) : lineGross(item) * (item.discount / 100);
   const subtotal = () => cart.reduce((value, item) => value + item.qty * item.price, 0);

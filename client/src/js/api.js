@@ -1,4 +1,6 @@
-export const API_BASE_URL = "http://localhost:4000/api";
+// Use the LAN address while testing on a physical Android device. Replace this
+// with the production HTTPS endpoint before shipping the app.
+export const API_BASE_URL = "http://10.0.0.34:4000/api";
 
 export async function health() {
   const response = await fetch(`${API_BASE_URL}/health`);

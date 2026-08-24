@@ -63,9 +63,9 @@
             <img src="./assets/icons/language.svg" alt="" />
           </summary>
           <div class="language-menu" role="group" aria-label="Language" data-i18n-aria-label="language.menu">
-            <button type="button" data-language="en">English</button>
-            <button type="button" data-language="es">Español</button>
-            <button type="button" data-language="pt">Português</button>
+            <button type="button" data-language="eng">English</button>
+            <button type="button" data-language="latam">Español</button>
+            <button type="button" data-language="por">Português</button>
           </div>
         </details>
       </div>
@@ -148,26 +148,26 @@
               <div class="brand-lockup">
                 <span class="brand-mark" aria-hidden="true">E</span>
                 <div>
-                  <p class="eyebrow">Sales</p>
-                  <h2 id="invoice-report-title" tabindex="-1">Invoice report</h2>
+                  <p class="eyebrow" data-i18n="ui.sales">Sales</p>
+                  <h2 id="invoice-report-title" tabindex="-1" data-i18n="ui.invoiceReport">Invoice report</h2>
                 </div>
               </div>
               <form id="invoice-filters" class="invoice-filters" novalidate>
                 <div class="search-field">
                   <img class="search-icon" src="./assets/icons/search.svg" alt="" />
-                  <input id="invoice-search" class="input" type="search" aria-label="Search invoices by customer" autocomplete="off" placeholder="Search by customer name" />
+                  <input id="invoice-search" class="input" type="search" aria-label="Search invoices by customer" data-i18n-aria-label="ui.searchInvoices" autocomplete="off" placeholder="Search by customer name" data-i18n-placeholder="ui.searchCustomer" />
                 </div>
                 <input id="invoice-date-from" type="hidden" />
                 <input id="invoice-date-to" type="hidden" />
-                <button id="invoice-date-range-trigger" class="btn invoice-date-range" type="button" data-variant="outline" data-size="sm" aria-haspopup="dialog">Any date</button>
-                <button class="btn" type="submit" data-variant="outline" data-size="sm">Apply</button>
-                <button id="invoice-filters-clear" class="btn" type="button" data-variant="ghost" data-size="sm">Clear</button>
+                <button id="invoice-date-range-trigger" class="btn invoice-date-range" type="button" data-variant="outline" data-size="sm" aria-haspopup="dialog" data-i18n="ui.anyDate">Any date</button>
+                <button class="btn" type="submit" data-variant="outline" data-size="sm" data-i18n="ui.apply">Apply</button>
+                <button id="invoice-filters-clear" class="btn" type="button" data-variant="ghost" data-size="sm" data-i18n="ui.clear">Clear</button>
               </form>
             </header>
-            <section class="invoice-summary" aria-label="Invoice status summary">
-              <article class="card invoice-summary-paid"><button class="btn invoice-kpi" type="button" data-variant="ghost" data-status-filter="close" aria-label="Filter invoices by paid status"><div class="card-header"><p class="card-title">Paid</p></div><div class="card-content"><p id="invoice-paid-count" class="invoice-kpi-value numeric">0</p><p id="invoice-paid-total" class="invoice-kpi-total muted numeric">$0.00</p></div></button></article>
-              <article class="card invoice-summary-pending"><button class="btn invoice-kpi" type="button" data-variant="ghost" data-status-filter="open" aria-label="Filter invoices by pending status"><div class="card-header"><p class="card-title">Pending</p></div><div class="card-content"><p id="invoice-pending-count" class="invoice-kpi-value numeric">0</p><p id="invoice-pending-total" class="invoice-kpi-total muted numeric">$0.00</p></div></button></article>
-              <article class="card invoice-summary-cancelled"><button class="btn invoice-kpi" type="button" data-variant="ghost" data-status-filter="cancelled" aria-label="Filter invoices by cancelled status"><div class="card-header"><p class="card-title">Cancelled</p></div><div class="card-content"><p id="invoice-cancelled-count" class="invoice-kpi-value numeric">0</p><p id="invoice-cancelled-total" class="invoice-kpi-total muted numeric">$0.00</p></div></button></article>
+            <section class="invoice-summary" aria-label="Invoice status summary" data-i18n-aria-label="ui.invoiceSummary">
+              <article class="card invoice-summary-paid"><button class="btn invoice-kpi" type="button" data-variant="ghost" data-status-filter="close" aria-label="Filter invoices by paid status"><div class="card-header"><p class="card-title" data-i18n="ui.paid">Paid</p></div><div class="card-content"><p id="invoice-paid-count" class="invoice-kpi-value numeric">0</p><p id="invoice-paid-total" data-currency="0" class="invoice-kpi-total muted numeric"></p></div></button></article>
+              <article class="card invoice-summary-pending"><button class="btn invoice-kpi" type="button" data-variant="ghost" data-status-filter="open" aria-label="Filter invoices by pending status"><div class="card-header"><p class="card-title" data-i18n="ui.pending">Pending</p></div><div class="card-content"><p id="invoice-pending-count" class="invoice-kpi-value numeric">0</p><p id="invoice-pending-total" data-currency="0" class="invoice-kpi-total muted numeric"></p></div></button></article>
+              <article class="card invoice-summary-cancelled"><button class="btn invoice-kpi" type="button" data-variant="ghost" data-status-filter="cancelled" aria-label="Filter invoices by cancelled status"><div class="card-header"><p class="card-title" data-i18n="ui.cancelled">Cancelled</p></div><div class="card-content"><p id="invoice-cancelled-count" class="invoice-kpi-value numeric">0</p><p id="invoice-cancelled-total" data-currency="0" class="invoice-kpi-total muted numeric"></p></div></button></article>
             </section>
             <p id="invoice-report-status" class="invoice-report-status" role="status"></p>
           </div>
@@ -240,17 +240,17 @@
             </div>
             <div>
               <dt data-i18n="total.subtotal">Subtotal</dt>
-              <dd id="subtotal" class="numeric">$0.00</dd>
+              <dd id="subtotal" data-currency="0" class="numeric"></dd>
             </div>
             <div>
               <dt data-i18n="total.tax">Tax (18%)</dt>
-              <dd id="tax" class="numeric">$0.00</dd>
+              <dd id="tax" data-currency="0" class="numeric"></dd>
             </div>
             <div>
               <dt data-i18n="total.discount">Discount</dt>
-              <dd id="discount" class="numeric discount-value">−$0.00</dd>
+              <dd id="discount" data-currency="0" class="numeric discount-value"></dd>
             </div>
-            <div id="delivery-summary" hidden><dt>Delivery</dt><dd id="delivery-total" class="numeric">$0.00</dd></div>
+            <div id="delivery-summary" hidden><dt>Delivery</dt><dd id="delivery-total" data-currency="0" class="numeric"></dd></div>
             <div
               id="grand-total"
               class="grand-total"
@@ -260,8 +260,8 @@
             >
               <dt data-i18n="total.total">Total</dt>
               <dd>
-                <span id="total-before-discount" class="numeric total-before-discount" hidden>$0.00</span>
-                <span id="total" class="numeric">$0.00</span>
+                <span id="total-before-discount" data-currency="0" class="numeric total-before-discount" hidden></span>
+                <span id="total" data-currency="0" class="numeric"></span>
               </dd>
             </div>
           </dl>
@@ -346,15 +346,15 @@
           <dl class="discount-preview">
             <div>
               <dt data-i18n="discount.previewAmount">Amount</dt>
-              <dd id="discount-preview-amount" class="numeric">$0.00</dd>
+              <dd id="discount-preview-amount" data-currency="0" class="numeric"></dd>
             </div>
             <div>
               <dt data-i18n="total.discount">Discount</dt>
-              <dd id="discount-preview-discount" class="numeric">−$0.00</dd>
+              <dd id="discount-preview-discount" data-currency="0" class="numeric"></dd>
             </div>
             <div>
               <dt data-i18n="discount.after">After discount</dt>
-              <dd id="discount-preview-total" class="numeric">$0.00</dd>
+              <dd id="discount-preview-total" data-currency="0" class="numeric"></dd>
             </div>
           </dl>
           <div class="dialog-footer">

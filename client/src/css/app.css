@@ -1396,3 +1396,106 @@ button {
     height: 112px;
   }
 }
+
+/* Phone layout: keep the navigation rail, then stack the catalogue and sale.
+ * The tablet breakpoint above intentionally retains a side-by-side cart. */
+@media (max-width: 640px) {
+  body {
+    min-width: 0;
+    overflow-x: hidden;
+  }
+
+  .pos-shell,
+  .pos-shell.invoice-view {
+    height: auto;
+    min-height: 100dvh;
+    grid-template-columns: 52px minmax(0, 1fr);
+    grid-template-rows: 20px auto auto;
+    overflow: visible;
+  }
+
+  .sidebar-rail {
+    grid-column: 1;
+    grid-row: 1 / -1;
+    width: 52px;
+    height: 100dvh;
+    padding: 12px 5px;
+    gap: 6px;
+  }
+
+  .sidebar-link {
+    width: 42px;
+    height: 42px;
+  }
+
+  .status-strip {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .catalog-panel {
+    grid-column: 2;
+    grid-row: 2;
+    min-height: auto;
+    overflow: visible;
+    padding: 8px 12px 20px;
+  }
+
+  .order-panel {
+    grid-column: 2;
+    grid-row: 3;
+    position: static;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    padding: 18px 12px calc(18px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--border);
+    border-left: 0;
+    box-shadow: none;
+  }
+
+  .cart-lines {
+    max-height: 45dvh;
+  }
+
+  .topbar {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .topbar-search {
+    flex-basis: 100%;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .topbar-search .input {
+    min-width: 0;
+  }
+
+  .product-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .product-image {
+    height: 100px;
+  }
+
+  .catalog-heading,
+  .customers-header,
+  .checkout-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .invoice-filters,
+  .operations-filters {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .invoice-filters .search-field,
+  .operations-filters .search-field {
+    grid-column: 1 / -1;
+  }
+}

@@ -2,7 +2,7 @@ import * as printer from "./printer.js";
 import Pica from "../vendor/pica/pica.mjs";
 import { API_BASE_URL, activeProducts, addSalePayment, adjustInventory, cancelSale, createCustomer, createProduct, createProductOrder, createSale, customerPurchases, customers, inventoryQuantities, inventorySummary, pricingLists, product, productOrders, purchaseSources, receiveProductOrder, saleDetails, salesReport, setProductPrices, updateProduct } from "./api.js";
 import { createPos } from "./pos.js";
-import { onLanguageChange, t, translateDocument } from "./i18n.js";
+import { formatCurrency, getLanguage, onLanguageChange, t, translateDocument } from "./i18n.js";
 import { createLanguageSwitcher } from "./language-switcher.js";
 
 const printerStatus = document.querySelector("#printer-status");
@@ -47,8 +47,8 @@ const languageSwitcher = createLanguageSwitcher(document.querySelector("#languag
 const storeId = 2;
 const imageResizer = new Pica();
 const MAX_PRODUCT_IMAGE_BYTES = 10 * 1024 * 1024;
-document.querySelector('[data-inventory-sort="quantity"]').textContent = "Current qty.";
-document.querySelector('[data-inventory-sort="prev_quantity"]').textContent = "Previous qty.";
+document.querySelector('[data-inventory-sort="quantity"]').textContent = t("ui.currentQuantity");
+document.querySelector('[data-inventory-sort="prev_quantity"]').textContent = t("ui.previousQuantity");
 const pos = createPos({
   cartElement: document.querySelector("#cart"),
   totalTrigger: document.querySelector("#grand-total"),
@@ -77,6 +77,7 @@ const pos = createPos({
   clearDialog: document.querySelector("#clear-order-dialog"),
   clearConfirmButton: document.querySelector("#confirm-clear-order"),
   t,
+  formatCurrency,
 });
 
 let cursor = null;
@@ -311,7 +312,13 @@ function closeCustomers() {
 }
 
 function currency(value) {
-  return `$${Number(value || 0).toFixed(2)}`;
+  return formatCurrency(value);
+}
+
+function renderCurrencyPlaceholders() {
+  document.querySelectorAll("[data-currency]").forEach((element) => {
+    element.textContent = currency(element.dataset.currency);
+  });
 }
 
 function dateValue(date) {
@@ -322,7 +329,7 @@ function dateValue(date) {
 }
 
 function rangeLabel(from, to) {
-  if (!from) return "Any date";
+  if (!from) return t("ui.anyDate");
   const format = (value) => new Date(`${value}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
   return to ? `${format(from)} – ${format(to)}` : format(from);
 }
@@ -362,7 +369,7 @@ function openDateRangePicker() {
 }
 
 function invoiceStatusLabel(status) {
-  return status === "close" ? "Paid" : status === "cancelled" ? "Cancelled" : "Pending";
+  return status === "close" ? t("ui.paid") : status === "cancelled" ? t("ui.cancelled") : t("ui.pending");
 }
 
 function updateInvoiceSummary(summary) {
@@ -384,7 +391,7 @@ function invoicePaymentForm(invoice) {
     methods.setAttribute("role", "group");
     methods.setAttribute("aria-label", label);
     row.dataset.paymentType = "CASH";
-    [["CASH", "Cash"], ["CC", "Credit Card"]].forEach(([type, labelText]) => {
+  [["CASH", t("checkout.cash")], ["CC", t("checkout.card")]].forEach(([type, labelText]) => {
       const method = document.createElement("button");
       method.className = "btn"; method.type = "button"; method.dataset.paymentType = type;
       method.dataset.variant = type === "CASH" ? "default" : "secondary";
@@ -423,12 +430,12 @@ function invoicePaymentForm(invoice) {
     createMethodSelector(primary, "Payment method"),
   );
   const pay = document.createElement("button");
-  pay.className = "btn"; pay.type = "submit"; pay.dataset.variant = "outline"; pay.textContent = "Pay";
+  pay.className = "btn"; pay.type = "submit"; pay.dataset.variant = "outline"; pay.textContent = t("ui.apply");
   primary.appendChild(pay);
   const payoff = document.createElement("div");
   payoff.className = "invoice-payment-row invoice-payment-payoff";
   payoff.append(
-    createAmount({ id: `invoice-payoff-${invoice.id}`, value: Number(invoice.due_balance).toFixed(2), readonly: true, label: `Outstanding balance for ${invoice.sequence || invoice.id}` }),
+    createAmount({ id: `invoice-payoff-${invoice.id}`, value: currency(invoice.due_balance), readonly: true, label: `Outstanding balance for ${invoice.sequence || invoice.id}` }),
     createMethodSelector(payoff, "Payoff payment method"),
   );
   const payOff = document.createElement("button");
@@ -482,7 +489,7 @@ function invoiceRow(invoice) {
   actions.className = "table-cell invoice-actions";
   if (invoice.invoice_status !== "cancelled") {
     const cancel = document.createElement("button");
-    cancel.className = "btn invoice-cancel"; cancel.type = "button"; cancel.dataset.variant = "ghost"; cancel.dataset.size = "sm"; cancel.dataset.cancelInvoice = invoice.id; cancel.textContent = "Cancel";
+    cancel.className = "btn invoice-cancel"; cancel.type = "button"; cancel.dataset.variant = "ghost"; cancel.dataset.size = "sm"; cancel.dataset.cancelInvoice = invoice.id; cancel.textContent = t("ui.cancel");
     actions.appendChild(cancel);
   } else {
     actions.textContent = invoice.cancelled_by || "—";
@@ -1010,7 +1017,7 @@ function productCard(product) {
   const meta = document.createElement("div");
   meta.className = "product-footer";
   const price = document.createElement("strong");
-  price.className = "product-price numeric"; price.textContent = `$${Number(product.price || 0).toFixed(2)}`;
+  price.className = "product-price numeric"; price.textContent = currency(product.price);
   const inventory = document.createElement("span");
   inventory.className = "inventory-badge numeric";
   inventory.classList.toggle("inventory-badge-low", Number(product.inventory_quantity || 0) <= 0);
@@ -1300,7 +1307,7 @@ document.querySelector("#invoice-date-range-apply").addEventListener("click", ()
 });
 document.querySelector("#invoice-filters-clear").addEventListener("click", () => {
   invoiceFilters.reset();
-  invoiceDateRangeTrigger.textContent = "Any date";
+  invoiceDateRangeTrigger.textContent = t("ui.anyDate");
   invoiceStatusFilter = "";
   document.querySelectorAll("[data-status-filter]").forEach((kpi) => { kpi.setAttribute("aria-pressed", "false"); kpi.dataset.variant = "ghost"; });
   loadInvoices({ reset: true });
@@ -1454,10 +1461,10 @@ function updatePaymentCompletion() {
   const nonCashPaid = paymentLines.reduce((sum, line) => line.querySelector("select").value === "CASH" ? sum : sum + (Number(line.querySelector("input").value) || 0), 0);
   const cashPaid = paid - nonCashPaid;
   const change = Math.max(0, cashPaid - Math.max(0, pos.total() - nonCashPaid));
-  document.querySelector("#payment-balance").textContent = `${t("checkout.remaining")}: $${remaining.toFixed(2)}`;
+  document.querySelector("#payment-balance").textContent = `${t("checkout.remaining")}: ${currency(remaining)}`;
   const changeLabel = document.querySelector("#payment-change");
   changeLabel.hidden = change === 0;
-  changeLabel.textContent = change ? `${t("checkout.change")}: $${change.toFixed(2)}` : "";
+  changeLabel.textContent = change ? `${t("checkout.change")}: ${currency(change)}` : "";
   const onCredit = document.querySelector("#credit-toggle").getAttribute("aria-pressed") === "true";
   document.querySelector("#complete-sale").disabled = !onCredit && paid < pos.total();
 }
@@ -1480,22 +1487,24 @@ checkoutFlow.addEventListener("click", (event) => {
 });
 document.querySelector("#customer-picker").addEventListener("click", () => openCustomers("checkout"));
 document.querySelector("#customer-continue").addEventListener("click", () => showCheckoutStage("payment"));
-document.querySelector("#delivery-toggle").addEventListener("click", (event) => { const active = event.currentTarget.getAttribute("aria-pressed") !== "true"; event.currentTarget.setAttribute("aria-pressed", String(active)); event.currentTarget.dataset.variant = active ? "default" : "outline"; const target = document.querySelector("#delivery-options"); target.hidden = !active; if (active) target.replaceChildren(...[100,150,200,250,300,400,500,600].map((amount) => { const button = document.createElement("button"); button.className = "btn"; button.dataset.variant = "secondary"; button.dataset.delivery = amount; button.textContent = `$${amount}`; return button; })); else { pos.setDelivery(0); document.querySelector("#delivery-summary").hidden = true; } updatePaymentCompletion(); });
+document.querySelector("#delivery-toggle").addEventListener("click", (event) => { const active = event.currentTarget.getAttribute("aria-pressed") !== "true"; event.currentTarget.setAttribute("aria-pressed", String(active)); event.currentTarget.dataset.variant = active ? "default" : "outline"; const target = document.querySelector("#delivery-options"); target.hidden = !active; if (active) target.replaceChildren(...[100,150,200,250,300,400,500,600].map((amount) => { const button = document.createElement("button"); button.className = "btn"; button.dataset.variant = "secondary"; button.dataset.delivery = amount; button.textContent = currency(amount); return button; })); else { pos.setDelivery(0); document.querySelector("#delivery-summary").hidden = true; } updatePaymentCompletion(); });
 document.querySelector("#delivery-options").addEventListener("click", (event) => { const button = event.target.closest("[data-delivery]"); if (!button) return; pos.setDelivery(Number(button.dataset.delivery)); document.querySelector("#delivery-summary").hidden = false; document.querySelectorAll("[data-delivery]").forEach((item) => item.dataset.variant = item === button ? "default" : "secondary"); updatePaymentCompletion(); });
-document.querySelector("#add-payment-line").addEventListener("click", () => { const line = document.createElement("div"); line.className = "payment-line"; const previous = document.querySelector(".payment-line:last-child select")?.value; const method = previous === "CC" ? "CASH" : "CC"; line.innerHTML = `<select class="select" aria-label="${t("checkout.paymentMethod")}"><option value="CASH">${t("checkout.cash")}</option><option value="CC">${t("checkout.card")}</option></select><input class="input numeric" aria-label="${t("checkout.amount")}" type="number" min="0.01" step="0.01" placeholder="$ 0.00"><button class="btn" type="button" data-variant="ghost" data-size="icon" data-remove-payment aria-label="${t("checkout.removePayment")}">×</button>`; line.querySelector("select").value = method; document.querySelector("#payment-lines").append(line); updatePaymentChoice(); });
+document.querySelector("#add-payment-line").addEventListener("click", () => { const line = document.createElement("div"); line.className = "payment-line"; const previous = document.querySelector(".payment-line:last-child select")?.value; const method = previous === "CC" ? "CASH" : "CC"; line.innerHTML = `<select class="select" aria-label="${t("checkout.paymentMethod")}"><option value="CASH">${t("checkout.cash")}</option><option value="CC">${t("checkout.card")}</option></select><input class="input numeric" aria-label="${t("checkout.amount")}" type="number" min="0.01" step="0.01" placeholder="${currency(0)}"><button class="btn" type="button" data-variant="ghost" data-size="icon" data-remove-payment aria-label="${t("checkout.removePayment")}">×</button>`; line.querySelector("select").value = method; document.querySelector("#payment-lines").append(line); updatePaymentChoice(); });
 document.querySelector("#payment-lines").addEventListener("click", (event) => { const button = event.target.closest("[data-remove-payment]"); if (!button) return; button.closest(".payment-line").remove(); document.querySelector("#payment-lines").dispatchEvent(new Event("input", { bubbles: true })); updatePaymentChoice(); });
 document.querySelector("#payment-lines").addEventListener("change", () => { updatePaymentChoice(); updatePaymentCompletion(); });
 document.querySelector("#payment-lines").addEventListener("input", updatePaymentCompletion);
 document.querySelector("#credit-toggle").addEventListener("click", (event) => { const active = event.currentTarget.getAttribute("aria-pressed") !== "true"; event.currentTarget.setAttribute("aria-pressed", String(active)); event.currentTarget.dataset.variant = active ? "default" : "outline"; document.querySelector("#payment-inputs").hidden = active; document.querySelector("#complete-sale").disabled = false; updatePaymentChoice(); });
-document.querySelector("#complete-sale").addEventListener("click", async () => { const complete = document.querySelector("#complete-sale"); const credit = document.querySelector("#credit-toggle").getAttribute("aria-pressed") === "true"; const payments = [...document.querySelectorAll(".payment-line")].map((line) => ({ type: line.querySelector("select").value, amount: Number(line.querySelector("input").value) || 0 })).filter((line) => line.amount); if (!credit && payments.reduce((sum, line) => sum + line.amount, 0) < pos.total()) return; const receipt = pos.receipt(); complete.disabled = true; try { await createSale({ store_id: storeId, client_id: selectedCustomer.id, sequence_type: document.querySelector("[data-sequence][data-variant=default]").dataset.sequence, status: credit ? "CREDIT" : "CASH", sale_type: receipt.delivery ? "FOR_DELIVER" : "IN_SHOP", delivery_charge: receipt.delivery, lines: receipt.items.map((item) => ({ product_id: Number(item.id), quantity: item.qty, discount: item.discount })), payments: credit ? [] : payments }); await refreshInventory(receipt.items.map((item) => item.id)).catch(console.error); completedReceipt = receipt; resetCompletedOrder(); closeCheckout(); document.querySelector("#receipt-dialog").showModal(); } catch (error) { checkoutStatus.textContent = error.message; complete.disabled = false; } });
+document.querySelector("#complete-sale").addEventListener("click", async () => { const complete = document.querySelector("#complete-sale"); const credit = document.querySelector("#credit-toggle").getAttribute("aria-pressed") === "true"; const payments = [...document.querySelectorAll(".payment-line")].map((line) => ({ type: line.querySelector("select").value, amount: Number(line.querySelector("input").value) || 0 })).filter((line) => line.amount); if (!credit && payments.reduce((sum, line) => sum + line.amount, 0) < pos.total()) return; const receipt = pos.receipt(); complete.disabled = true; try { await createSale({ store_id: storeId, client_id: selectedCustomer.id, sequence_type: document.querySelector("[data-sequence][data-variant=default]").dataset.sequence, status: credit ? "CREDIT" : "CASH", sale_type: receipt.delivery ? "FOR_DELIVER" : "IN_SHOP", delivery_charge: receipt.delivery, lines: receipt.items.map((item) => ({ product_id: Number(item.id), quantity: item.qty, discount: item.discount })), payments: credit ? [] : payments }); await refreshInventory(receipt.items.map((item) => item.id)).catch(console.error); completedReceipt = { ...receipt, language: getLanguage() }; resetCompletedOrder(); closeCheckout(); document.querySelector("#receipt-dialog").showModal(); } catch (error) { checkoutStatus.textContent = error.message; complete.disabled = false; } });
 document.querySelector("#skip-print").addEventListener("click", () => { document.querySelector("#receipt-dialog").close(); completedReceipt = null; });
 document.querySelector("#print-receipt").addEventListener("click", async () => { try { if (completedReceipt) await printer.print(completedReceipt); } finally { document.querySelector("#receipt-dialog").close(); completedReceipt = null; } });
 
 pos.render();
+renderCurrencyPlaceholders();
 translateDocument();
 onLanguageChange(() => {
   languageSwitcher.sync();
   pos.render();
+  renderCurrencyPlaceholders();
   renderProducts();
   updatePrinterStatus();
   if (!checkoutFlow.hidden) showCheckoutStage(checkoutStage);

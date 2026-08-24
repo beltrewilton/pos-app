@@ -17,9 +17,8 @@ config :pos_server, PosServer.Repo,
 # watchers to your application. For example, we can use it
 # to bundle .js and .css sources.
 config :pos_server, PosServerWeb.Endpoint,
-  # Binding to loopback ipv4 address prevents access from other machines.
-  # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
-  http: [ip: {127, 0, 0, 1}, port: String.to_integer(System.get_env("PORT") || "4000")],
+  # Bind to all IPv4 interfaces so other devices on the network can reach it.
+  http: [ip: {0, 0, 0, 0}, port: String.to_integer(System.get_env("PORT") || "4000")],
   check_origin: false,
   code_reloader: true,
   debug_errors: true,

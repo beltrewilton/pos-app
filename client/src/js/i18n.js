@@ -1,5 +1,5 @@
 const translations = {
-  en: {
+  eng: {
     "nav.primary": "Primary navigation", "nav.catalog": "Catalog", "nav.sales": "Sales history", "nav.settings": "Settings", "status.system": "System status", "status.printerChecking": "Checking printer status", "status.networkUnavailable": "Network status unavailable",
     "brand.retail": "Educa retail", "pos.title": "Point of Sale", "search.label": "Search", "search.placeholder": "Search products or scan a barcode", "search.focus": "Focus product search", "language.change": "Change display language", "language.menu": "Language", "catalog.label": "Catalog", "catalog.products": "Products", "products.loading": "Loading products…",
     "order.current": "Current sale", "order.clear": "Clear", "order.empty": "Your order is empty. Select a product to begin.", "total.items": "Items", "total.subtotal": "Subtotal", "total.tax": "Tax (18%)", "total.discount": "Discount", "total.total": "Total", "discount.orderTrigger": "Apply order discount. Double click or press Enter.", "payment.method": "Payment method", "payment.cash": "Cash", "charge": "Charge {amount}",
@@ -9,7 +9,7 @@ const translations = {
     "cart.off": "off", "cart.sub": "Sub", "cart.each": "each", "cart.remove": "Remove {name}", "cart.decrease": "Decrease quantity", "cart.increase": "Increase quantity", "cart.itemCount": "Item count", "cart.removed": "{name} removed", "action.undo": "Undo", "action.back": "Back", "discount.orderActive": "The order discount is active. Set it to 0 before editing item discounts.", "discount.applyOrder": "Apply an order discount", "discount.orderDescription": "This applies to the final order amount and replaces every item discount.", "discount.removedOrder": "Order discount removed", "discount.appliedOrder": "Order discount applied", "discount.resetItems": "Item discounts were reset.", "discount.applied": "Discount applied", "discount.removed": "Discount removed", "discount.percentageLabel": "Discount percentage", "discount.removeOrder": "Enter 0 to remove this order discount.", "discount.orderAmount": "The amount applies to the final order total.", "discount.itemAmount": "The amount applies to this entire line item.", "order.cleared": "Order cleared",
     "checkout.label": "Checkout", "checkout.continue": "Continue", "checkout.backSale": "Back to sale", "checkout.stepCustomer": "1. Customer", "checkout.stepPayment": "2. Payment", "checkout.stepSetup": "3. Final setup", "checkout.stepPay": "4. Pay", "checkout.stepOne": "Step 1 of 4", "checkout.stepTwo": "Step 2 of 4", "checkout.stepThree": "Step 3 of 4", "checkout.stepFour": "Step 4 of 4", "checkout.customer.title": "Select customer", "checkout.customer.empty": "Customer selection will be added here.", "checkout.payment.title": "Payment", "checkout.payment.empty": "Payment options will be added here.", "checkout.setup.title": "Final setup", "checkout.setup.empty": "Final sale settings will be added here.", "checkout.pay.title": "Pay", "checkout.pay.empty": "Choose how to complete this sale.", "checkout.continuePayment": "Continue to payment", "checkout.continueSetup": "Continue to final setup", "checkout.continuePay": "Continue to pay", "checkout.payCredit": "Pay on credit", "checkout.delivery": "Delivery", "checkout.credit": "Pay on Credit", "checkout.sequence": "Sequence type", "checkout.payments": "Payments", "checkout.addPayment": "Add payment", "checkout.complete": "Complete", "checkout.paymentMethod": "Payment method", "checkout.cash": "Cash", "checkout.card": "Credit Card", "checkout.amount": "Amount", "checkout.remaining": "Remaining", "checkout.change": "Change", "checkout.removePayment": "Remove payment", "checkout.customer": "Customer", "checkout.paymentCompletion": "Payment & completion"
   },
-  es: {
+  latam: {
     "nav.primary": "Navegación principal", "nav.catalog": "Catálogo", "nav.sales": "Historial de ventas", "nav.settings": "Configuración", "status.system": "Estado del sistema", "status.printerChecking": "Comprobando estado de impresora", "status.networkUnavailable": "Estado de red no disponible",
     "brand.retail": "Educa retail", "pos.title": "Punto de venta", "search.label": "Buscar", "search.placeholder": "Busca productos o escanea un código de barras", "search.focus": "Enfocar búsqueda de productos", "language.change": "Cambiar idioma de la interfaz", "language.menu": "Idioma", "catalog.label": "Catálogo", "catalog.products": "Productos", "products.loading": "Cargando productos…",
     "order.current": "Venta actual", "order.clear": "Limpiar", "order.empty": "Tu pedido está vacío. Selecciona un producto para comenzar.", "total.items": "Artículos", "total.subtotal": "Subtotal", "total.tax": "Impuesto (18%)", "total.discount": "Descuento", "total.total": "Total", "discount.orderTrigger": "Aplicar descuento al pedido. Haz doble clic o presiona Intro.", "payment.method": "Método de pago", "payment.cash": "Efectivo", "charge": "Cobrar {amount}",
@@ -19,7 +19,7 @@ const translations = {
     "cart.off": "de descuento", "cart.sub": "Sub", "cart.each": "c/u", "cart.remove": "Eliminar {name}", "cart.decrease": "Disminuir cantidad", "cart.increase": "Aumentar cantidad", "cart.itemCount": "Cantidad de artículos", "cart.removed": "{name} eliminado", "action.undo": "Deshacer", "action.back": "Atrás", "discount.orderActive": "El descuento del pedido está activo. Establécelo en 0 antes de editar descuentos por artículo.", "discount.applyOrder": "Aplicar un descuento al pedido", "discount.orderDescription": "Se aplica al total final del pedido y reemplaza cada descuento por artículo.", "discount.removedOrder": "Descuento del pedido eliminado", "discount.appliedOrder": "Descuento del pedido aplicado", "discount.resetItems": "Se restablecieron los descuentos por artículo.", "discount.applied": "Descuento aplicado", "discount.removed": "Descuento eliminado", "discount.percentageLabel": "Porcentaje de descuento", "discount.removeOrder": "Introduce 0 para quitar este descuento del pedido.", "discount.orderAmount": "El importe se aplica al total final del pedido.", "discount.itemAmount": "El importe se aplica a toda esta línea de pedido.", "order.cleared": "Pedido limpiado",
     "checkout.label": "Cobro", "checkout.continue": "Continuar", "checkout.backSale": "Volver a la venta", "checkout.stepCustomer": "1. Cliente", "checkout.stepPayment": "2. Pago", "checkout.stepSetup": "3. Configuración final", "checkout.stepPay": "4. Cobrar", "checkout.stepOne": "Paso 1 de 4", "checkout.stepTwo": "Paso 2 de 4", "checkout.stepThree": "Paso 3 de 4", "checkout.stepFour": "Paso 4 de 4", "checkout.customer.title": "Seleccionar cliente", "checkout.customer.empty": "La selección de cliente se añadirá aquí.", "checkout.payment.title": "Pago", "checkout.payment.empty": "Las opciones de pago se añadirán aquí.", "checkout.setup.title": "Configuración final", "checkout.setup.empty": "Los ajustes finales de la venta se añadirán aquí.", "checkout.pay.title": "Cobrar", "checkout.pay.empty": "Elige cómo completar esta venta.", "checkout.continuePayment": "Continuar al pago", "checkout.continueSetup": "Continuar a la configuración final", "checkout.continuePay": "Continuar a cobrar", "checkout.payCredit": "Cobrar a crédito", "checkout.change": "Cambio"
   },
-  pt: {
+  por: {
     "nav.primary": "Navegação principal", "nav.catalog": "Catálogo", "nav.sales": "Histórico de vendas", "nav.settings": "Configurações", "status.system": "Status do sistema", "status.printerChecking": "Verificando status da impressora", "status.networkUnavailable": "Status da rede indisponível",
     "brand.retail": "Educa varejo", "pos.title": "Ponto de venda", "search.label": "Pesquisar", "search.placeholder": "Pesquise produtos ou leia um código de barras", "search.focus": "Focar pesquisa de produtos", "language.change": "Alterar idioma da interface", "language.menu": "Idioma", "catalog.label": "Catálogo", "catalog.products": "Produtos", "products.loading": "Carregando produtos…",
     "order.current": "Venda atual", "order.clear": "Limpar", "order.empty": "Seu pedido está vazio. Selecione um produto para começar.", "total.items": "Itens", "total.subtotal": "Subtotal", "total.tax": "Imposto (18%)", "total.discount": "Desconto", "total.total": "Total", "discount.orderTrigger": "Aplicar desconto ao pedido. Clique duas vezes ou pressione Enter.", "payment.method": "Forma de pagamento", "payment.cash": "Dinheiro", "charge": "Cobrar {amount}",
@@ -31,17 +31,54 @@ const translations = {
   }
 };
 
+Object.assign(translations.eng, {
+  "ui.sales": "Sales", "ui.invoiceReport": "Invoice report", "ui.searchInvoices": "Search invoices by customer", "ui.searchCustomer": "Search by customer name", "ui.anyDate": "Any date", "ui.apply": "Apply", "ui.clear": "Clear", "ui.invoiceSummary": "Invoice status summary", "ui.paid": "Paid", "ui.pending": "Pending", "ui.cancelled": "Cancelled", "ui.invoicesStore": "Invoices for the selected store.", "ui.invoice": "Invoice", "ui.customer": "Customer", "ui.date": "Date", "ui.status": "Status", "ui.balance": "Balance", "ui.actions": "Actions",
+  "ui.operations": "Operations", "ui.inventory": "Inventory", "ui.searchProduct": "Search product", "ui.storeWarehouse": "Store or warehouse", "ui.currentStore": "Current store", "ui.createProduct": "Create product", "ui.showMoreKpis": "Show more KPIs", "ui.inventoryKpis": "Inventory and operations KPIs", "ui.inventoryStore": "Inventory by store.", "ui.product": "Product", "ui.store": "Store", "ui.cost": "Cost", "ui.price": "Price", "ui.currentQuantity": "Current quantity", "ui.previousQuantity": "Previous quantity", "ui.lastUpdated": "Last updated", "ui.updatedBy": "Updated by", "ui.action": "Action",
+  "ui.purchaseOrders": "Purchase orders", "ui.createPurchaseOrder": "Create purchase order", "ui.purchaseOrderKpis": "Purchase order status KPIs", "ui.purchaseOrdersStore": "Purchase orders for the current store.", "ui.orderId": "Order ID", "ui.source": "Source", "ui.destinationStore": "Destination store", "ui.orderCost": "Order cost", "ui.costDifference": "Cost difference", "ui.createdBy": "Created by", "ui.purchaseOrder": "Purchase order", "ui.backToOrders": "Back to orders",
+  "ui.updateInventory": "Update inventory", "ui.addStock": "Add stock to one product at the selected store.", "ui.quantityToAdd": "Quantity to add", "ui.save": "Save", "ui.cancel": "Cancel", "ui.name": "Name", "ui.priceLists": "Price lists", "ui.imageUpload": "Image upload", "ui.imageHelp": "Drop an image here or choose a file. It will be stored as Base64.", "ui.saleCompleted": "Sale completed", "ui.printReceiptQuestion": "Would you like to print the receipt?", "ui.returnToPos": "No, return to POS", "ui.printReceipt": "Print receipt", "ui.recentPurchases": "Recent purchases", "ui.close": "Close", "ui.cancelInvoice": "Cancel invoice", "ui.keepInvoice": "Keep invoice", "ui.selectDateRange": "Select date range", "ui.previousMonth": "Previous month", "ui.nextMonth": "Next month", "ui.applyRange": "Apply range"
+});
+Object.assign(translations.latam, {
+  "ui.sales": "Ventas", "ui.invoiceReport": "Informe de facturas", "ui.searchInvoices": "Buscar facturas por cliente", "ui.searchCustomer": "Buscar por nombre de cliente", "ui.anyDate": "Cualquier fecha", "ui.apply": "Aplicar", "ui.clear": "Limpiar", "ui.invoiceSummary": "Resumen de estados de facturas", "ui.paid": "Pagada", "ui.pending": "Pendiente", "ui.cancelled": "Cancelada", "ui.invoicesStore": "Facturas de la tienda seleccionada.", "ui.invoice": "Factura", "ui.customer": "Cliente", "ui.date": "Fecha", "ui.status": "Estado", "ui.balance": "Saldo", "ui.actions": "Acciones",
+  "ui.operations": "Operaciones", "ui.inventory": "Inventario", "ui.searchProduct": "Buscar producto", "ui.storeWarehouse": "Tienda o almacén", "ui.currentStore": "Tienda actual", "ui.createProduct": "Crear producto", "ui.showMoreKpis": "Mostrar más indicadores", "ui.inventoryKpis": "Indicadores de inventario y operaciones", "ui.inventoryStore": "Inventario por tienda.", "ui.product": "Producto", "ui.store": "Tienda", "ui.cost": "Costo", "ui.price": "Precio", "ui.currentQuantity": "Cantidad actual", "ui.previousQuantity": "Cantidad anterior", "ui.lastUpdated": "Última actualización", "ui.updatedBy": "Actualizado por", "ui.action": "Acción",
+  "ui.purchaseOrders": "Órdenes de compra", "ui.createPurchaseOrder": "Crear orden de compra", "ui.purchaseOrderKpis": "Indicadores de estado de órdenes de compra", "ui.purchaseOrdersStore": "Órdenes de compra de la tienda actual.", "ui.orderId": "ID de orden", "ui.source": "Origen", "ui.destinationStore": "Tienda de destino", "ui.orderCost": "Costo de la orden", "ui.costDifference": "Diferencia de costo", "ui.createdBy": "Creado por", "ui.purchaseOrder": "Orden de compra", "ui.backToOrders": "Volver a órdenes",
+  "ui.updateInventory": "Actualizar inventario", "ui.addStock": "Agrega existencias a un producto en la tienda seleccionada.", "ui.quantityToAdd": "Cantidad a agregar", "ui.save": "Guardar", "ui.cancel": "Cancelar", "ui.name": "Nombre", "ui.priceLists": "Listas de precios", "ui.imageUpload": "Cargar imagen", "ui.imageHelp": "Suelta una imagen aquí o elige un archivo. Se almacenará como Base64.", "ui.saleCompleted": "Venta completada", "ui.printReceiptQuestion": "¿Deseas imprimir el recibo?", "ui.returnToPos": "No, volver al POS", "ui.printReceipt": "Imprimir recibo", "ui.recentPurchases": "Compras recientes", "ui.close": "Cerrar", "ui.cancelInvoice": "Cancelar factura", "ui.keepInvoice": "Conservar factura", "ui.selectDateRange": "Seleccionar rango de fechas", "ui.previousMonth": "Mes anterior", "ui.nextMonth": "Mes siguiente", "ui.applyRange": "Aplicar rango"
+});
+Object.assign(translations.por, {
+  "ui.sales": "Vendas", "ui.invoiceReport": "Relatório de faturas", "ui.searchInvoices": "Pesquisar faturas por cliente", "ui.searchCustomer": "Pesquisar por nome do cliente", "ui.anyDate": "Qualquer data", "ui.apply": "Aplicar", "ui.clear": "Limpar", "ui.invoiceSummary": "Resumo de status das faturas", "ui.paid": "Paga", "ui.pending": "Pendente", "ui.cancelled": "Cancelada", "ui.invoicesStore": "Faturas da loja selecionada.", "ui.invoice": "Fatura", "ui.customer": "Cliente", "ui.date": "Data", "ui.status": "Status", "ui.balance": "Saldo", "ui.actions": "Ações",
+  "ui.operations": "Operações", "ui.inventory": "Estoque", "ui.searchProduct": "Pesquisar produto", "ui.storeWarehouse": "Loja ou depósito", "ui.currentStore": "Loja atual", "ui.createProduct": "Criar produto", "ui.showMoreKpis": "Mostrar mais indicadores", "ui.inventoryKpis": "Indicadores de estoque e operações", "ui.inventoryStore": "Estoque por loja.", "ui.product": "Produto", "ui.store": "Loja", "ui.cost": "Custo", "ui.price": "Preço", "ui.currentQuantity": "Quantidade atual", "ui.previousQuantity": "Quantidade anterior", "ui.lastUpdated": "Última atualização", "ui.updatedBy": "Atualizado por", "ui.action": "Ação",
+  "ui.purchaseOrders": "Pedidos de compra", "ui.createPurchaseOrder": "Criar pedido de compra", "ui.purchaseOrderKpis": "Indicadores de status dos pedidos de compra", "ui.purchaseOrdersStore": "Pedidos de compra da loja atual.", "ui.orderId": "ID do pedido", "ui.source": "Origem", "ui.destinationStore": "Loja de destino", "ui.orderCost": "Custo do pedido", "ui.costDifference": "Diferença de custo", "ui.createdBy": "Criado por", "ui.purchaseOrder": "Pedido de compra", "ui.backToOrders": "Voltar aos pedidos",
+  "ui.updateInventory": "Atualizar estoque", "ui.addStock": "Adicione estoque a um produto na loja selecionada.", "ui.quantityToAdd": "Quantidade a adicionar", "ui.save": "Salvar", "ui.cancel": "Cancelar", "ui.name": "Nome", "ui.priceLists": "Listas de preços", "ui.imageUpload": "Enviar imagem", "ui.imageHelp": "Solte uma imagem aqui ou escolha um arquivo. Ela será armazenada como Base64.", "ui.saleCompleted": "Venda concluída", "ui.printReceiptQuestion": "Deseja imprimir o recibo?", "ui.returnToPos": "Não, voltar ao PDV", "ui.printReceipt": "Imprimir recibo", "ui.recentPurchases": "Compras recentes", "ui.close": "Fechar", "ui.cancelInvoice": "Cancelar fatura", "ui.keepInvoice": "Manter fatura", "ui.selectDateRange": "Selecionar intervalo de datas", "ui.previousMonth": "Mês anterior", "ui.nextMonth": "Próximo mês", "ui.applyRange": "Aplicar intervalo"
+});
+
 const LANGUAGE_KEY = "educa-pos-language";
+const staticLabelKeys = {
+  Sales: "ui.sales", "Invoice report": "ui.invoiceReport", "Search product": "ui.searchProduct", "Store or warehouse": "ui.storeWarehouse", "Any date": "ui.anyDate", Apply: "ui.apply", Clear: "ui.clear", Paid: "ui.paid", Pending: "ui.pending", Cancelled: "ui.cancelled", Invoice: "ui.invoice", Customer: "ui.customer", Date: "ui.date", Status: "ui.status", Balance: "ui.balance", Actions: "ui.actions",
+  Operations: "ui.operations", Inventory: "ui.inventory", Product: "ui.product", Store: "ui.store", Cost: "ui.cost", Price: "ui.price", "Current quantity": "ui.currentQuantity", "Previous quantity": "ui.previousQuantity", "Last updated": "ui.lastUpdated", "Updated by": "ui.updatedBy", Action: "ui.action", "Purchase orders": "ui.purchaseOrders", "Create purchase order": "ui.createPurchaseOrder", "Order ID": "ui.orderId", Source: "ui.source", "Destination store": "ui.destinationStore", "Order cost": "ui.orderCost", "Cost difference": "ui.costDifference", "Created by": "ui.createdBy", "Purchase order": "ui.purchaseOrder", "Back to orders": "ui.backToOrders", "Current store": "ui.currentStore", "Create product": "ui.createProduct", "Show more KPIs": "ui.showMoreKpis", "Update inventory": "ui.updateInventory", "Quantity to add": "ui.quantityToAdd", Save: "ui.save", Cancel: "ui.cancel", Name: "ui.name", "Price lists": "ui.priceLists", "Image upload": "ui.imageUpload", "Sale completed": "ui.saleCompleted", "Print receipt": "ui.printReceipt", "Recent purchases": "ui.recentPurchases", Close: "ui.close", "Cancel invoice": "ui.cancelInvoice", "Keep invoice": "ui.keepInvoice", "Select date range": "ui.selectDateRange", "Previous month": "ui.previousMonth", "Next month": "ui.nextMonth", "Apply range": "ui.applyRange"
+};
 const listeners = new Set();
 const browserLanguage = navigator.language.toLowerCase();
-let language = localStorage.getItem(LANGUAGE_KEY) || (browserLanguage.startsWith("es") ? "es" : browserLanguage.startsWith("pt") ? "pt" : "en");
+const legacyLanguages = { en: "eng", es: "latam", spa: "latam", pt: "por" };
+const savedLanguage = localStorage.getItem(LANGUAGE_KEY);
+let language = legacyLanguages[savedLanguage] || savedLanguage || (browserLanguage.startsWith("es") ? "latam" : browserLanguage.startsWith("pt") ? "por" : "eng");
+if (savedLanguage && legacyLanguages[savedLanguage]) localStorage.setItem(LANGUAGE_KEY, language);
+const numberLocale = () => language === "por" ? "pt-BR" : "en-US";
 
 export function t(key, values = {}) {
-  const template = translations[language]?.[key] ?? translations.en[key] ?? key;
+  const template = translations[language]?.[key] ?? translations.eng[key] ?? key;
   return template.replace(/\{(\w+)\}/g, (_, name) => values[name] ?? `{${name}}`);
 }
 
 export function getLanguage() { return language; }
+
+export function formatCurrency(value) {
+  return new Intl.NumberFormat(numberLocale(), {
+    style: "currency",
+    currency: "USD",
+    currencyDisplay: "narrowSymbol",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(value) || 0);
+}
 
 export function setLanguage(nextLanguage) {
   if (!translations[nextLanguage] || nextLanguage === language) return;
@@ -59,6 +96,23 @@ export function translateDocument(root = document) {
   root.querySelectorAll("[data-i18n-placeholder]").forEach((element) => { element.placeholder = t(element.dataset.i18nPlaceholder); });
   root.querySelectorAll("[data-i18n-aria-label]").forEach((element) => { element.setAttribute("aria-label", t(element.dataset.i18nAriaLabel)); });
   root.querySelectorAll("[data-i18n-alt]").forEach((element) => { element.alt = t(element.dataset.i18nAlt); });
+  root.querySelectorAll("[aria-label], [placeholder], [title]").forEach((element) => {
+    ["aria-label", "placeholder", "title"].forEach((attribute) => {
+      const value = element.getAttribute(attribute);
+      const key = value && staticLabelKeys[value];
+      if (key) element.setAttribute(attribute, t(key));
+    });
+  });
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const labels = [];
+  while (walker.nextNode()) labels.push(walker.currentNode);
+  labels.forEach((node) => {
+    const key = node.__i18nKey || staticLabelKeys[node.nodeValue.trim()];
+    if (key) {
+      node.__i18nKey = key;
+      node.nodeValue = node.nodeValue.replace(node.nodeValue.trim(), t(key));
+    }
+  });
 }
 
 document.documentElement.lang = language;

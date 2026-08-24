@@ -16,16 +16,16 @@ pub fn receipt(receipt: &Receipt) -> Vec<u8> {
         append_line(
             &mut data,
             &format!(
-                "  {:.2} x ${:.2} = ${:.2}",
+                "  {:.2} x {} = {}",
                 item.qty,
-                item.price,
-                item.qty * item.price
+                currency(item.price, &receipt.language),
+                currency(item.qty * item.price, &receipt.language)
             ),
         );
     }
     append_line(&mut data, &"-".repeat(LINE_WIDTH));
     bold(&mut data, true);
-    append_line(&mut data, &format!("TOTAL: ${:.2}", receipt.total));
+    append_line(&mut data, &format!("TOTAL: {}", currency(receipt.total, &receipt.language)));
     bold(&mut data, false);
     data.extend_from_slice(b"\n\n\n");
     cut(&mut data);
@@ -47,4 +47,24 @@ fn cut(data: &mut Vec<u8>) {
 fn append_line(data: &mut Vec<u8>, line: &str) {
     data.extend_from_slice(line.as_bytes());
     data.push(b'\n');
+}
+
+fn currency(value: f64, language: &str) -> String {
+    let formatted = format!("{:.2}", value.abs());
+    let (whole, fraction) = formatted.split_once('.').unwrap_or((&formatted, "00"));
+    let separator = if language == "por" { '.' } else { ',' };
+    let grouped = whole
+        .chars()
+        .rev()
+        .enumerate()
+        .fold(String::new(), |mut result, (index, character)| {
+            if index > 0 && index % 3 == 0 { result.push(separator); }
+            result.push(character);
+            result
+        })
+        .chars()
+        .rev()
+        .collect::<String>();
+    let sign = if value.is_sign_negative() { "-" } else { "" };
+    if language == "por" { format!("{sign}$ {grouped},{fraction}") } else { format!("{sign}${grouped}.{fraction}") }
 }
