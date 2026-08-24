@@ -43,6 +43,10 @@ const customerPurchasesButton = document.querySelector("#customer-purchases");
 const customerPurchasesTitle = document.querySelector("#customer-purchases-title");
 const customerPurchasesStatus = document.querySelector("#customer-purchases-status");
 const customerPurchasesBody = document.querySelector("#customer-purchases-body");
+const orderPanel = document.querySelector("#order-panel");
+const mobileCartTrigger = document.querySelector("#mobile-cart-trigger");
+const mobileCartClose = document.querySelector("#mobile-cart-close");
+const mobileCartBackdrop = document.querySelector("#mobile-cart-backdrop");
 const languageSwitcher = createLanguageSwitcher(document.querySelector("#language-switcher"));
 const storeId = 2;
 const imageResizer = new Pica();
@@ -123,6 +127,32 @@ let imagePreparationTask = null;
 let selectedProductImageFile = null;
 let purchaseOrderSort = { key: "last_updated", direction: "desc" };
 let purchaseOrderStatusFilter = "";
+
+const mobileQuery = window.matchMedia("(max-width: 640px)");
+function setMobileCart(open) {
+  if (!mobileQuery.matches) return;
+  orderPanel.classList.toggle("is-mobile-open", open);
+  mobileCartBackdrop.classList.toggle("is-visible", open);
+  mobileCartTrigger.setAttribute("aria-expanded", String(open));
+  orderPanel.setAttribute("role", "dialog");
+  orderPanel.setAttribute("aria-modal", "true");
+  catalogPanel.toggleAttribute("inert", open);
+  if (open) requestAnimationFrame(() => mobileCartClose.focus());
+  else mobileCartTrigger.focus();
+}
+mobileCartTrigger.addEventListener("click", () => setMobileCart(true));
+mobileCartClose.addEventListener("click", () => setMobileCart(false));
+mobileCartBackdrop.addEventListener("click", () => setMobileCart(false));
+document.addEventListener("keydown", (event) => { if (event.key === "Escape" && orderPanel.classList.contains("is-mobile-open")) setMobileCart(false); });
+mobileQuery.addEventListener("change", () => {
+  if (mobileQuery.matches) return;
+  orderPanel.classList.remove("is-mobile-open");
+  mobileCartBackdrop.classList.remove("is-visible");
+  mobileCartTrigger.setAttribute("aria-expanded", "false");
+  orderPanel.removeAttribute("role");
+  orderPanel.removeAttribute("aria-modal");
+  catalogPanel.removeAttribute("inert");
+});
 
 function updateInvoiceStickyOffset() {
   invoiceReport.style.setProperty("--invoice-fixed-height", `${invoiceReportFixed.offsetHeight}px`);
@@ -1435,6 +1465,7 @@ function showCheckoutStage(stage) {
   });
   const title = checkoutFlow.querySelector(`[data-stage="${stage}"] h2`)?.textContent;
   document.querySelector("#checkout-title").textContent = title || "Checkout";
+  document.querySelector("#checkout-total").textContent = currency(pos.total());
   checkoutStatus.textContent = "";
   requestAnimationFrame(() => checkoutFlow.querySelector(`[data-stage="${stage}"] h2`)?.focus?.());
 }
@@ -1461,6 +1492,7 @@ function updatePaymentCompletion() {
   const nonCashPaid = paymentLines.reduce((sum, line) => line.querySelector("select").value === "CASH" ? sum : sum + (Number(line.querySelector("input").value) || 0), 0);
   const cashPaid = paid - nonCashPaid;
   const change = Math.max(0, cashPaid - Math.max(0, pos.total() - nonCashPaid));
+  document.querySelector("#checkout-total").textContent = currency(pos.total());
   document.querySelector("#payment-balance").textContent = `${t("checkout.remaining")}: ${currency(remaining)}`;
   const changeLabel = document.querySelector("#payment-change");
   changeLabel.hidden = change === 0;
@@ -1489,7 +1521,7 @@ document.querySelector("#customer-picker").addEventListener("click", () => openC
 document.querySelector("#customer-continue").addEventListener("click", () => showCheckoutStage("payment"));
 document.querySelector("#delivery-toggle").addEventListener("click", (event) => { const active = event.currentTarget.getAttribute("aria-pressed") !== "true"; event.currentTarget.setAttribute("aria-pressed", String(active)); event.currentTarget.dataset.variant = active ? "default" : "outline"; const target = document.querySelector("#delivery-options"); target.hidden = !active; if (active) target.replaceChildren(...[100,150,200,250,300,400,500,600].map((amount) => { const button = document.createElement("button"); button.className = "btn"; button.dataset.variant = "secondary"; button.dataset.delivery = amount; button.textContent = currency(amount); return button; })); else { pos.setDelivery(0); document.querySelector("#delivery-summary").hidden = true; } updatePaymentCompletion(); });
 document.querySelector("#delivery-options").addEventListener("click", (event) => { const button = event.target.closest("[data-delivery]"); if (!button) return; pos.setDelivery(Number(button.dataset.delivery)); document.querySelector("#delivery-summary").hidden = false; document.querySelectorAll("[data-delivery]").forEach((item) => item.dataset.variant = item === button ? "default" : "secondary"); updatePaymentCompletion(); });
-document.querySelector("#add-payment-line").addEventListener("click", () => { const line = document.createElement("div"); line.className = "payment-line"; const previous = document.querySelector(".payment-line:last-child select")?.value; const method = previous === "CC" ? "CASH" : "CC"; line.innerHTML = `<select class="select" aria-label="${t("checkout.paymentMethod")}"><option value="CASH">${t("checkout.cash")}</option><option value="CC">${t("checkout.card")}</option></select><input class="input numeric" aria-label="${t("checkout.amount")}" type="number" min="0.01" step="0.01" placeholder="${currency(0)}"><button class="btn" type="button" data-variant="ghost" data-size="icon" data-remove-payment aria-label="${t("checkout.removePayment")}">×</button>`; line.querySelector("select").value = method; document.querySelector("#payment-lines").append(line); updatePaymentChoice(); });
+document.querySelector("#add-payment-line").addEventListener("click", () => { const line = document.createElement("div"); line.className = "payment-line"; const previous = document.querySelector(".payment-line:last-child select")?.value; const method = previous === "CC" ? "CASH" : "CC"; line.innerHTML = `<select class="select" aria-label="${t("checkout.paymentMethod")}"><option value="CASH">${t("checkout.cash")}</option><option value="CC">${t("checkout.card")}</option></select><input class="input numeric" aria-label="${t("checkout.amount")}" type="number" inputmode="decimal" min="0.01" step="0.01" placeholder="${currency(0)}"><button class="btn" type="button" data-variant="ghost" data-size="icon" data-remove-payment aria-label="${t("checkout.removePayment")}">×</button>`; line.querySelector("select").value = method; document.querySelector("#payment-lines").append(line); updatePaymentChoice(); });
 document.querySelector("#payment-lines").addEventListener("click", (event) => { const button = event.target.closest("[data-remove-payment]"); if (!button) return; button.closest(".payment-line").remove(); document.querySelector("#payment-lines").dispatchEvent(new Event("input", { bubbles: true })); updatePaymentChoice(); });
 document.querySelector("#payment-lines").addEventListener("change", () => { updatePaymentChoice(); updatePaymentCompletion(); });
 document.querySelector("#payment-lines").addEventListener("input", updatePaymentCompletion);

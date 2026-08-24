@@ -276,6 +276,11 @@ button {
   margin: 3px 0 0;
   font-size: 1.12rem;
 }
+.mobile-cart-trigger,
+.mobile-cart-close,
+.mobile-cart-backdrop {
+  display: none;
+}
 .products-status {
   margin: 0;
   min-height: 19px;
@@ -307,6 +312,11 @@ button {
 .product:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
+}
+.product:active {
+  transform: scale(0.98);
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--ring) 24%, transparent);
 }
 .product-image {
   display: block;
@@ -1216,6 +1226,24 @@ button {
 .checkout-stage-copy .muted {
   margin: 12px 0 0;
 }
+.checkout-total-due {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 18px 0;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+.checkout-total-due strong {
+  color: var(--foreground);
+  font-size: 1.35rem;
+  letter-spacing: -0.03em;
+}
 .checkout-actions {
   display: flex;
   justify-content: flex-end;
@@ -1397,7 +1425,7 @@ button {
   }
 }
 
-/* Phone layout: keep the navigation rail, then stack the catalogue and sale.
+/* Phone layout: keep the navigation rail and move the sale into a touch drawer.
  * The tablet breakpoint above intentionally retains a side-by-side cart. */
 @media (max-width: 640px) {
   body {
@@ -1438,24 +1466,81 @@ button {
     grid-row: 2;
     min-height: auto;
     overflow: visible;
-    padding: 8px 12px 20px;
+    padding: 8px 12px calc(84px + env(safe-area-inset-bottom));
   }
 
   .order-panel {
-    grid-column: 2;
-    grid-row: 3;
-    position: static;
-    height: auto;
-    min-height: 0;
-    max-height: none;
-    padding: 18px 12px calc(18px + env(safe-area-inset-bottom));
-    border-top: 1px solid var(--border);
-    border-left: 0;
-    box-shadow: none;
+    position: fixed;
+    z-index: 20;
+    inset: auto 0 0 52px;
+    display: flex;
+    height: min(78dvh, 680px);
+    padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    box-shadow: 0 -16px 48px rgb(30 50 37 / 0.18);
+    transform: translateY(calc(100% + 24px));
+    transition: transform 200ms ease;
+    visibility: hidden;
+  }
+
+  .order-panel.is-mobile-open {
+    transform: translateY(0);
+    visibility: visible;
+  }
+
+  .mobile-cart-backdrop {
+    position: fixed;
+    z-index: 19;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: rgb(0 0 0 / 0.42);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 200ms ease;
+  }
+
+  .mobile-cart-backdrop.is-visible {
+    display: block;
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .mobile-cart-trigger {
+    position: fixed;
+    z-index: 8;
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    display: inline-flex;
+    min-height: 2.75rem;
+    box-shadow: var(--shadow-md);
+  }
+
+  .mobile-cart-close {
+    display: inline-flex;
+    margin-left: auto;
+  }
+
+  .order-header {
+    flex-wrap: wrap;
+  }
+
+  .order-header > .btn:not(.mobile-cart-close) {
+    margin-left: auto;
   }
 
   .cart-lines {
-    max-height: 45dvh;
+    max-height: none;
+  }
+
+  .quantity-control .btn,
+  .remove-line {
+    min-width: 2.25rem;
+    min-height: 2.25rem;
   }
 
   .topbar {
@@ -1481,6 +1566,21 @@ button {
     height: 100px;
   }
 
+  .product .card-content {
+    gap: 6px;
+    padding: 11px;
+  }
+
+  .product-name {
+    font-size: 0.84rem;
+  }
+
+  .inventory-badge {
+    max-width: 52%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   .catalog-heading,
   .customers-header,
   .checkout-header {
@@ -1497,5 +1597,105 @@ button {
   .invoice-filters .search-field,
   .operations-filters .search-field {
     grid-column: 1 / -1;
+  }
+
+  .catalog-panel[data-view="checkout"],
+  .catalog-panel[data-view="customers"] {
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  }
+
+  .catalog-panel[data-view="checkout"] ~ .order-panel,
+  .catalog-panel[data-view="customers"] ~ .order-panel,
+  .catalog-panel[data-view="invoices"] ~ .order-panel,
+  .catalog-panel[data-view="inventory"] ~ .order-panel,
+  .catalog-panel[data-view="orders"] ~ .order-panel {
+    display: none;
+  }
+
+  .customers-screen,
+  .checkout-flow {
+    padding: 18px 0;
+  }
+
+  .customers-header-actions,
+  .checkout-actions {
+    width: 100%;
+  }
+
+  .customers-header-actions .btn,
+  .checkout-actions .btn {
+    flex: 1 1 0;
+  }
+
+  .customer-search-field {
+    max-width: none;
+    margin: 18px 0 12px;
+  }
+
+  .checkout-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-inline: 0;
+  }
+
+  .checkout-stage-wrap {
+    display: block;
+    min-height: 0;
+  }
+
+  .checkout-stage {
+    min-height: min(520px, calc(100dvh - 150px));
+    padding: 20px;
+    border-radius: var(--radius-lg);
+  }
+
+  .customer-choice,
+  .checkout-payment > .btn,
+  #add-payment-line {
+    width: 100%;
+  }
+
+  .sequence-options,
+  .sequence-options .btn {
+    width: 100%;
+  }
+
+  .payment-line {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  }
+
+  .checkout-total-due {
+    margin: 14px 0;
+  }
+
+  .delivery-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  dialog.dialog:is(#customer-dialog, #discount-dialog, #clear-order-dialog, #receipt-dialog, #customer-purchases-dialog) {
+    width: 100vw;
+    max-width: 100vw;
+    max-height: 100dvh;
+    margin: 0;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    inset: auto 0 0;
+    transform: translateY(1rem);
+  }
+
+  dialog.dialog:is(#customer-dialog, #discount-dialog, #clear-order-dialog, #receipt-dialog, #customer-purchases-dialog) .dialog-content {
+    max-height: 86dvh;
+    padding: 1.25rem;
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+
+  dialog.dialog:is(#customer-dialog, #discount-dialog, #clear-order-dialog, #receipt-dialog, #customer-purchases-dialog) .dialog-footer {
+    position: sticky;
+    bottom: -1.25rem;
+    padding: 0.75rem 0 calc(0.75rem + env(safe-area-inset-bottom));
+    background: var(--popover);
+  }
+
+  dialog.dialog:is(#customer-dialog, #discount-dialog, #clear-order-dialog, #receipt-dialog, #customer-purchases-dialog) .dialog-footer .btn {
+    flex: 1 1 0;
   }
 }
