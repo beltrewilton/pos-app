@@ -111,6 +111,12 @@ export async function createCustomer(customer) {
   return response.json();
 }
 
+export async function customerPurchases(customerId) {
+  const response = await fetch(`${API_BASE_URL}/customers/${customerId}/purchases`);
+  if (!response.ok) throw new Error(`Could not load customer purchases: ${response.status}`);
+  return response.json();
+}
+
 export async function createSale(sale) {
   const response = await fetch(`${API_BASE_URL}/sales`, {
     method: "POST",

@@ -1,6 +1,6 @@
 import * as printer from "./printer.js";
 import Pica from "../vendor/pica/pica.mjs";
-import { API_BASE_URL, activeProducts, addSalePayment, adjustInventory, cancelSale, createCustomer, createProduct, createProductOrder, createSale, customers, inventoryQuantities, inventorySummary, pricingLists, product, productOrders, purchaseSources, receiveProductOrder, saleDetails, salesReport, setProductPrices, updateProduct } from "./api.js";
+import { API_BASE_URL, activeProducts, addSalePayment, adjustInventory, cancelSale, createCustomer, createProduct, createProductOrder, createSale, customerPurchases, customers, inventoryQuantities, inventorySummary, pricingLists, product, productOrders, purchaseSources, receiveProductOrder, saleDetails, salesReport, setProductPrices, updateProduct } from "./api.js";
 import { createPos } from "./pos.js";
 import { onLanguageChange, t, translateDocument } from "./i18n.js";
 import { createLanguageSwitcher } from "./language-switcher.js";
@@ -39,6 +39,10 @@ const invoiceCalendarGrid = document.querySelector("#invoice-calendar-grid");
 const invoiceCancelDialog = document.querySelector("#invoice-cancel-dialog");
 const orderTitle = document.querySelector("#order-title");
 const clearCustomerButton = document.querySelector("#clear-customer");
+const customerPurchasesButton = document.querySelector("#customer-purchases");
+const customerPurchasesTitle = document.querySelector("#customer-purchases-title");
+const customerPurchasesStatus = document.querySelector("#customer-purchases-status");
+const customerPurchasesBody = document.querySelector("#customer-purchases-body");
 const languageSwitcher = createLanguageSwitcher(document.querySelector("#language-switcher"));
 const storeId = 2;
 const imageResizer = new Pica();
@@ -131,6 +135,99 @@ function updateCustomerPicker() {
   orderTitle.title = selectedCustomer?.name || "";
   orderTitle.setAttribute("aria-label", selectedCustomer ? t("customer.change") : t("customer.pick"));
   clearCustomerButton.hidden = !selectedCustomer;
+  customerPurchasesButton.disabled = !selectedCustomer;
+}
+
+function purchaseRows(purchase) {
+  const row = document.createElement("tr");
+  row.className = "table-row";
+  const date = purchase.date_create ? new Date(purchase.date_create.replace(" ", "T")).toLocaleString() : "—";
+  [[date, ""], [purchase.salesperson || "", ""], [null, ""], [purchase.invoice_status || purchase.status || "—", ""], [currency(purchase.amount), "numeric"]].forEach(([value, className], index) => {
+    const cell = document.createElement("td");
+    cell.className = `table-cell ${className}`.trim();
+    if (index === 2) {
+      const trigger = document.createElement("button");
+      const detailsId = `customer-purchase-items-${purchase.id}`;
+      trigger.className = "btn customer-purchase-detail-trigger";
+      trigger.type = "button";
+      trigger.dataset.variant = "ghost";
+      trigger.setAttribute("aria-expanded", "false");
+      trigger.setAttribute("aria-controls", detailsId);
+      const disclosure = document.createElement("span");
+      disclosure.className = "customer-purchase-disclosure";
+      disclosure.setAttribute("aria-hidden", "true");
+      disclosure.textContent = "▸";
+      trigger.append(disclosure, document.createTextNode(`Items (${purchase.items.length})`));
+      cell.appendChild(trigger);
+    } else {
+      cell.textContent = value || "—";
+    }
+    row.appendChild(cell);
+  });
+
+  const detailsRow = document.createElement("tr");
+  detailsRow.id = `customer-purchase-items-${purchase.id}`;
+  detailsRow.className = "table-row customer-purchase-details-row";
+  detailsRow.hidden = true;
+  const detailsCell = document.createElement("td");
+  detailsCell.className = "table-cell";
+  detailsCell.colSpan = 5;
+  const table = document.createElement("table");
+  table.className = "table customer-purchase-items-table";
+  const caption = document.createElement("caption");
+  caption.className = "sr-only";
+  caption.textContent = `Items on ${purchase.sequence || `sale ${purchase.id}`}`;
+  const head = document.createElement("thead");
+  const headRow = document.createElement("tr");
+  headRow.className = "table-row";
+  ["Item", "Quantity", "Price", "Discount", "Total"].forEach((label) => {
+    const header = document.createElement("th");
+    header.className = "table-head";
+    header.scope = "col";
+    header.textContent = label;
+    headRow.appendChild(header);
+  });
+  head.appendChild(headRow);
+  const body = document.createElement("tbody");
+  purchase.items.forEach((item) => {
+    const itemRow = document.createElement("tr");
+    itemRow.className = "table-row";
+    [item.name || `Product #${item.product_id}`, item.quantity, currency(item.price), currency(item.discount), currency(item.total)].forEach((value, index) => {
+      const itemCell = document.createElement("td");
+      itemCell.className = index > 1 ? "table-cell numeric" : "table-cell";
+      itemCell.textContent = value;
+      itemRow.appendChild(itemCell);
+    });
+    body.appendChild(itemRow);
+  });
+  table.append(caption, head, body);
+  detailsCell.appendChild(table);
+  detailsRow.appendChild(detailsCell);
+  row.querySelector(".customer-purchase-detail-trigger").addEventListener("click", (event) => {
+    const expanded = event.currentTarget.getAttribute("aria-expanded") === "true";
+    event.currentTarget.setAttribute("aria-expanded", String(!expanded));
+    event.currentTarget.querySelector(".customer-purchase-disclosure").textContent = expanded ? "▸" : "▾";
+    detailsRow.hidden = expanded;
+  });
+
+  return [row, detailsRow];
+}
+
+async function openCustomerPurchases() {
+  if (!selectedCustomer) return;
+  customerPurchasesTitle.textContent = `${selectedCustomer.name} — recent purchases`;
+  customerPurchasesBody.replaceChildren();
+  customerPurchasesStatus.hidden = false;
+  customerPurchasesStatus.textContent = "Loading purchases…";
+
+  try {
+    const { entries } = await customerPurchases(selectedCustomer.id);
+    customerPurchasesBody.replaceChildren(...entries.flatMap(purchaseRows));
+    customerPurchasesStatus.textContent = entries.length ? "" : "No purchases found for this customer.";
+  } catch (error) {
+    console.error(error);
+    customerPurchasesStatus.textContent = "Purchases could not be loaded. Check the server connection.";
+  }
 }
 
 // A completed sale starts a completely new order. Keep this in one place so no
@@ -992,6 +1089,7 @@ async function updatePrinterStatus() {
 productSearch.addEventListener("input", renderProducts);
 orderTitle.addEventListener("click", () => openCustomers("pos"));
 clearCustomerButton.addEventListener("click", () => { selectedCustomer = null; updateCustomerPicker(); });
+customerPurchasesButton.addEventListener("click", openCustomerPurchases);
 document.querySelector("#customers-back").addEventListener("click", closeCustomers);
 customerSearch.addEventListener("input", () => { clearTimeout(customerSearchTimer); customerSearchTimer = setTimeout(loadCustomers, 220); });
 document.querySelector("#pos-nav").addEventListener("click", openPos);

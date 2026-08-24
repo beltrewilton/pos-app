@@ -102,6 +102,26 @@ defmodule PosServer.Retaily.Sales do
     end
   end
 
+  @doc "Returns the ten newest purchases for a customer that the cashier can access."
+  def recent_customer_purchases(scope, customer_id) do
+    with {:ok, cashier, tenant} <- cashier(scope) do
+      store_ids = cashier_store_ids(cashier.id, tenant)
+
+      purchases =
+        from(sale in Sale,
+          where: sale.client_id == ^customer_id and sale.store_id in ^store_ids,
+          order_by: [desc_nulls_last: sale.date_create, desc: sale.id],
+          limit: 10
+        )
+        |> with_payment_totals()
+        |> Repo.all(prefix: tenant)
+        |> then(&Repo.preload(&1, [sale_lines: :product], prefix: tenant))
+        |> Enum.map(&serialize_purchase/1)
+
+      {:ok, purchases}
+    end
+  end
+
   def get_sale(scope, sale_id) do
     with {:ok, cashier, tenant} <- cashier(scope),
          %Sale{} = sale <- Repo.get(Sale, sale_id, prefix: tenant),
@@ -298,6 +318,30 @@ defmodule PosServer.Retaily.Sales do
       total_paid: paid,
       due_balance: due,
       invoice_status: invoice_status
+    }
+  end
+
+  defp serialize_purchase(sale) do
+    %{
+      id: sale.id,
+      sequence: sale.sequence,
+      amount: sale.amount,
+      date_create: sale.date_create,
+      status: sale.status,
+      invoice_status: sale.invoice_status,
+      salesperson: sale.login,
+      items: Enum.map(sale.sale_lines, &serialize_purchase_item/1)
+    }
+  end
+
+  defp serialize_purchase_item(line) do
+    %{
+      product_id: line.product_id,
+      name: line.product.name,
+      quantity: line.quantity,
+      price: line.amount,
+      discount: line.discount,
+      total: line.total_amount
     }
   end
 

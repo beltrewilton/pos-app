@@ -214,7 +214,7 @@
         <header class="order-header">
           <div>
             <p class="eyebrow" data-i18n="order.current">Current sale</p>
-            <div class="customer-picker-wrap"><button id="order-title" class="customer-picker" type="button" data-i18n="customer.pick">Pick a customer …</button><button id="clear-customer" class="btn" type="button" data-variant="ghost" data-size="icon-xs" data-i18n-aria-label="customer.clear" aria-label="Clear customer" hidden>×</button></div>
+            <div class="customer-picker-wrap"><button id="customer-purchases" class="btn" type="button" data-variant="ghost" data-size="icon-xs" aria-label="View customer purchases" aria-haspopup="dialog" data-dialog-trigger="customer-purchases-dialog" disabled><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16v-4"/><path d="M12 16V8"/><path d="M17 16v-7"/></svg></button><button id="order-title" class="customer-picker" type="button" data-i18n="customer.pick">Pick a customer …</button><button id="clear-customer" class="btn" type="button" data-variant="ghost" data-size="icon-xs" data-i18n-aria-label="customer.clear" aria-label="Clear customer" hidden>×</button></div>
           </div>
           <button
             id="clear-order"
@@ -373,6 +373,13 @@
       </div>
     </dialog>
     <dialog id="receipt-dialog" class="dialog" data-size="sm" aria-labelledby="receipt-dialog-title"><div class="dialog-content"><div class="dialog-header"><h2 id="receipt-dialog-title" class="dialog-title">Sale completed</h2><p class="dialog-description">Would you like to print the receipt?</p></div><div class="dialog-footer"><button id="skip-print" class="btn" type="button" data-variant="outline">No, return to POS</button><button id="print-receipt" class="btn" type="button" data-variant="default">Print receipt</button></div></div></dialog>
+    <dialog id="customer-purchases-dialog" class="dialog" data-size="xl" role="dialog" aria-modal="true" aria-labelledby="customer-purchases-title">
+      <div class="dialog-content">
+        <div class="dialog-header"><h2 id="customer-purchases-title" class="dialog-title">Recent purchases</h2><p class="dialog-description">The 10 most recent purchases, newest first.</p></div>
+        <div class="dialog-body"><p id="customer-purchases-status" class="customers-status" role="status"></p><div class="table-container"><table class="table"><caption class="table-caption">Customer purchase history. Expand an item count to view the sold items.</caption><thead><tr class="table-row"><th class="table-head" scope="col">Date</th><th class="table-head" scope="col">Salesperson</th><th class="table-head" scope="col">Items</th><th class="table-head" scope="col">Status</th><th class="table-head" scope="col" style="text-align:right">Total</th></tr></thead><tbody id="customer-purchases-body"></tbody></table></div></div>
+        <div class="dialog-footer"><button class="btn" type="button" data-variant="outline" data-dialog-close>Close</button></div>
+      </div>
+    </dialog>
     <dialog id="invoice-cancel-dialog" class="dialog" data-size="sm" role="dialog" aria-modal="true" aria-labelledby="invoice-cancel-title">
       <div class="dialog-content">
         <div class="dialog-header"><h2 id="invoice-cancel-title" class="dialog-title">Cancel invoice?</h2><p class="dialog-description">This restores the sold inventory. This action cannot be undone from the report.</p></div>

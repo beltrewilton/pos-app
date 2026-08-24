@@ -3,7 +3,7 @@ defmodule PosServerWeb.CustomerController do
 
   alias Ecto.Changeset
   alias PosServer.{Repo, TenantContext}
-  alias PosServer.Retaily.{Client, Sql}
+  alias PosServer.Retaily.{Client, Sales, Sql}
 
   @page_size 100
 
@@ -40,6 +40,26 @@ defmodule PosServerWeb.CustomerController do
         |> json(%{errors: Changeset.traverse_errors(changeset, fn {message, _} -> message end)})
     end
   end
+
+  def purchases(conn, %{"id" => id}) do
+    with {:ok, customer_id} <- parse_id(id),
+         {:ok, entries} <- Sales.recent_customer_purchases(conn.assigns.current_scope, customer_id) do
+      json(conn, %{entries: entries})
+    else
+      :error -> conn |> put_status(:bad_request) |> json(%{error: "customer id must be a positive integer"})
+      {:error, :unauthorized} -> conn |> put_status(:unauthorized) |> json(%{error: "unauthorized"})
+      {:error, reason} -> conn |> put_status(:internal_server_error) |> json(%{error: "could not load customer purchases", details: inspect(reason)})
+    end
+  end
+
+  defp parse_id(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {value, ""} when value > 0 -> {:ok, value}
+      _ -> :error
+    end
+  end
+
+  defp parse_id(_), do: :error
 
   defp parse_cursor(nil), do: {:ok, nil}
 

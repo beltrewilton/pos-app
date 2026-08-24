@@ -1129,6 +1129,32 @@ button {
   outline-offset: 3px;
   border-radius: var(--radius-sm);
 }
+.customer-purchase-detail-trigger {
+  height: auto;
+  padding: 0;
+  gap: 0.35rem;
+  font-weight: 600;
+}
+.customer-purchase-detail-trigger:hover {
+  text-decoration: underline;
+}
+.customer-purchase-disclosure {
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+}
+.customer-purchase-details-row > .table-cell {
+  padding: 0.5rem 0.75rem 0.75rem;
+  background: var(--muted);
+}
+.customer-purchase-items-table {
+  background: var(--background);
+  box-shadow: var(--shadow-xs);
+}
+.customer-purchase-items-table .table-head,
+.customer-purchase-items-table .table-cell {
+  padding: 0.45rem 0.65rem;
+  font-size: 0.75rem;
+}
 .checkout-header {
   display: flex;
   align-items: center;
