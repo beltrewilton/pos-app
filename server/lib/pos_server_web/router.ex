@@ -21,6 +21,7 @@ defmodule PosServerWeb.Router do
     plug PosServerWeb.Plugs.FetchCurrentScope
     plug PosServerWeb.Plugs.PutTenantFromScope
     plug PosServerWeb.Plugs.RequireTenant
+    plug PosServerWeb.Plugs.RequirePermission
   end
 
   scope "/", PosServerWeb do
@@ -35,11 +36,18 @@ defmodule PosServerWeb.Router do
     pipe_through :api
 
     get "/health", HealthController, :show
+    post "/login", AuthController, :login
     options "/*path", HealthController, :show
   end
 
   scope "/api", PosServerWeb do
     pipe_through :tenant_api
+
+    get "/users", UserController, :index
+    get "/users/:id", UserController, :show
+    post "/users", UserController, :create
+    patch "/users/:id", UserController, :update
+    delete "/users/:id", UserController, :delete
 
     get "/products", ProductController, :index
     get "/products/:id", ProductCreateController, :show

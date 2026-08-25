@@ -6,10 +6,27 @@ defmodule PosServer.Accounts.Scope do
 
   alias PosServer.Accounts.User
 
-  defstruct user: nil, store_id: nil
+  defstruct user: nil, store_id: nil, tenant: nil, actor: nil, actor_id: nil, login: nil, store_ids: [], scopes: []
 
   @doc "Creates a scope for an authenticated user; returns nil when absent."
   def for_user(%User{} = user), do: for_user(user, [])
   def for_user(nil), do: nil
-  def for_user(%User{} = user, opts), do: %__MODULE__{user: user, store_id: Keyword.get(opts, :store_id)}
+  def for_user(%User{} = user, opts) do
+    %__MODULE__{
+      user: %{name: user.name, tenant: user.tenant},
+      tenant: user.tenant,
+      actor: :admin,
+      actor_id: user.id,
+      login: user.email,
+      store_id: Keyword.get(opts, :store_id),
+      scopes: :admin
+    }
+  end
+
+  def admin?(%__MODULE__{actor: :admin}), do: true
+  def admin?(_), do: false
+
+  def allowed?(scope, _permission) when is_map(scope) and scope.scopes == :admin, do: true
+  def allowed?(%__MODULE__{scopes: scopes}, permission), do: permission in scopes
+  def allowed?(_, _), do: false
 end

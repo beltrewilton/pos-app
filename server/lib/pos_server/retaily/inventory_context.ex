@@ -3,7 +3,8 @@ defmodule PosServer.Retaily.InventoryContext do
 
   import Ecto.Query
 
-  alias PosServer.{Repo, TenantContext}
+  alias PosServer.Repo
+  alias PosServer.Accounts.Scope, as: AccessScope
   alias PosServer.Retaily.{Inventory, PricingList, Product, Store, User, UserStore}
 
   def list(scope, store_id, inventory_filter \\ nil) do
@@ -44,10 +45,9 @@ defmodule PosServer.Retaily.InventoryContext do
     end
   end
 
-  defp cashier(%{user: %{name: name}}) when is_binary(name) do
-    tenant = TenantContext.tenant!()
-
-    case Repo.one(from(user in User, where: user.username == ^name and user.is_active == 1), prefix: tenant) do
+  defp cashier(%AccessScope{actor: :admin, tenant: tenant, login: login}), do: {:ok, %{username: login, admin?: true}, tenant}
+  defp cashier(%AccessScope{actor: :employee, actor_id: id, tenant: tenant}) do
+    case Repo.one(from(user in User, where: user.id == ^id and user.is_active == 1), prefix: tenant) do
       nil -> {:error, :cashier_not_found}
       user -> {:ok, user, tenant}
     end
@@ -55,6 +55,7 @@ defmodule PosServer.Retaily.InventoryContext do
 
   defp cashier(_), do: {:error, :unauthorized}
 
+  defp cashier_store?(%{admin?: true}, store_id, tenant), do: Repo.exists?(from(store in PosServer.Retaily.Store, where: store.id == ^store_id), prefix: tenant)
   defp cashier_store?(cashier, store_id, tenant) do
     if Repo.exists?(from(link in UserStore, where: link.user_id == ^cashier.id and link.store_id == ^store_id), prefix: tenant), do: :ok, else: :error
   end

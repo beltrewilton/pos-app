@@ -9,6 +9,8 @@ defmodule PosServer.Accounts do
     |> Repo.all()
   end
 
+  def get_user_by_email(email) when is_binary(email), do: Repo.get_by(User, email: email)
+
   def change_user(%User{} = user, attrs \\ %{}), do: User.changeset(user, attrs)
 
   def create_user(attrs) do

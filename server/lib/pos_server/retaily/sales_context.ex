@@ -5,7 +5,8 @@ defmodule PosServer.Retaily.Sales do
   require Logger
 
   alias Ecto.Changeset
-  alias PosServer.{InventoryEvents, Repo, TenantContext}
+  alias PosServer.{InventoryEvents, Repo}
+  alias PosServer.Accounts.Scope, as: AccessScope
   alias PosServer.Retaily.{Client, Inventory, PricingList, Product, Sale, SaleLine, SalePaid, Sequence, User, UserStore}
   alias PosServer.Retaily.SaleRequests.{Checkout, Payment}
 
@@ -144,10 +145,9 @@ defmodule PosServer.Retaily.Sales do
   end
 
   # The authenticated account name is the Retaily cashier username. It is not supplied by the client.
-  defp cashier(%{user: %{name: name}}) when is_binary(name) do
-    tenant = TenantContext.tenant!()
-
-    case Repo.one(from(user in User, where: user.username == ^name and user.is_active == 1), prefix: tenant) do
+  defp cashier(%AccessScope{actor: :admin, tenant: tenant, login: login}), do: {:ok, %{username: login, admin?: true}, tenant}
+  defp cashier(%AccessScope{actor: :employee, actor_id: id, tenant: tenant}) do
+    case Repo.one(from(user in User, where: user.id == ^id and user.is_active == 1), prefix: tenant) do
       nil -> {:error, :cashier_not_found}
       user -> {:ok, user, tenant}
     end
@@ -155,10 +155,12 @@ defmodule PosServer.Retaily.Sales do
 
   defp cashier(_), do: {:error, :unauthorized}
 
+  defp cashier_store?(%{admin?: true}, store_id, tenant), do: Repo.exists?(from(store in PosServer.Retaily.Store, where: store.id == ^store_id), prefix: tenant)
   defp cashier_store?(cashier, store_id, tenant) do
     if Repo.exists?(from(link in UserStore, where: link.user_id == ^cashier.id and link.store_id == ^store_id), prefix: tenant), do: :ok, else: :error
   end
 
+  defp cashier_store_ids(nil, tenant), do: Repo.all(from(store in PosServer.Retaily.Store, select: store.id), prefix: tenant)
   defp cashier_store_ids(cashier_id, tenant), do: Repo.all(from(link in UserStore, where: link.user_id == ^cashier_id, select: link.store_id), prefix: tenant)
 
   defp next_sequence(code, tenant) do
