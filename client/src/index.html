@@ -294,13 +294,13 @@
     </main>
     <section id="login-screen" class="login-screen" aria-labelledby="login-title" hidden>
       <div class="card login-card">
-        <div class="card-header"><p class="eyebrow">Educa retail</p><h1 id="login-title" class="card-title">Sign in</h1><p class="card-description">Use your administrator email or employee username.</p></div>
+        <div class="card-header"><p class="eyebrow">Educa retail</p><h1 id="login-title" class="card-title" data-i18n="auth.login">Sign in</h1><p class="card-description">Use your administrator email or employee username.</p></div>
         <div class="card-content"><form id="login-form" class="form" novalidate>
-          <div id="login-error" class="alert" data-variant="destructive" role="alert" hidden><div class="alert-content"><h5 class="alert-title">Unable to sign in</h5><p id="login-error-message" class="alert-description"></p></div></div>
-          <div class="form-field"><label class="label" for="login-identifier">Username or email</label><input id="login-identifier" class="input" name="identifier" autocomplete="username" required autofocus /></div>
-          <div class="form-field"><label class="label" for="login-password">Password</label><input id="login-password" class="input" name="password" type="password" autocomplete="current-password" required /></div>
-          <div class="form-field"><label class="label" for="login-tenant">Tenant <span class="label-hint">(employees only)</span></label><input id="login-tenant" class="input" name="tenant" autocomplete="organization" placeholder="your_store" /></div>
-          <div class="form-actions"><button id="login-submit" class="btn login-submit" type="submit" data-variant="default">Sign in</button></div>
+          <div id="login-error" class="alert" data-variant="destructive" role="alert" hidden><div class="alert-content"><h5 class="alert-title" data-i18n="auth.unableToSignIn">Unable to sign in</h5><p id="login-error-message" class="alert-description"></p></div></div>
+          <div class="form-field"><label class="label" for="login-identifier" data-i18n="auth.identifier">Username or email</label><input id="login-identifier" class="input" name="identifier" autocomplete="username" required autofocus /></div>
+          <div class="form-field"><label class="label" for="login-password" data-i18n="auth.password">Password</label><input id="login-password" class="input" name="password" type="password" autocomplete="current-password" required /></div>
+          <div class="form-field"><label class="label" for="login-tenant"><span data-i18n="auth.tenant">Tenant</span> <span class="label-hint" data-i18n="auth.employeeOnly">(employees only)</span></label><input id="login-tenant" class="input" name="tenant" autocomplete="organization" placeholder="your_store" /></div>
+          <div class="form-actions"><button id="login-submit" class="btn login-submit" type="submit" data-variant="default" data-i18n="auth.login">Sign in</button></div>
         </form></div>
       </div>
     </section>
