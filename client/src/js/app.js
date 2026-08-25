@@ -46,6 +46,7 @@ const customerPurchasesBody = document.querySelector("#customer-purchases-body")
 const orderPanel = document.querySelector("#order-panel");
 const mobileCartTrigger = document.querySelector("#mobile-cart-trigger");
 const mobileCartNav = document.querySelector("#mobile-cart-nav");
+const mobileTopbarCart = document.querySelector("#mobile-topbar-cart");
 const mobileCartCount = document.querySelector("#mobile-cart-count");
 const mobileCartClose = document.querySelector("#mobile-cart-close");
 const mobileCartBackdrop = document.querySelector("#mobile-cart-backdrop");
@@ -70,7 +71,7 @@ const pos = createPos({
   discountElement: document.querySelector("#discount"),
   taxElement: document.querySelector("#tax"),
   itemCountElement: document.querySelector("#items-count"),
-  itemCountBadge: mobileCartCount,
+  itemCountBadges: [mobileCartCount],
   emptyElement: document.querySelector("#cart-empty"),
   clearButton: document.querySelector("#clear-order"),
   chargeButton: document.querySelector("#print-test"),
@@ -170,19 +171,7 @@ document.querySelectorAll(".topbar").forEach((topbar) => {
   topbar.prepend(trigger);
 });
 
-const primaryTopbar = document.querySelector(".catalog-content > .topbar");
-if (primaryTopbar) {
-  const cartTrigger = document.createElement("button");
-  cartTrigger.className = "btn mobile-topbar-cart";
-  cartTrigger.type = "button";
-  cartTrigger.dataset.variant = "ghost";
-  cartTrigger.dataset.size = "icon";
-  cartTrigger.setAttribute("aria-label", "Open current sale");
-  cartTrigger.setAttribute("aria-controls", "order-panel");
-  cartTrigger.innerHTML = `<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 3 2 2 2.4 10.2a2 2 0 0 0 2 1.6h7.8a2 2 0 0 0 1.9-1.4L21 8H7"/><circle cx="10" cy="21" r="1"/><circle cx="18" cy="21" r="1"/></svg>`;
-  cartTrigger.addEventListener("click", () => setMobileCart(true));
-  primaryTopbar.append(cartTrigger);
-}
+mobileTopbarCart.addEventListener("click", () => setMobileCart(true));
 
 mobileNavigationClose.addEventListener("click", () => closeMobileNavigation());
 mobileNavigation.addEventListener("click", (event) => {
@@ -198,7 +187,7 @@ function setMobileCart(open, { restoreFocus = true } = {}) {
   if (!mobileQuery.matches) return;
   orderPanel.classList.toggle("is-mobile-open", open);
   mobileCartBackdrop.classList.toggle("is-visible", open);
-  [mobileCartTrigger, mobileCartNav].forEach((trigger) => trigger.setAttribute("aria-expanded", String(open)));
+  [mobileCartTrigger, mobileCartNav, mobileTopbarCart].forEach((trigger) => trigger.setAttribute("aria-expanded", String(open)));
   if (open) {
     orderPanel.setAttribute("role", "dialog");
     orderPanel.setAttribute("aria-modal", "true");
@@ -220,7 +209,7 @@ mobileQuery.addEventListener("change", () => {
   if (mobileQuery.matches) return;
   orderPanel.classList.remove("is-mobile-open");
   mobileCartBackdrop.classList.remove("is-visible");
-  [mobileCartTrigger, mobileCartNav].forEach((trigger) => trigger.setAttribute("aria-expanded", "false"));
+  [mobileCartTrigger, mobileCartNav, mobileTopbarCart].forEach((trigger) => trigger.setAttribute("aria-expanded", "false"));
   orderPanel.removeAttribute("role");
   orderPanel.removeAttribute("aria-modal");
   catalogPanel.removeAttribute("inert");

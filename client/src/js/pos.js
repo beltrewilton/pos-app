@@ -1,5 +1,5 @@
 export function createPos(options) {
-  const { cartElement, totalTrigger, totalElement, totalBeforeDiscountElement, subtotalElement, discountElement, taxElement, itemCountElement, itemCountBadge, emptyElement, clearButton, chargeButton, checkoutButton, productGrid, discountDialog, discountForm, discountTypeButtons, discountInput, discountInputLabel, discountHelp, discountProductImage, discountProductName, discountPreviewAmount, discountPreviewDiscount, discountPreviewTotal, clearDialog, clearConfirmButton, t, formatCurrency } = options;
+  const { cartElement, totalTrigger, totalElement, totalBeforeDiscountElement, subtotalElement, discountElement, taxElement, itemCountElement, itemCountBadges = [], emptyElement, clearButton, chargeButton, checkoutButton, productGrid, discountDialog, discountForm, discountTypeButtons, discountInput, discountInputLabel, discountHelp, discountProductImage, discountProductName, discountPreviewAmount, discountPreviewDiscount, discountPreviewTotal, clearDialog, clearConfirmButton, t, formatCurrency } = options;
   const cart = [];
   let discountTarget = null;
   let discountType = "amount";
@@ -21,7 +21,7 @@ export function createPos(options) {
   const subTotal = () => cart.reduce((value, item) => value + item.sub * item.qty * lineFactor(item) * orderFactor(), 0);
   const items = () => cart.reduce((value, item) => value + item.qty, 0);
 
-  function render({ bumpId } = {}) {
+  function render({ bumpId, bumpCartBadge = false } = {}) {
     cartElement.replaceChildren(...cart.map((item) => {
       const line = document.createElement("article");
       line.className = "cart-line";
@@ -49,10 +49,11 @@ export function createPos(options) {
     totalElement.textContent = money(total());
     const itemCount = items();
     itemCountElement.textContent = String(itemCount);
-    if (itemCountBadge) {
-      itemCountBadge.hidden = itemCount === 0;
-      itemCountBadge.textContent = String(itemCount);
-    }
+    itemCountBadges.forEach((badge) => {
+      badge.hidden = itemCount === 0;
+      badge.textContent = String(itemCount);
+      if (bumpCartBadge && itemCount > 0) animateCartBadge(badge);
+    });
     if (chargeButton) chargeButton.textContent = t("charge", { amount: money(total()) });
   }
 
@@ -60,7 +61,7 @@ export function createPos(options) {
     const existingItem = cart.find((item) => item.id === id);
     if (existingItem) existingItem.qty += 1;
     else cart.push({ id, name, qty: 1, price, sub, tax, imageSrc, discount: 0, discountType: "amount" });
-    render({ bumpId: id });
+    render({ bumpId: id, bumpCartBadge: true });
     requestAnimationFrame(() => Array.from(cartElement.children).find((line) => line.dataset.cartItemId === String(id))?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
   }
   function changeQuantity(id, quantity) {
@@ -174,6 +175,12 @@ export function createPos(options) {
     discountPreviewAmount.textContent = money(amount);
     discountPreviewDiscount.textContent = "−" + money(deduction);
     discountPreviewTotal.textContent = money(amount - deduction);
+  }
+
+  function animateCartBadge(badge) {
+    badge.classList.remove("is-bumping");
+    void badge.offsetWidth;
+    badge.classList.add("is-bumping");
   }
   return { isEmpty: () => cart.length === 0, total, setDelivery: (value) => { delivery = value; render(); }, receipt: () => ({ number: "POS-" + String(Date.now()).slice(-6), items: cart.map(({ id, name, qty, price, sub, tax, discount }) => ({ id, name, qty, price, sub, tax, discount })), order_discount: orderDiscount, order_discount_type: orderDiscountType, delivery, sub: subTotal(), tax: taxTotal(), total: total() }), clear: () => { cart.splice(0); orderDiscount = 0; delivery = 0; render(); }, render };
 }
