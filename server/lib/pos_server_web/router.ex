@@ -44,6 +44,7 @@ defmodule PosServerWeb.Router do
     pipe_through :tenant_api
 
     get "/users", UserController, :index
+    get "/users/options", UserController, :options
     get "/users/:id", UserController, :show
     post "/users", UserController, :create
     patch "/users/:id", UserController, :update

@@ -1,6 +1,83 @@
 // Use the LAN address while testing on a physical Android device. Replace this
 // with the production HTTPS endpoint before shipping the app.
 export const API_BASE_URL = "http://10.0.0.34:4000/api";
+const rawFetch = window.fetch.bind(window);
+
+const SESSION_KEY = "educa-pos-session";
+
+export function session() {
+  try { return JSON.parse(sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY) || "null"); } catch { return null; }
+}
+
+export function saveSession(value, persistent = true) {
+  const storage = persistent ? localStorage : sessionStorage;
+  storage.setItem(SESSION_KEY, JSON.stringify(value));
+  (persistent ? sessionStorage : localStorage).removeItem(SESSION_KEY);
+}
+
+export function clearSession() {
+  localStorage.removeItem(SESSION_KEY);
+  sessionStorage.removeItem(SESSION_KEY);
+}
+
+async function apiFetch(url, options = {}) {
+  const current = session();
+  const headers = new Headers(options.headers || {});
+  if (current?.token) headers.set("Authorization", `Bearer ${current.token}`);
+  const response = await rawFetch(url, { ...options, headers });
+  if (response.status === 401 || response.status === 403) {
+    const error = new Error(response.status === 403 ? "You do not have access to this action." : "Your session has expired. Please sign in again.");
+    error.status = response.status;
+    throw error;
+  }
+  return response;
+}
+
+export async function login(identifier, password, tenant = "") {
+  const response = await fetch(`${API_BASE_URL}/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ identifier, password, tenant }) });
+  if (!response.ok) throw new Error("The username/email or password is incorrect.");
+  return response.json();
+}
+
+export async function users() {
+  const response = await apiFetch(`${API_BASE_URL}/users`);
+  if (!response.ok) throw new Error(`Could not load users: ${response.status}`);
+  return response.json();
+}
+export async function user(userId) {
+  const response = await apiFetch(`${API_BASE_URL}/users/${userId}`);
+  if (!response.ok) throw new Error(`Could not load user: ${response.status}`);
+  return response.json();
+}
+export async function createUser(attrs) {
+  const response = await apiFetch(`${API_BASE_URL}/users`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(attrs) });
+  if (!response.ok) throw new Error(`Could not save user: ${response.status}`);
+  return response.json();
+}
+export async function updateUser(userId, attrs) {
+  const response = await apiFetch(`${API_BASE_URL}/users/${userId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(attrs) });
+  if (!response.ok) throw new Error(`Could not save user: ${response.status}`);
+  return response.json();
+}
+export async function deactivateUser(userId) {
+  const response = await apiFetch(`${API_BASE_URL}/users/${userId}`, { method: "DELETE" });
+  if (!response.ok) throw new Error(`Could not deactivate user: ${response.status}`);
+  return response.json();
+}
+export async function userOptions() {
+  const response = await apiFetch(`${API_BASE_URL}/users/options`);
+  if (!response.ok) throw new Error(`Could not load assignment options: ${response.status}`);
+  return response.json();
+}
+
+// Existing POS calls share this authenticated transport. Login remains public.
+window.fetch = (url, options = {}) => {
+  if (String(url).endsWith("/login")) return rawFetch(url, options);
+  const current = session();
+  const headers = new Headers(options.headers || {});
+  if (current?.token) headers.set("Authorization", `Bearer ${current.token}`);
+  return rawFetch(url, { ...options, headers });
+};
 
 export async function health() {
   const response = await fetch(`${API_BASE_URL}/health`);

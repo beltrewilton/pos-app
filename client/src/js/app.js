@@ -1,6 +1,6 @@
 import * as printer from "./printer.js";
 import Pica from "../vendor/pica/pica.mjs";
-import { API_BASE_URL, activeProducts, addSalePayment, adjustInventory, cancelSale, createCustomer, createProduct, createProductOrder, createSale, customerPurchases, customers, inventoryQuantities, inventorySummary, pricingLists, product, productOrders, purchaseSources, receiveProductOrder, saleDetails, salesReport, setProductPrices, updateProduct } from "./api.js";
+import { API_BASE_URL, activeProducts, addSalePayment, adjustInventory, cancelSale, clearSession, createCustomer, createProduct, createProductOrder, createSale, createUser, customerPurchases, customers, deactivateUser, inventoryQuantities, inventorySummary, login, pricingLists, product, productOrders, purchaseSources, receiveProductOrder, saleDetails, salesReport, saveSession, session, setProductPrices, updateProduct, updateUser, userOptions, users } from "./api.js";
 import { createPos } from "./pos.js";
 import { formatCurrency, getLanguage, onLanguageChange, t, translateDocument } from "./i18n.js";
 import { createLanguageSwitcher } from "./language-switcher.js";
@@ -1072,6 +1072,7 @@ function openPos(event) {
   customersScreen.hidden = true;
   inventoryScreen.hidden = true;
   ordersScreen.hidden = true;
+  document.querySelector("#users-screen")?.setAttribute("hidden", "");
   checkoutFlow.hidden = true;
   startCheckoutButton.hidden = false;
   delete catalogPanel.dataset.view;
@@ -1674,3 +1675,80 @@ updateCustomerPicker();
 updatePrinterStatus();
 loadProducts();
 subscribeToInventory();
+
+// Authentication and user management share the existing tenant API and scope model.
+const loginScreen = document.querySelector("#login-screen");
+const loginForm = document.querySelector("#login-form");
+const loginError = document.querySelector("#login-error");
+const loginErrorMessage = document.querySelector("#login-error-message");
+const usersNav = document.querySelector("#users-nav");
+const userScreen = document.createElement("section");
+userScreen.id = "users-screen";
+userScreen.className = "users-screen";
+userScreen.hidden = true;
+userScreen.setAttribute("aria-labelledby", "users-title");
+catalogPanel.appendChild(userScreen);
+let managedUsers = [];
+let assignmentOptions = { stores: [], scopes: [] };
+let editingUser = null;
+
+function allowed(permission) {
+  const current = session()?.user;
+  return current?.type === "admin" || current?.scopes === "admin" || current?.scopes?.includes(permission);
+}
+function showLogin(message = "") {
+  appShell.hidden = true;
+  loginScreen.hidden = false;
+  loginError.hidden = !message;
+  loginErrorMessage.textContent = message;
+  requestAnimationFrame(() => document.querySelector("#login-identifier").focus());
+}
+function showApplication() {
+  loginScreen.hidden = true;
+  appShell.hidden = false;
+  applyAuthorization();
+}
+function applyAuthorization() {
+  const rules = { "pos-nav": "sales.pos", "sales-report-nav": "sales.view", "inventory-nav": "inventory.view", "orders-nav": "inventory.view", "users-nav": "user.view", "create-product": "product.add", "create-order": "inventory.movement.request" };
+  Object.entries(rules).forEach(([id, permission]) => { const control = document.querySelector(`#${id}`); if (control) control.hidden = !allowed(permission); });
+}
+function userName(user) { return [user.first_name, user.last_name].filter(Boolean).join(" ") || user.username; }
+function storeNames(ids) { return (ids || []).map((id) => assignmentOptions.stores.find((store) => Number(store.id) === Number(id))?.name).filter(Boolean).join(", ") || "No stores assigned"; }
+function userCheckboxes(items, selected, name, label) {
+  const fieldset = document.createElement("fieldset"); fieldset.className = "form-fieldset user-assignment";
+  const legend = document.createElement("legend"); legend.textContent = label; fieldset.appendChild(legend);
+  const group = document.createElement("div"); group.className = "form-group";
+  items.forEach((item) => { const row = document.createElement("div"); row.className = "form-field-inline"; const input = document.createElement("input"); input.type = "checkbox"; input.className = "checkbox"; input.name = name; input.value = item.id ?? item; input.id = `${name}-${input.value}`; input.checked = selected.includes(String(input.value)) || selected.includes(input.value); const inputLabel = document.createElement("label"); inputLabel.className = "label"; inputLabel.htmlFor = input.id; inputLabel.textContent = item.name || item; row.append(input, inputLabel); group.appendChild(row); }); fieldset.appendChild(group); return fieldset;
+}
+function renderUsers() {
+  userScreen.replaceChildren();
+  const header = document.createElement("header"); header.className = "users-header"; header.innerHTML = '<div><p class="eyebrow">Administration</p><h2 id="users-title" class="h3" tabindex="-1">Users</h2><p class="users-description">Manage employee access, store assignments, and permissions.</p></div>';
+  const actions = document.createElement("div"); actions.className = "users-header-actions";
+  if (allowed("user.setting")) { const add = document.createElement("button"); add.className = "btn"; add.type = "button"; add.dataset.variant = "default"; add.textContent = "Create user"; add.addEventListener("click", () => renderUserForm()); actions.appendChild(add); }
+  const back = document.createElement("button"); back.className = "btn"; back.type = "button"; back.dataset.variant = "outline"; back.textContent = "Back"; back.addEventListener("click", openPos); actions.appendChild(back); header.appendChild(actions); userScreen.appendChild(header);
+  const status = document.createElement("p"); status.className = "users-status"; status.setAttribute("role", "status"); userScreen.appendChild(status);
+  const list = document.createElement("div"); list.className = "user-list";
+  managedUsers.forEach((user) => { const card = document.createElement("article"); card.className = "card user-card"; const body = document.createElement("div"); body.className = "card-content"; const heading = document.createElement("div"); heading.className = "user-card-heading"; const title = document.createElement("h3"); title.className = "card-title"; title.textContent = userName(user); const badge = document.createElement("span"); badge.className = `user-status ${Number(user.is_active) === 1 ? "is-active" : ""}`; badge.textContent = Number(user.is_active) === 1 ? "Active" : "Inactive"; heading.append(title, badge); const meta = document.createElement("dl"); meta.className = "user-meta"; [["Username", user.username], ["Type", "Employee"], ["Stores", storeNames(user.store_ids)], ["Permissions", user.scopes?.join(", ") || "No permissions assigned"]].forEach(([term, value]) => { const row = document.createElement("div"); const dt = document.createElement("dt"); dt.textContent = term; const dd = document.createElement("dd"); dd.textContent = value; row.append(dt, dd); meta.appendChild(row); }); body.append(heading, meta); const footer = document.createElement("div"); footer.className = "card-footer"; const view = document.createElement("button"); view.className = "btn"; view.type = "button"; view.dataset.variant = "outline"; view.textContent = "View"; view.addEventListener("click", () => renderUserForm(user, true)); footer.appendChild(view); if (allowed("user.setting")) { const edit = document.createElement("button"); edit.className = "btn"; edit.type = "button"; edit.dataset.variant = "default"; edit.textContent = "Edit"; edit.addEventListener("click", () => renderUserForm(user)); footer.appendChild(edit); if (Number(user.is_active) === 1) { const deactivate = document.createElement("button"); deactivate.className = "btn"; deactivate.type = "button"; deactivate.dataset.variant = "destructive"; deactivate.textContent = "Deactivate"; deactivate.addEventListener("click", async () => { if (!confirm(`Deactivate ${userName(user)}?`)) return; try { await deactivateUser(user.id); await loadUsers(); } catch (error) { status.textContent = error.message; } }); footer.appendChild(deactivate); } } card.append(body, footer); list.appendChild(card); });
+  if (!managedUsers.length) status.textContent = "No users found."; userScreen.appendChild(list);
+}
+function renderUserForm(user = null, readOnly = false) {
+  editingUser = user; userScreen.replaceChildren();
+  const heading = document.createElement("header"); heading.className = "users-header"; heading.innerHTML = `<div><p class="eyebrow">Users</p><h2 id="users-title" class="h3" tabindex="-1">${readOnly ? "User details" : user ? "Edit user" : "Create user"}</h2></div>`; userScreen.appendChild(heading);
+  const card = document.createElement("div"); card.className = "card user-form-card"; const content = document.createElement("div"); content.className = "card-content"; const form = document.createElement("form"); form.className = "form"; form.noValidate = true;
+  [["first_name", "First name", "text", true], ["last_name", "Last name", "text", true], ["username", "Username", "text", true], ["password", user ? "New password (leave blank to keep current)" : "Password", "password", !user]].forEach(([name, label, type, required]) => { const field = document.createElement("div"); field.className = "form-field"; const input = document.createElement("input"); input.className = "input"; input.name = name; input.id = `user-${name}`; input.type = type; input.required = required; input.value = type === "password" ? "" : user?.[name] || ""; input.disabled = readOnly; const inputLabel = document.createElement("label"); inputLabel.className = "label"; inputLabel.htmlFor = input.id; inputLabel.textContent = label; field.append(inputLabel, input); form.appendChild(field); });
+  const active = document.createElement("div"); active.className = "form-field-inline"; active.innerHTML = '<input id="user-active" class="checkbox" type="checkbox" name="is_active"><label class="label" for="user-active">Active user</label>'; active.querySelector("input").checked = user ? Number(user.is_active) === 1 : true; active.querySelector("input").disabled = readOnly; form.appendChild(active);
+  form.append(userCheckboxes(assignmentOptions.stores, user?.store_ids || [], "store_ids", "Assigned stores"), userCheckboxes(assignmentOptions.scopes, user?.scopes || [], "scopes", "Permissions")); form.querySelectorAll("input").forEach((input) => { if (readOnly) input.disabled = true; });
+  const message = document.createElement("p"); message.className = "field-description"; message.role = "status"; form.appendChild(message); const footer = document.createElement("div"); footer.className = "form-actions"; const cancel = document.createElement("button"); cancel.className = "btn"; cancel.type = "button"; cancel.dataset.variant = "outline"; cancel.textContent = readOnly ? "Back" : "Cancel"; cancel.addEventListener("click", renderUsers); footer.appendChild(cancel); if (!readOnly) { const save = document.createElement("button"); save.className = "btn"; save.type = "submit"; save.dataset.variant = "default"; save.textContent = "Save user"; footer.appendChild(save); } form.appendChild(footer); form.addEventListener("submit", async (event) => { event.preventDefault(); if (!form.reportValidity()) return; const attrs = Object.fromEntries(new FormData(form)); attrs.is_active = form.elements.is_active.checked ? 1 : 0; attrs.store_ids = [...form.querySelectorAll('[name="store_ids"]:checked')].map((input) => Number(input.value)); attrs.scopes = [...form.querySelectorAll('[name="scopes"]:checked')].map((input) => input.value); if (!attrs.password) delete attrs.password; try { const save = form.querySelector('[type="submit"]'); save.disabled = true; user ? await updateUser(user.id, attrs) : await createUser(attrs); await loadUsers(); } catch (error) { message.textContent = error.message; } }); content.appendChild(form); card.appendChild(content); userScreen.appendChild(card); requestAnimationFrame(() => document.querySelector("#users-title").focus());
+}
+async function loadUsers() { try { [managedUsers, assignmentOptions] = await Promise.all([users(), userOptions()]); renderUsers(); } catch (error) { if (error.status === 403) showUnauthorized(); else { renderUsers(); userScreen.querySelector(".users-status").textContent = error.message; } } }
+function showUnauthorized() { openPos(); userScreen.hidden = false; catalogPanel.dataset.view = "unauthorized"; userScreen.innerHTML = '<div class="card unauthorized-card"><div class="card-header"><p class="eyebrow">Access restricted</p><h2 id="users-title" class="card-title">You do not have access to this screen</h2><p class="card-description">Return to an area available to your account.</p></div><div class="card-footer"><button id="unauthorized-back" class="btn" type="button" data-variant="default">Return to POS</button></div></div>'; userScreen.querySelector("#unauthorized-back").addEventListener("click", openPos); }
+function openUsers() { if (!allowed("user.view")) return showUnauthorized(); openPos(); userScreen.hidden = false; catalogPanel.dataset.view = "users"; appShell.classList.add("invoice-view"); selectSidebar("users-nav"); loadUsers(); }
+usersNav.addEventListener("click", openUsers);
+document.addEventListener("click", (event) => {
+  const protectedControl = event.target.closest("#sales-report-nav, #inventory-nav, #orders-nav, #create-product, #create-order");
+  if (!protectedControl) return;
+  const permission = { "sales-report-nav": "sales.view", "inventory-nav": "inventory.view", "orders-nav": "inventory.view", "create-product": "product.add", "create-order": "inventory.movement.request" }[protectedControl.id];
+  if (!allowed(permission)) { event.preventDefault(); event.stopImmediatePropagation(); showUnauthorized(); }
+}, true);
+loginForm.addEventListener("submit", async (event) => { event.preventDefault(); loginError.hidden = true; if (!loginForm.reportValidity()) return; const submit = document.querySelector("#login-submit"); submit.disabled = true; try { const result = await login(loginForm.elements.identifier.value.trim(), loginForm.elements.password.value, loginForm.elements.tenant.value.trim()); saveSession(result); loginForm.reset(); showApplication(); loadProducts(); } catch (error) { loginErrorMessage.textContent = error.message; loginError.hidden = false; } finally { submit.disabled = false; } });
+if (session()?.token) showApplication(); else showLogin();

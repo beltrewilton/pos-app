@@ -3,6 +3,7 @@ defmodule PosServerWeb.UserController do
   alias PosServer.Retaily.Users
 
   def index(conn, _), do: respond(conn, Users.list(conn.assigns.current_scope))
+  def options(conn, _), do: respond(conn, Users.options(conn.assigns.current_scope))
   def show(conn, %{"id" => id}), do: with_id(conn, id, &Users.get(conn.assigns.current_scope, &1))
   def create(conn, params), do: respond(conn |> put_status(:created), Users.create(conn.assigns.current_scope, params))
   def update(conn, %{"id" => id} = params), do: with_id(conn, id, &Users.update(conn.assigns.current_scope, &1, Map.drop(params, ["id"])))

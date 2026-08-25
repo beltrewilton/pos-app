@@ -22,6 +22,14 @@ defmodule PosServer.Retaily.Users do
 
   def create(scope, attrs), do: save(scope, %User{}, attrs, :create)
 
+  def options(scope) do
+    with :ok <- authorize(scope, "user.view") do
+      stores = Repo.all(from(store in Store, order_by: [asc: store.name], select: %{id: store.id, name: store.name}), prefix: scope.tenant)
+      scopes = Repo.all(from(scope_item in ScopeList, order_by: [asc: scope_item.name], select: scope_item.name), prefix: scope.tenant)
+      {:ok, %{stores: stores, scopes: scopes}}
+    end
+  end
+
   def update(scope, id, attrs), do: update_user(scope, id, attrs)
 
   def deactivate(scope, id), do: update_user(scope, id, %{"is_active" => 0})
