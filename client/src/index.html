@@ -25,6 +25,7 @@
     <link rel="stylesheet" href="./vendor/ui/components/table/table.css" />
     <link rel="stylesheet" href="./vendor/ui/components/select/select.css" />
     <link rel="stylesheet" href="./css/app.css" />
+    <link rel="stylesheet" href="./css/login.css" />
   </head>
   <body>
     <svg class="navigation-icon-sprite" aria-hidden="true" focusable="false">
@@ -314,7 +315,12 @@
       <button id="mobile-cart-backdrop" class="mobile-cart-backdrop" type="button" tabindex="-1" aria-label="Close sale"></button>
     </main>
     <section id="login-screen" class="login-screen" aria-labelledby="login-title" hidden>
-      <aside class="login-aside" aria-hidden="true"></aside>
+      <div class="login-effects" aria-hidden="true">
+        <i class="login-travel-layer login-travel-layer-far"></i>
+        <i class="login-travel-layer login-travel-layer-mid"></i>
+        <i class="login-travel-layer login-travel-layer-near"></i>
+        <i class="login-travel-flyby"></i>
+      </div>
       <div class="login-panel">
         <div class="card login-card">
           <div class="card-header"><h1 id="login-title" class="card-title" data-i18n="auth.login">Sign in</h1><p class="card-description" data-i18n="auth.helper">Use your username or email and password to continue.</p></div>

@@ -13,21 +13,6 @@ body {
   margin: 0;
   min-width: 320px;
 }
-.login-screen {
-  min-height: 100dvh;
-  display: grid;
-  grid-template-columns: minmax(280px, 0.9fr) minmax(420px, 1.1fr);
-  background: var(--background);
-}
-.login-aside { border-right: 1px solid var(--border); background: var(--muted); }
-.login-panel { display: grid; place-items: center; overflow: auto; padding: max(32px, env(safe-area-inset-top)) 32px max(32px, env(safe-area-inset-bottom)); }
-.login-card { width: min(100%, 23rem); box-shadow: none; }
-.login-card .card-header { gap: 8px; }
-.login-card .card-content { padding-top: 0; }
-.login-submit { width: 100%; }
-.login-card .form { gap: 1rem; }
-.login-error { padding: 10px 12px; }
-.login-error .alert-description { font-size: 0.8125rem; }
 .users-screen { padding: 10px 0 28px; }
 .application-screen { grid-column: 2 / -1; grid-row: 2; min-width: 0; min-height: 0; padding: 0 clamp(12px, 2vw, 28px) 28px; overflow: auto; background: #f6f7f8; }
 .pos-shell.users-view { grid-template-columns: 60px minmax(0, 1fr); }
@@ -2297,12 +2282,6 @@ button {
 
 @media (max-width: 640px) {
   body { min-width: 0; }
-  .login-screen { display: block; min-height: 100dvh; }
-  .login-aside { display: none; }
-  .login-panel { min-height: 100dvh; padding: max(20px, env(safe-area-inset-top)) 16px max(20px, env(safe-area-inset-bottom)); }
-  .login-card { width: 100%; }
-  .login-card .card-header, .login-card .card-content { padding-inline: 18px; }
-  .login-card .input, .login-submit { min-height: 2.75rem; }
   .users-screen { padding: 0 0 calc(20px + env(safe-area-inset-bottom)); }
   .users-header { flex-wrap: wrap; align-items: center; padding: 12px 0; }
   .users-header-actions { width: 100%; }
