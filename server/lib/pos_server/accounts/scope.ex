@@ -6,7 +6,7 @@ defmodule PosServer.Accounts.Scope do
 
   alias PosServer.Accounts.User
 
-  defstruct user: nil, store_id: nil, tenant: nil, actor: nil, actor_id: nil, login: nil, store_ids: [], scopes: []
+  defstruct user: nil, store_id: nil, tenant: nil, actor: nil, actor_id: nil, login: nil, pic: nil, store_ids: [], scopes: []
 
   @doc "Creates a scope for an authenticated user; returns nil when absent."
   def for_user(%User{} = user), do: for_user(user, [])

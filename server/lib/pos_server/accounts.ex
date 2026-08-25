@@ -37,7 +37,8 @@ defmodule PosServer.Accounts do
     end
   end
 
-  def change_user_token(%UserToken{} = user_token, attrs \\ %{}), do: UserToken.changeset(user_token, attrs)
+  def change_user_token(%UserToken{} = user_token, attrs \\ %{}),
+    do: UserToken.changeset(user_token, attrs)
 
   def create_user_token(attrs) do
     attrs =

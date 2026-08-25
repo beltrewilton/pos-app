@@ -33,8 +33,8 @@ async function apiFetch(url, options = {}) {
   return response;
 }
 
-export async function login(identifier, password, tenant = "") {
-  const response = await fetch(`${API_BASE_URL}/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ identifier, password, tenant }) });
+export async function login(identifier, password) {
+  const response = await fetch(`${API_BASE_URL}/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ identifier, password }) });
   if (!response.ok) throw new Error("The username/email or password is incorrect.");
   return response.json();
 }

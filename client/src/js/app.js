@@ -55,6 +55,7 @@ const mobileNavigationClose = document.querySelector("#mobile-navigation-close")
 let mobileNavigationTrigger = null;
 let mobileNavigationRestoreFocus = true;
 const languageSwitcher = createLanguageSwitcher(document.querySelector("#language-switcher"));
+const userMenus = document.querySelectorAll(".user-menu");
 const storeId = 2;
 const imageResizer = new Pica();
 const MAX_PRODUCT_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -398,6 +399,7 @@ async function loadCustomers() {
 
 let customerReturn = "pos";
 function openCustomers(returnTo = "pos") {
+  closeUsersPage();
   customerReturn = returnTo;
   catalogPanel.dataset.view = "customers";
   customersScreen.hidden = false;
@@ -796,6 +798,7 @@ async function loadInvoices({ reset = false } = {}) {
 }
 
 function openInvoiceReport() {
+  closeUsersPage();
   customersScreen.hidden = true;
   checkoutFlow.hidden = true;
   catalogPanel.dataset.view = "invoices";
@@ -1059,7 +1062,7 @@ function selectSidebar(id) {
     if (link.id === id) link.setAttribute("aria-current", "page");
     else link.removeAttribute("aria-current");
   });
-  const targetById = { "pos-nav": "pos", "sales-report-nav": "sales", "inventory-nav": "inventory", "orders-nav": "orders", "customers-nav": "customers", "settings-nav": "settings" };
+  const targetById = { "pos-nav": "pos", "sales-report-nav": "sales", "inventory-nav": "inventory", "orders-nav": "orders", "users-nav": "users", "customers-nav": "customers", "settings-nav": "settings" };
   const target = targetById[id];
   document.querySelectorAll(".mobile-navigation-link[data-navigation-target]").forEach((link) => {
     link.toggleAttribute("aria-current", link.dataset.navigationTarget === target);
@@ -1068,11 +1071,11 @@ function selectSidebar(id) {
 
 function openPos(event) {
   event?.preventDefault();
+  closeUsersPage();
   invoiceReport.hidden = true;
   customersScreen.hidden = true;
   inventoryScreen.hidden = true;
   ordersScreen.hidden = true;
-  document.querySelector("#users-screen")?.setAttribute("hidden", "");
   checkoutFlow.hidden = true;
   startCheckoutButton.hidden = false;
   delete catalogPanel.dataset.view;
@@ -1235,6 +1238,7 @@ document.querySelectorAll(".mobile-navigation-link[data-navigation-target]").for
       sales: openInvoiceReport,
       inventory: openInventory,
       orders: openOrders,
+      users: openUsers,
       settings: openSettings,
     };
     closeMobileNavigation({ restoreFocus: false });
@@ -1682,21 +1686,18 @@ const loginForm = document.querySelector("#login-form");
 const loginError = document.querySelector("#login-error");
 const loginErrorMessage = document.querySelector("#login-error-message");
 const usersNav = document.querySelector("#users-nav");
-const userScreen = document.createElement("section");
-userScreen.id = "users-screen";
-userScreen.className = "users-screen";
-userScreen.hidden = true;
-userScreen.setAttribute("aria-labelledby", "users-title");
-catalogPanel.appendChild(userScreen);
+const userScreen = document.querySelector("#users-screen");
 let managedUsers = [];
 let assignmentOptions = { stores: [], scopes: [] };
 let editingUser = null;
+let userFilter = "";
 
 function allowed(permission) {
   const current = session()?.user;
   return current?.type === "admin" || current?.scopes === "admin" || current?.scopes?.includes(permission);
 }
 function showLogin(message = "") {
+  userMenus.forEach((menu) => { menu.open = false; });
   appShell.hidden = true;
   loginScreen.hidden = false;
   loginError.hidden = !message;
@@ -1706,10 +1707,47 @@ function showLogin(message = "") {
 function showApplication() {
   loginScreen.hidden = true;
   appShell.hidden = false;
+  syncUserMenu();
   applyAuthorization();
 }
+function currentUserIdentity() {
+  const current = session()?.user || {};
+  const login = current.login || current.username || current.email || "User";
+  const name = current.name || [current.first_name, current.last_name].filter(Boolean).join(" ") || login;
+  return { name, login, pic: current.pic, initials: name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "U" };
+}
+function avatarSource(pic) {
+  if (!pic || typeof pic !== "string") return "";
+  if (pic.startsWith("data:image/")) return pic;
+  const mime = pic.startsWith("iVBOR") ? "image/png" : pic.startsWith("R0lGOD") ? "image/gif" : pic.startsWith("UklGR") ? "image/webp" : "image/jpeg";
+  return `data:${mime};base64,${pic.replace(/\s/g, "")}`;
+}
+function syncUserMenu() {
+  const { name, login, pic, initials } = currentUserIdentity();
+  document.querySelectorAll("[data-user-name]").forEach((element) => { element.textContent = name; });
+  document.querySelectorAll("[data-user-login]").forEach((element) => { element.textContent = login; });
+  document.querySelectorAll("[data-user-initials]").forEach((element) => { element.textContent = initials; });
+  document.querySelectorAll("[data-avatar-image]").forEach((image) => {
+    const source = avatarSource(pic);
+    const fallback = image.nextElementSibling;
+    image.hidden = !source;
+    fallback.hidden = Boolean(source);
+    image.src = source;
+    image.onerror = () => { image.hidden = true; fallback.hidden = false; };
+  });
+  document.querySelectorAll(".avatar-trigger").forEach((element) => { element.setAttribute("aria-label", `Open menu for ${name}`); });
+}
+function logout() {
+  clearSession();
+  closeMobileNavigation({ restoreFocus: false });
+  showLogin();
+}
+document.querySelectorAll("[data-logout]").forEach((button) => button.addEventListener("click", logout));
+document.addEventListener("click", (event) => {
+  userMenus.forEach((menu) => { if (menu.open && !menu.contains(event.target)) menu.open = false; });
+});
 function applyAuthorization() {
-  const rules = { "pos-nav": "sales.pos", "sales-report-nav": "sales.view", "inventory-nav": "inventory.view", "orders-nav": "inventory.view", "users-nav": "user.view", "create-product": "product.add", "create-order": "inventory.movement.request" };
+  const rules = { "pos-nav": "sales.pos", "sales-report-nav": "sales.view", "inventory-nav": "inventory.view", "orders-nav": "inventory.view", "users-nav": "user.view", "mobile-users-nav": "user.view", "create-product": "product.add", "create-order": "inventory.movement.request" };
   Object.entries(rules).forEach(([id, permission]) => { const control = document.querySelector(`#${id}`); if (control) control.hidden = !allowed(permission); });
 }
 function userName(user) { return [user.first_name, user.last_name].filter(Boolean).join(" ") || user.username; }
@@ -1723,13 +1761,14 @@ function userCheckboxes(items, selected, name, label) {
 function renderUsers() {
   editingUser = null;
   userScreen.replaceChildren();
-  const header = document.createElement("header"); header.className = "users-header"; header.innerHTML = `<div><p class="eyebrow">Administration</p><h2 id="users-title" class="h3" tabindex="-1">${t("user.users")}</h2><p class="users-description">${t("user.manageDescription")}</p></div>`;
+  const header = document.createElement("header"); header.className = "topbar users-header"; header.innerHTML = `<div><h1 id="users-title" class="h3" tabindex="-1">${t("user.users")}</h1></div>`;
   const actions = document.createElement("div"); actions.className = "users-header-actions";
+  const filter = document.createElement("input"); filter.className = "input users-search"; filter.type = "search"; filter.placeholder = "Search users"; filter.setAttribute("aria-label", "Search users"); filter.value = userFilter; filter.addEventListener("input", () => { userFilter = filter.value.trim().toLowerCase(); renderUsers(); }); actions.appendChild(filter);
   if (allowed("user.setting")) { const add = document.createElement("button"); add.className = "btn"; add.type = "button"; add.dataset.variant = "default"; add.textContent = t("user.create"); add.addEventListener("click", () => renderUserForm()); actions.appendChild(add); }
-  const back = document.createElement("button"); back.className = "btn"; back.type = "button"; back.dataset.variant = "outline"; back.textContent = t("action.back"); back.addEventListener("click", openPos); actions.appendChild(back); header.appendChild(actions); userScreen.appendChild(header);
+  header.appendChild(actions); userScreen.appendChild(header);
   const status = document.createElement("p"); status.className = "users-status"; status.setAttribute("role", "status"); userScreen.appendChild(status);
   const list = document.createElement("div"); list.className = "user-list";
-  managedUsers.forEach((user) => { const card = document.createElement("article"); card.className = "card user-card"; const body = document.createElement("div"); body.className = "card-content"; const heading = document.createElement("div"); heading.className = "user-card-heading"; const title = document.createElement("h3"); title.className = "card-title"; title.textContent = userName(user); const badge = document.createElement("span"); badge.className = `user-status ${Number(user.is_active) === 1 ? "is-active" : ""}`; badge.textContent = Number(user.is_active) === 1 ? "Active" : "Inactive"; heading.append(title, badge); const meta = document.createElement("dl"); meta.className = "user-meta"; [["Username", user.username], ["Type", "Employee"], ["Stores", storeNames(user.store_ids)], ["Permissions", user.scopes?.join(", ") || "No permissions assigned"]].forEach(([term, value]) => { const row = document.createElement("div"); const dt = document.createElement("dt"); dt.textContent = term; const dd = document.createElement("dd"); dd.textContent = value; row.append(dt, dd); meta.appendChild(row); }); body.append(heading, meta); const footer = document.createElement("div"); footer.className = "card-footer"; const view = document.createElement("button"); view.className = "btn"; view.type = "button"; view.dataset.variant = "outline"; view.textContent = "View"; view.addEventListener("click", () => renderUserForm(user, true)); footer.appendChild(view); if (allowed("user.setting")) { const edit = document.createElement("button"); edit.className = "btn"; edit.type = "button"; edit.dataset.variant = "default"; edit.textContent = "Edit"; edit.addEventListener("click", () => renderUserForm(user)); footer.appendChild(edit); if (Number(user.is_active) === 1) { const deactivate = document.createElement("button"); deactivate.className = "btn"; deactivate.type = "button"; deactivate.dataset.variant = "destructive"; deactivate.textContent = "Deactivate"; deactivate.addEventListener("click", async () => { if (!confirm(`Deactivate ${userName(user)}?`)) return; try { await deactivateUser(user.id); await loadUsers(); } catch (error) { status.textContent = error.message; } }); footer.appendChild(deactivate); } } card.append(body, footer); list.appendChild(card); });
+  managedUsers.filter((user) => `${userName(user)} ${user.username || ""} ${(user.scopes || []).join(" ")}`.toLowerCase().includes(userFilter)).forEach((user) => { const card = document.createElement("article"); card.className = "card user-card"; const body = document.createElement("div"); body.className = "card-content"; const heading = document.createElement("div"); heading.className = "user-card-heading"; const title = document.createElement("h3"); title.className = "card-title"; title.textContent = userName(user); const badge = document.createElement("span"); badge.className = `user-status ${Number(user.is_active) === 1 ? "is-active" : ""}`; badge.textContent = Number(user.is_active) === 1 ? "Active" : "Inactive"; heading.append(title, badge); const meta = document.createElement("dl"); meta.className = "user-meta"; [["Username", user.username], ["Type", "Employee"], ["Stores", storeNames(user.store_ids)], ["Permissions", user.scopes?.join(", ") || "No permissions assigned"]].forEach(([term, value]) => { const row = document.createElement("div"); const dt = document.createElement("dt"); dt.textContent = term; const dd = document.createElement("dd"); dd.textContent = value; row.append(dt, dd); meta.appendChild(row); }); body.append(heading, meta); const footer = document.createElement("div"); footer.className = "card-footer"; const view = document.createElement("button"); view.className = "btn"; view.type = "button"; view.dataset.variant = "outline"; view.textContent = "View"; view.addEventListener("click", () => renderUserForm(user, true)); footer.appendChild(view); if (allowed("user.setting")) { const edit = document.createElement("button"); edit.className = "btn"; edit.type = "button"; edit.dataset.variant = "default"; edit.textContent = "Edit"; edit.addEventListener("click", () => renderUserForm(user)); footer.appendChild(edit); if (Number(user.is_active) === 1) { const deactivate = document.createElement("button"); deactivate.className = "btn"; deactivate.type = "button"; deactivate.dataset.variant = "destructive"; deactivate.textContent = "Deactivate"; deactivate.addEventListener("click", async () => { if (!confirm(`Deactivate ${userName(user)}?`)) return; try { await deactivateUser(user.id); await loadUsers(); } catch (error) { status.textContent = error.message; } }); footer.appendChild(deactivate); } } card.append(body, footer); list.appendChild(card); });
   if (!managedUsers.length) status.textContent = t("user.noUsers"); userScreen.appendChild(list); translateDocument(userScreen);
 }
 function renderUserForm(user = null, readOnly = false) {
@@ -1742,15 +1781,36 @@ function renderUserForm(user = null, readOnly = false) {
   const message = document.createElement("p"); message.className = "field-description"; message.role = "status"; form.appendChild(message); const footer = document.createElement("div"); footer.className = "form-actions"; const cancel = document.createElement("button"); cancel.className = "btn"; cancel.type = "button"; cancel.dataset.variant = "outline"; cancel.textContent = readOnly ? t("action.back") : t("action.cancel"); cancel.addEventListener("click", renderUsers); footer.appendChild(cancel); if (!readOnly) { const save = document.createElement("button"); save.className = "btn"; save.type = "submit"; save.dataset.variant = "default"; save.textContent = t("user.save"); footer.appendChild(save); } form.appendChild(footer); form.addEventListener("submit", async (event) => { event.preventDefault(); if (!form.reportValidity()) return; const attrs = Object.fromEntries(new FormData(form)); attrs.is_active = form.elements.is_active.checked ? 1 : 0; attrs.store_ids = [...form.querySelectorAll('[name="store_ids"]:checked')].map((input) => Number(input.value)); attrs.scopes = [...form.querySelectorAll('[name="scopes"]:checked')].map((input) => input.value); if (!attrs.password) delete attrs.password; try { const save = form.querySelector('[type="submit"]'); save.disabled = true; user ? await updateUser(user.id, attrs) : await createUser(attrs); await loadUsers(); } catch (error) { message.textContent = error.message; } }); content.appendChild(form); card.appendChild(content); userScreen.appendChild(card); translateDocument(userScreen); requestAnimationFrame(() => document.querySelector("#users-title").focus());
 }
 async function loadUsers() { try { [managedUsers, assignmentOptions] = await Promise.all([users(), userOptions()]); renderUsers(); } catch (error) { if (error.status === 403) showUnauthorized(); else { renderUsers(); userScreen.querySelector(".users-status").textContent = error.message; } } }
-function showUnauthorized() { openPos(); userScreen.hidden = false; catalogPanel.dataset.view = "unauthorized"; userScreen.innerHTML = `<div class="card unauthorized-card"><div class="card-header"><p class="eyebrow">${t("unauthorized.accessDenied")}</p><h2 id="users-title" class="card-title">${t("unauthorized.message")}</h2><p class="card-description">${t("unauthorized.description")}</p></div><div class="card-footer"><button id="unauthorized-back" class="btn" type="button" data-variant="default">${t("unauthorized.goBack")}</button></div></div>`; userScreen.querySelector("#unauthorized-back").addEventListener("click", openPos); }
-function openUsers() { if (!allowed("user.view")) return showUnauthorized(); openPos(); userScreen.hidden = false; catalogPanel.dataset.view = "users"; appShell.classList.add("invoice-view"); selectSidebar("users-nav"); loadUsers(); }
+function closeUsersPage() {
+  appShell.classList.remove("users-view");
+  userScreen.hidden = true;
+  if (location.hash === "#/users") history.replaceState(null, "", `${location.pathname}${location.search}#/pos`);
+}
+function showUnauthorized() { userScreen.hidden = false; appShell.classList.add("users-view"); userScreen.innerHTML = `<div class="card unauthorized-card"><div class="card-header"><p class="eyebrow">${t("unauthorized.accessDenied")}</p><h1 id="users-title" class="card-title">${t("unauthorized.message")}</h1><p class="card-description">${t("unauthorized.description")}</p></div></div>`; }
+function renderUsersRoute() {
+  if (!allowed("user.view")) return showUnauthorized();
+  appShell.classList.remove("invoice-view");
+  appShell.classList.add("users-view");
+  userScreen.hidden = false;
+  selectSidebar("users-nav");
+  loadUsers();
+}
+function openUsers() {
+  if (location.hash !== "#/users") { location.hash = "/users"; return; }
+  renderUsersRoute();
+}
+function handleRoute() {
+  if (location.hash === "#/users") renderUsersRoute();
+  else openPos();
+}
 usersNav.addEventListener("click", openUsers);
+window.addEventListener("hashchange", handleRoute);
 document.addEventListener("click", (event) => {
   const protectedControl = event.target.closest("#sales-report-nav, #inventory-nav, #orders-nav, #create-product, #create-order");
   if (!protectedControl) return;
   const permission = { "sales-report-nav": "sales.view", "inventory-nav": "inventory.view", "orders-nav": "inventory.view", "create-product": "product.add", "create-order": "inventory.movement.request" }[protectedControl.id];
   if (!allowed(permission)) { event.preventDefault(); event.stopImmediatePropagation(); showUnauthorized(); }
 }, true);
-loginForm.addEventListener("submit", async (event) => { event.preventDefault(); loginError.hidden = true; if (!loginForm.reportValidity()) return; const submit = document.querySelector("#login-submit"); submit.disabled = true; try { const result = await login(loginForm.elements.identifier.value.trim(), loginForm.elements.password.value, loginForm.elements.tenant.value.trim()); saveSession(result); loginForm.reset(); showApplication(); loadProducts(); } catch (error) { loginErrorMessage.textContent = t("auth.invalidCredentials"); loginError.hidden = false; } finally { submit.disabled = false; } });
+loginForm.addEventListener("submit", async (event) => { event.preventDefault(); loginError.hidden = true; if (!loginForm.reportValidity()) return; const submit = document.querySelector("#login-submit"); submit.disabled = true; try { const result = await login(loginForm.elements.identifier.value.trim(), loginForm.elements.password.value); saveSession(result); loginForm.reset(); showApplication(); loadProducts(); } catch (error) { loginErrorMessage.textContent = t("auth.invalidCredentials"); loginError.hidden = false; } finally { submit.disabled = false; } });
 onLanguageChange(() => { if (!userScreen.hidden) editingUser ? renderUserForm(editingUser) : renderUsers(); });
-if (session()?.token) showApplication(); else showLogin();
+if (session()?.token) { showApplication(); handleRoute(); } else showLogin();

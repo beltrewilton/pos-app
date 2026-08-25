@@ -35,7 +35,7 @@
       <symbol id="nav-icon-orders" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l3 3v17H6z"/><path d="M15 2v4h4M9 12h6M9 16h6"/></symbol>
       <symbol id="nav-icon-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.12 2.12-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.55V20h-3v-.09A1.7 1.7 0 0 0 10.68 18.36a1.7 1.7 0 0 0-1.88.34l-.06.06-2.12-2.12.06-.06A1.7 1.7 0 0 0 7.02 14.7 1.7 1.7 0 0 0 5.47 13.67H5.4v-3h.07A1.7 1.7 0 0 0 7.02 9.64a1.7 1.7 0 0 0-.34-1.88l-.06-.06L8.74 5.6l.06.06a1.7 1.7 0 0 0 1.88.34 1.7 1.7 0 0 0 1.03-1.55V4.4h3v.05a1.7 1.7 0 0 0 1.03 1.55 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.12 2.12-.06.06a1.7 1.7 0 0 0-.34 1.88 1.7 1.7 0 0 0 1.55 1.03H21v3h-.05A1.7 1.7 0 0 0 19.4 15Z"/></symbol>
     </svg>
-    <main class="pos-shell" id="app-shell">
+    <main class="pos-shell" id="app-shell" hidden>
       <nav class="sidebar-rail" aria-label="Primary navigation" data-i18n-aria-label="nav.primary">
         <a id="pos-nav" class="sidebar-link" href="#" aria-current="page" aria-label="POS"><svg aria-hidden="true"><use href="#nav-icon-pos"/></svg></a>
         <button
@@ -60,6 +60,23 @@
           <span id="mobile-cart-count" class="mobile-cart-count" aria-live="polite" hidden>0</span>
           <span>Sale</span>
         </button>
+        <details class="user-menu sidebar-user-menu">
+          <summary class="avatar avatar-trigger" aria-label="Open user menu">
+            <img class="avatar-image" data-avatar-image alt="" hidden />
+            <span class="avatar-fallback" data-user-initials>U</span>
+          </summary>
+          <div class="user-menu-content" role="group" aria-label="User menu">
+            <div class="user-menu-identity">
+              <span class="avatar avatar-sm" aria-hidden="true"><img class="avatar-image" data-avatar-image alt="" hidden /><span class="avatar-fallback" data-user-initials>U</span></span>
+              <span><strong data-user-name>User</strong><small data-user-login>Account</small></span>
+            </div>
+            <hr class="separator" />
+            <button class="user-menu-action" type="button" data-logout>
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M21 19V5a2 2 0 0 0-2-2h-6"/></svg>
+              Logout
+            </button>
+          </div>
+        </details>
       </nav>
       <div class="status-strip" aria-label="System status" data-i18n-aria-label="status.system">
         <img
@@ -290,18 +307,21 @@
           <p id="print-status" class="print-status" role="status"></p>
         </footer>
       </aside>
+      <section id="users-screen" class="users-screen application-screen" aria-labelledby="users-title" hidden></section>
       <button id="mobile-cart-backdrop" class="mobile-cart-backdrop" type="button" tabindex="-1" aria-label="Close sale"></button>
     </main>
     <section id="login-screen" class="login-screen" aria-labelledby="login-title" hidden>
-      <div class="card login-card">
-        <div class="card-header"><p class="eyebrow">Educa retail</p><h1 id="login-title" class="card-title" data-i18n="auth.login">Sign in</h1><p class="card-description">Use your administrator email or employee username.</p></div>
-        <div class="card-content"><form id="login-form" class="form" novalidate>
-          <div id="login-error" class="alert" data-variant="destructive" role="alert" hidden><div class="alert-content"><h5 class="alert-title" data-i18n="auth.unableToSignIn">Unable to sign in</h5><p id="login-error-message" class="alert-description"></p></div></div>
-          <div class="form-field"><label class="label" for="login-identifier" data-i18n="auth.identifier">Username or email</label><input id="login-identifier" class="input" name="identifier" autocomplete="username" required autofocus /></div>
-          <div class="form-field"><label class="label" for="login-password" data-i18n="auth.password">Password</label><input id="login-password" class="input" name="password" type="password" autocomplete="current-password" required /></div>
-          <div class="form-field"><label class="label" for="login-tenant"><span data-i18n="auth.tenant">Tenant</span> <span class="label-hint" data-i18n="auth.employeeOnly">(employees only)</span></label><input id="login-tenant" class="input" name="tenant" autocomplete="organization" placeholder="your_store" /></div>
-          <div class="form-actions"><button id="login-submit" class="btn login-submit" type="submit" data-variant="default" data-i18n="auth.login">Sign in</button></div>
-        </form></div>
+      <aside class="login-aside" aria-hidden="true"></aside>
+      <div class="login-panel">
+        <div class="card login-card">
+          <div class="card-header"><h1 id="login-title" class="card-title" data-i18n="auth.login">Sign in</h1><p class="card-description" data-i18n="auth.helper">Use your username or email and password to continue.</p></div>
+          <div class="card-content"><form id="login-form" class="form" novalidate>
+            <div id="login-error" class="alert login-error" data-variant="destructive" role="alert" hidden><div class="alert-content"><p id="login-error-message" class="alert-description"></p></div></div>
+            <div class="form-field"><label class="label" for="login-identifier" data-i18n="auth.identifier">Username or email</label><input id="login-identifier" class="input" name="identifier" autocomplete="username" required autofocus /></div>
+            <div class="form-field"><label class="label" for="login-password" data-i18n="auth.password">Password</label><input id="login-password" class="input" name="password" type="password" autocomplete="current-password" required /></div>
+            <div class="form-actions"><button id="login-submit" class="btn login-submit" type="submit" data-variant="default" data-i18n="auth.login">Sign in</button></div>
+          </form></div>
+        </div>
       </div>
     </section>
     <dialog id="inventory-dialog" class="dialog" data-size="sm" role="dialog" aria-modal="true" aria-labelledby="inventory-dialog-title"><div class="dialog-content"><div class="dialog-header"><h2 id="inventory-dialog-title" class="dialog-title">Update inventory</h2><p class="dialog-description">Add stock to one product at the selected store.</p></div><form id="inventory-form" class="form dialog-body"><div class="form-field"><label class="label" for="inventory-product">Product</label><select id="inventory-product" class="select" required></select></div><div class="form-field"><label class="label" for="inventory-form-store">Store</label><select id="inventory-form-store" class="select" required><option value="2">Current store</option></select></div><div class="form-field"><label class="label" for="inventory-current">Current quantity</label><input id="inventory-current" class="input" readonly /></div><div class="form-field"><label class="label" for="inventory-quantity">Quantity to add</label><input id="inventory-quantity" class="input" type="number" required /></div><p id="inventory-form-status" class="field-description" role="status"></p><div class="dialog-footer"><button class="btn" type="button" data-variant="outline" data-dialog-close>Cancel</button><button class="btn" type="submit" data-variant="default">Save</button></div></form></div></dialog>
@@ -494,11 +514,29 @@
           <button class="mobile-navigation-link" type="button" data-navigation-target="sales"><svg aria-hidden="true"><use href="#nav-icon-sales"/></svg><span>Invoice report</span></button>
           <button class="mobile-navigation-link" type="button" data-navigation-target="inventory"><svg aria-hidden="true"><use href="#nav-icon-inventory"/></svg><span>Inventory</span></button>
           <button class="mobile-navigation-link" type="button" data-navigation-target="orders"><svg aria-hidden="true"><use href="#nav-icon-orders"/></svg><span>Purchase orders</span></button>
+          <button id="mobile-users-nav" class="mobile-navigation-link" type="button" data-navigation-target="users" hidden><svg aria-hidden="true"><use href="#nav-icon-customers"/></svg><span>Users</span></button>
         </nav>
         <div class="mobile-navigation-secondary">
           <p class="eyebrow">Preferences</p>
           <button class="mobile-navigation-link" type="button" data-navigation-target="settings"><svg aria-hidden="true"><use href="#nav-icon-settings"/></svg><span>Settings</span></button>
         </div>
+        <details class="user-menu mobile-user-menu">
+          <summary class="avatar avatar-trigger" aria-label="Open user menu">
+            <img class="avatar-image" data-avatar-image alt="" hidden />
+            <span class="avatar-fallback" data-user-initials>U</span>
+          </summary>
+          <div class="user-menu-content" role="group" aria-label="User menu">
+            <div class="user-menu-identity">
+              <span class="avatar avatar-sm" aria-hidden="true"><img class="avatar-image" data-avatar-image alt="" hidden /><span class="avatar-fallback" data-user-initials>U</span></span>
+              <span><strong data-user-name>User</strong><small data-user-login>Account</small></span>
+            </div>
+            <hr class="separator" />
+            <button class="user-menu-action" type="button" data-logout>
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M21 19V5a2 2 0 0 0-2-2h-6"/></svg>
+              Logout
+            </button>
+          </div>
+        </details>
         <footer class="mobile-navigation-footer"><span class="mobile-status-dot" aria-hidden="true"></span><span>System status available</span></footer>
       </div>
     </dialog>

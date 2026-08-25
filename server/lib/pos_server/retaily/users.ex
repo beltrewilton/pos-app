@@ -2,6 +2,8 @@ defmodule PosServer.Retaily.User do
   use Ecto.Schema
   import Ecto.Changeset
 
+  alias PosServer.Password
+
   schema "app_users" do
     field :username, :string
     field :password, :string
@@ -43,7 +45,7 @@ defmodule PosServer.Retaily.User do
   defp hash_password(changeset) do
     case get_change(changeset, :password) do
       nil -> changeset
-      password -> put_change(changeset, :password, Bcrypt.hash_pwd_salt(password))
+      password -> put_change(changeset, :password, Password.hash(password))
     end
   end
 end

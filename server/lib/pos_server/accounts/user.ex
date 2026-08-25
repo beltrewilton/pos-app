@@ -3,6 +3,8 @@ defmodule PosServer.Accounts.User do
 
   import Ecto.Changeset
 
+  alias PosServer.Password
+
   @primary_key {:id, :binary_id, autogenerate: true}
 
   schema "users" do
@@ -37,7 +39,7 @@ defmodule PosServer.Accounts.User do
 
         password ->
           changeset
-          |> put_change(:hashed_password, Bcrypt.hash_pwd_salt(password))
+          |> put_change(:hashed_password, Password.hash(password))
           |> delete_change(:password)
       end
     else

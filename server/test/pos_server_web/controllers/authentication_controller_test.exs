@@ -1,7 +1,7 @@
 defmodule PosServerWeb.AuthenticationControllerTest do
   use PosServerWeb.ConnCase, async: false
 
-  alias PosServer.{Accounts, Authentication, Repo}
+  alias PosServer.{Accounts, Authentication, Password, Repo}
   alias PosServer.Accounts.Scope
   alias PosServer.Retaily.Scope, as: EmployeeScope
   alias PosServer.Retaily.{Store, User, UserStore, Users}
@@ -49,10 +49,20 @@ defmodule PosServerWeb.AuthenticationControllerTest do
     assert is_binary(response["token"])
   end
 
-  test "logs in an employee and returns only assigned stores and scopes", %{employee: employee, store: store} do
+  test "verifies Retaily bcrypt hashes" do
+    assert Password.verify(
+             "secret",
+             "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW"
+           )
+  end
+
+  test "logs in an employee and returns only assigned stores and scopes", %{
+    employee: employee,
+    store: store
+  } do
     response =
       build_conn()
-      |> post(~p"/api/login", %{identifier: employee.username, password: "employee-test-password", tenant: @tenant})
+      |> post(~p"/api/login", %{identifier: employee.username, password: "employee-test-password"})
       |> json_response(:ok)
 
     assert response["user"]["type"] == "employee"
@@ -60,24 +70,38 @@ defmodule PosServerWeb.AuthenticationControllerTest do
     assert Enum.sort(response["user"]["scopes"]) == ["sales.view", "user.view"]
   end
 
-  test "does not authenticate an employee without a tenant", %{employee: employee} do
+  test "does not use a tenant supplied by the client", %{employee: employee} do
     response =
       build_conn()
-      |> post(~p"/api/login", %{identifier: employee.username, password: "employee-test-password"})
-      |> json_response(:unauthorized)
+      |> post(~p"/api/login", %{
+        identifier: employee.username,
+        password: "employee-test-password",
+        tenant: "wrong_tenant"
+      })
+      |> json_response(:ok)
 
-    assert response == %{"error" => "invalid credentials"}
+    assert response["user"]["type"] == "employee"
   end
 
   test "invalidates an employee session when the employee is deactivated", %{employee: employee} do
-    {:ok, token, _scope} = Authentication.login(%{"identifier" => employee.username, "password" => "employee-test-password", "tenant" => @tenant})
+    {:ok, token, _scope} =
+      Authentication.login(%{
+        "identifier" => employee.username,
+        "password" => "employee-test-password"
+      })
+
     employee |> Ecto.Changeset.change(is_active: 0) |> Repo.update!(prefix: @tenant)
 
     assert {:error, :unauthorized} = Authentication.authenticate(token)
   end
 
   test "allows a user.view employee to list users but not create them", %{employee: employee} do
-    {:ok, token, scope} = Authentication.login(%{"identifier" => employee.username, "password" => "employee-test-password", "tenant" => @tenant})
+    {:ok, token, scope} =
+      Authentication.login(%{
+        "identifier" => employee.username,
+        "password" => "employee-test-password"
+      })
+
     assert {:ok, authenticated_scope} = Authentication.authenticate(token)
     assert authenticated_scope.actor == :employee
     assert {:ok, users} = Users.list(scope)
