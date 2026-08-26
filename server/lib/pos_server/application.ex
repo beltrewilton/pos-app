@@ -12,6 +12,7 @@ defmodule PosServer.Application do
       PosServer.Repo,
       {DNSCluster, query: Application.get_env(:pos_server, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: PosServer.PubSub},
+      PosServerWeb.Presence,
       # Start a worker by calling: PosServer.Worker.start_link(arg)
       # {PosServer.Worker, arg},
       # Start to serve requests, typically the last entry

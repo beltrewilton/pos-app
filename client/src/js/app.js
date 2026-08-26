@@ -1,4 +1,5 @@
 import * as printer from "./printer.js";
+import { createPrintRelay } from "./print-relay.js";
 import Pica from "../vendor/pica/pica.mjs";
 import { API_BASE_URL, activeProducts, addSalePayment, adjustInventory, cancelSale, clearSession, createCustomer, createProduct, createProductOrder, createSale, createUser, customerPurchases, customers, deactivateUser, inventoryQuantities, inventorySummary, login, pricingLists, product, productOrders, purchaseSources, receiveProductOrder, saleDetails, salesReport, saveSession, session, setProductPrices, updateProduct, updateUser, userOptions, users } from "./api.js";
 import { createPos } from "./pos.js";
@@ -103,6 +104,11 @@ let checkoutOpening = false;
 let selectedCustomer = null;
 let customerSearchTimer;
 let completedReceipt = null;
+let printTargets = [];
+let printRelay = null;
+const printedRelayRequests = new Set();
+let pendingPrintTimeout = null;
+let printerAvailabilityTimer = null;
 let invoiceCursor = null;
 let invoiceHasMore = true;
 let invoiceLoading = false;
@@ -1178,7 +1184,7 @@ function subscribeToInventory() {
   const socketUrl = new URL(API_BASE_URL);
   socketUrl.protocol = socketUrl.protocol === "https:" ? "wss:" : "ws:";
   socketUrl.pathname = "/socket/websocket";
-  socketUrl.search = "vsn=2.0.0";
+  socketUrl.search = `vsn=2.0.0&token=${encodeURIComponent(session()?.token || "")}`;
   const socket = new WebSocket(socketUrl);
 
   socket.addEventListener("open", () => socket.send(JSON.stringify(["1", "1", `inventory:educa:${storeId}`, "phx_join", {}])));
@@ -1186,6 +1192,41 @@ function subscribeToInventory() {
     const [, , , name, payload] = JSON.parse(event.data);
     if (name === "inventory_changed") refreshInventory(payload.product_ids).catch(console.error);
   });
+}
+
+const isDesktopTauri = Boolean(window.__TAURI__) && !/Android|iPhone|iPad/i.test(navigator.userAgent);
+function renderPrintTargets() {
+  const button = document.querySelector("#print-receipt"), field = document.querySelector("#print-target-field"), select = document.querySelector("#print-target");
+  if (isDesktopTauri) { button.hidden = false; field.hidden = true; return; }
+  button.hidden = !printTargets.length; field.hidden = printTargets.length < 2;
+  select.replaceChildren(...printTargets.map((entry) => new Option(`${entry.label} · ${entry.printer}`, entry.session_id)));
+  document.querySelector("#receipt-print-description").textContent = printTargets.length ? "Choose an available desktop printer." : "No desktop printer is currently available.";
+}
+function startPrintRelay() {
+  printRelay?.close();
+  clearInterval(printerAvailabilityTimer);
+  printRelay = createPrintRelay({ device: isDesktopTauri ? "desktop" : "mobile", storeId, printerStatus: printer.status,
+    onTargets: (targets) => { printTargets = targets; renderPrintTargets(); },
+    onRequest: async ({ request_id, receipt }) => {
+      if (printedRelayRequests.has(request_id)) return;
+      printedRelayRequests.add(request_id);
+      try { printRelay.reportResult({ request_id, status: "success", message: await printer.print(receipt) }); }
+      catch (error) { printRelay.reportResult({ request_id, status: "failed", message: error.message || "Printer failed." }); }
+      finally { setTimeout(() => printedRelayRequests.delete(request_id), 300_000); printRelay.updatePrinter(); }
+    },
+    onResult: (result) => { clearTimeout(pendingPrintTimeout); const status = document.querySelector("#receipt-print-status"); status.textContent = result.status === "success" ? "Receipt printed." : `Printing failed: ${result.message || "Desktop printer unavailable."}`; if (result.status === "success") setTimeout(() => { document.querySelector("#receipt-dialog").close(); completedReceipt = null; }, 700); },
+  });
+  printRelay.connect();
+  if (isDesktopTauri) {
+    const publishPrinterAvailability = async () => {
+      await updatePrinterStatus();
+      await printRelay?.updatePrinter();
+    };
+    printerAvailabilityTimer = setInterval(publishPrinterAvailability, 5_000);
+    publishPrinterAvailability();
+    window.addEventListener("focus", publishPrinterAvailability);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) publishPrinterAvailability(); });
+  }
 }
 
 async function updatePrinterStatus() {
@@ -1647,9 +1688,17 @@ document.querySelector("#payment-lines").addEventListener("change", () => { upda
 document.querySelector("#payment-lines").addEventListener("input", updatePaymentCompletion);
 document.querySelector("#payment-lines").addEventListener("focusin", (event) => { if (mobileQuery.matches && event.target.matches("input")) event.target.scrollIntoView({ behavior: "smooth", block: "center" }); });
 document.querySelector("#credit-toggle").addEventListener("click", (event) => { const active = event.currentTarget.getAttribute("aria-pressed") !== "true"; event.currentTarget.setAttribute("aria-pressed", String(active)); event.currentTarget.dataset.variant = active ? "default" : "outline"; document.querySelector("#payment-inputs").hidden = active; document.querySelector("#complete-sale").disabled = false; updatePaymentChoice(); });
-document.querySelector("#complete-sale").addEventListener("click", async () => { const complete = document.querySelector("#complete-sale"); const credit = document.querySelector("#credit-toggle").getAttribute("aria-pressed") === "true"; const payments = [...document.querySelectorAll(".payment-line")].map((line) => ({ type: line.querySelector("select").value, amount: Number(line.querySelector("input").value) || 0 })).filter((line) => line.amount); if (!credit && payments.reduce((sum, line) => sum + line.amount, 0) < pos.total()) return; const receipt = pos.receipt(); complete.disabled = true; try { await createSale({ store_id: storeId, client_id: selectedCustomer.id, sequence_type: document.querySelector("[data-sequence][data-variant=default]").dataset.sequence, status: credit ? "CREDIT" : "CASH", sale_type: receipt.delivery ? "FOR_DELIVER" : "IN_SHOP", delivery_charge: receipt.delivery, lines: receipt.items.map((item) => ({ product_id: Number(item.id), quantity: item.qty, discount: item.discount })), payments: credit ? [] : payments }); await refreshInventory(receipt.items.map((item) => item.id)).catch(console.error); completedReceipt = { ...receipt, language: getLanguage() }; resetCompletedOrder(); closeCheckout(); document.querySelector("#receipt-dialog").showModal(); } catch (error) { checkoutStatus.textContent = error.message; complete.disabled = false; } });
+document.querySelector("#complete-sale").addEventListener("click", async () => { const complete = document.querySelector("#complete-sale"); const credit = document.querySelector("#credit-toggle").getAttribute("aria-pressed") === "true"; const payments = [...document.querySelectorAll(".payment-line")].map((line) => ({ type: line.querySelector("select").value, amount: Number(line.querySelector("input").value) || 0 })).filter((line) => line.amount); if (!credit && payments.reduce((sum, line) => sum + line.amount, 0) < pos.total()) return; const receipt = pos.receipt(); complete.disabled = true; try { await createSale({ store_id: storeId, client_id: selectedCustomer.id, sequence_type: document.querySelector("[data-sequence][data-variant=default]").dataset.sequence, status: credit ? "CREDIT" : "CASH", sale_type: receipt.delivery ? "FOR_DELIVER" : "IN_SHOP", delivery_charge: receipt.delivery, lines: receipt.items.map((item) => ({ product_id: Number(item.id), quantity: item.qty, discount: item.discount })), payments: credit ? [] : payments }); await refreshInventory(receipt.items.map((item) => item.id)).catch(console.error); completedReceipt = { ...receipt, language: getLanguage() }; document.querySelector("#receipt-print-status").textContent = ""; renderPrintTargets(); resetCompletedOrder(); closeCheckout(); document.querySelector("#receipt-dialog").showModal(); } catch (error) { checkoutStatus.textContent = error.message; complete.disabled = false; } });
 document.querySelector("#skip-print").addEventListener("click", () => { document.querySelector("#receipt-dialog").close(); completedReceipt = null; });
-document.querySelector("#print-receipt").addEventListener("click", async () => { try { if (completedReceipt) await printer.print(completedReceipt); } finally { document.querySelector("#receipt-dialog").close(); completedReceipt = null; } });
+document.querySelector("#print-receipt").addEventListener("click", async () => {
+  const button = document.querySelector("#print-receipt"), status = document.querySelector("#receipt-print-status");
+  button.disabled = true; status.textContent = "Printing…";
+  try {
+    if (isDesktopTauri) { await printer.print(completedReceipt); status.textContent = "Receipt printed."; setTimeout(() => document.querySelector("#receipt-dialog").close(), 500); completedReceipt = null; }
+    else { const target = document.querySelector("#print-target").value; if (!target) throw new Error("No desktop printer is available."); await printRelay.requestPrint(crypto.randomUUID(), target, completedReceipt); pendingPrintTimeout = setTimeout(() => { status.textContent = "Printing failed: the selected desktop printer became unavailable."; }, 20_000); }
+  } catch (error) { status.textContent = `Printing failed: ${error.message}`; }
+  finally { button.disabled = false; }
+});
 
 pos.render();
 renderCurrencyPlaceholders();
@@ -1667,7 +1716,6 @@ onLanguageChange(() => {
 updateCustomerPicker();
 updatePrinterStatus();
 loadProducts();
-subscribeToInventory();
 
 // Authentication and user management share the existing tenant API and scope model.
 const loginScreen = document.querySelector("#login-screen");
@@ -1698,6 +1746,8 @@ function showApplication() {
   appShell.hidden = false;
   syncUserMenu();
   applyAuthorization();
+  subscribeToInventory();
+  startPrintRelay();
 }
 function currentUserIdentity() {
   const current = session()?.user || {};
@@ -1727,6 +1777,8 @@ function syncUserMenu() {
   document.querySelectorAll(".avatar-trigger").forEach((element) => { element.setAttribute("aria-label", `Open menu for ${name}`); });
 }
 function logout() {
+  printRelay?.close();
+  clearInterval(printerAvailabilityTimer);
   clearSession();
   closeMobileNavigation({ restoreFocus: false });
   showLogin();

@@ -21,10 +21,12 @@
     <link rel="stylesheet" href={~p"/assets/ui/components/toast/toast.css"} />
     <link rel="stylesheet" href={~p"/assets/ui/components/table/table.css"} />
     <link rel="stylesheet" href={~p"/assets/ui/components/select/select.css"} />
+    <link rel="stylesheet" href={~p"/assets/app.css"} />
     <script defer src={~p"/assets/phoenix.js"}></script>
     <script type="module" src={~p"/assets/liveview.js"}></script>
+    <script defer src={~p"/assets/theme.js"}></script>
   </head>
-  <body style="max-width: 42rem; margin: 4rem auto; padding: 0 1rem;">
-    <main>{@inner_content}</main>
+  <body>
+    <div>{@inner_content}</div>
   </body>
 </html>
