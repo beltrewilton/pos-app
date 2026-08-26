@@ -1,5 +1,6 @@
-#[cfg(not(target_os = "android"))]
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod device;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod escpos;
 
 use serde::{Deserialize, Serialize};
@@ -29,13 +30,13 @@ pub struct PrinterStatus {
 }
 
 pub fn print(receipt: Receipt) -> Result<String, String> {
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     {
         let _ = receipt;
-        return Err("Receipt printing is not available on Android yet.".to_string());
+        return Err("Direct USB receipt printing is not available on mobile.".to_string());
     }
 
-    #[cfg(not(target_os = "android"))]
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
     let data = escpos::receipt(&receipt);
     device::write(&data).map(|written| {
@@ -48,17 +49,17 @@ pub fn print(receipt: Receipt) -> Result<String, String> {
 }
 
 pub fn status() -> Result<PrinterStatus, String> {
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     {
         return Ok(PrinterStatus {
             connected: false,
             vendor_id: String::new(),
             product_id: String::new(),
-            model: "Printing is unavailable on Android".to_string(),
+            model: "Direct USB printing is unavailable on mobile".to_string(),
         });
     }
 
-    #[cfg(not(target_os = "android"))]
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
     Ok(PrinterStatus {
         connected: device::connected()?,
