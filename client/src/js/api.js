@@ -3,7 +3,7 @@
 export const API_BASE_URL = "http://10.0.0.31:4000/api";
 const rawFetch = window.fetch.bind(window);
 
-const SESSION_KEY = "educa-pos-session";
+const SESSION_KEY = "retaily-pos-session";
 
 export function session() {
   try { return JSON.parse(sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY) || "null"); } catch { return null; }

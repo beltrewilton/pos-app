@@ -1,6 +1,6 @@
 # Manual IEx sales cases
 
-This runbook targets the `educa` tenant. It writes real sales, payments, and inventory; use a controlled test customer/products or reverse every manual sale afterward.
+This runbook targets a tenant you select. It writes real sales, payments, and inventory; use a controlled test customer/products or reverse every manual sale afterward.
 
 Start IEx from `server`:
 
@@ -8,17 +8,17 @@ Start IEx from `server`:
 bash sh/local_run.sh 
 ```
 
-Paste the shared setup in every new IEx session, then execute cases 1, 3, 7, 8, 9, and 10 in order as needed. Do not run a case before `TenantContext.tenant!()` returns `"educa"`.
+Paste the shared setup in every new IEx session, then execute cases 1, 3, 7, 8, 9, and 10 in order as needed. Do not run a case before `TenantContext.tenant!()` returns the selected tenant.
 
 ```elixir
 alias PosServer.{Repo, TenantContext}
 alias PosServer.Retaily.{Inventory, Sale, SaleLine, SalePaid, Sales, Sequence}
 import Ecto.Query
 
-tenant = "educa"
+tenant = "your_tenant"
 prefix = Triplex.to_prefix(tenant)
 TenantContext.put_tenant(tenant)
-"educa" = TenantContext.tenant!()
+^tenant = TenantContext.tenant!()
 scope = %{user: %{name: "walex"}}
 
 stock = fn product_id ->
@@ -29,7 +29,7 @@ stocks = fn product_ids -> Map.new(product_ids, &{&1, stock.(&1)}) end
 assert = fn true, _message -> :ok; false, message -> raise message end
 ```
 
-## Case 1 — paid in-store sale with live `educa` data
+## Case 1 — paid in-store sale with live tenant data
 
 ```elixir
 before_19507 = stock.(19_507)
@@ -58,7 +58,7 @@ assert.(case1.sequence == expected_dv_sequence, "issued DV sequence mismatch")
 case1
 ```
 
-## Case 3 — two-line paid sale with live `educa` data
+## Case 3 — two-line paid sale with live tenant data
 
 ```elixir
 before_case3 = stocks.([19_553, 19_203])

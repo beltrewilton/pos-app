@@ -1,6 +1,6 @@
 import { API_BASE_URL, session } from "./api.js";
 
-const KEY = "educa-pos-print-relay-session";
+const KEY = "retaily-pos-print-relay-session";
 const id = () => localStorage.getItem(KEY) || (localStorage.setItem(KEY, crypto.randomUUID()), localStorage.getItem(KEY));
 
 export function createPrintRelay({ device, storeId, printerStatus, onTargets, onRequest, onResult }) {

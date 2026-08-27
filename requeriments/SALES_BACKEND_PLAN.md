@@ -28,7 +28,7 @@ Use dedicated Triplex test schemas and seed only the referenced Retaily rows. Ev
 5. **Backorder inventory:** request `19463` quantity `13` when the seed quantity is `12`; assert a sale is created, the sequence advances, and inventory becomes `-1`. Also sell `19385`, seeded at `-144`, and assert it becomes `-145`.
 6. **Tenant and store isolation:** no bearer scope returns `401`; a second tenant cannot see seeded sales; a cashier without store `2` cannot create or list its sales.
 7. **Simple paid checkout:** cashier `walex` sells product `19383` to customer `30218` for `CASH 230`; assert the closed invoice, payment, line, and one-unit inventory decrease.
-8. **Ten-product, multi-day credit collection:** create a credit sale for customer `30218` with ten real `educa` store-2 products, quantities `5` through `14`. Record inventory before/after each line, then settle `25155` through `CASH 10000`, `CC 8000`, and `CASH 7155`; assign three test-database payment dates and assert the final invoice is closed.
+8. **Ten-product, multi-day credit collection:** create a credit sale for customer `30218` with ten real target-tenant store-2 products, quantities `5` through `14`. Record inventory before/after each line, then settle `25155` through `CASH 10000`, `CC 8000`, and `CASH 7155`; assign three test-database payment dates and assert the final invoice is closed.
 9. **July 2026 cancellation fixture (`363261`):** recreate the July 31 `VEN00000024473` pattern for customer `30190`: products `19509`, `19378`, `8694`, and `19553`, original discounts, delivery `300`, and payment `4200`. Assert every inventory decrease before cancellation and restoration after cancellation.
 
 ## Focused improvement proposal

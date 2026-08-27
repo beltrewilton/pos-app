@@ -309,7 +309,7 @@ defmodule PosServerWeb.SaleControllerTest do
     %{store_id: 2, client_id: 24_181, sequence_type: "CF", status: "CASH", sale_type: "IN_SHOP", delivery_charge: "0", lines: [%{product_id: 8_679, quantity: 1, discount: "200"}, %{product_id: 19_383, quantity: 1, discount: "0"}], payments: [%{amount: "1830", type: "CASH"}]}
   end
 
-  # Product IDs and default prices were read from the educa tenant's
+  # Product IDs and default prices were read from the seeded tenant's
   # app_inventory/product/pricing_list records for store 2.
   defp large_credit_sale_payload do
     %{

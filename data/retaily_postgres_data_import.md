@@ -58,7 +58,7 @@ EXPORT_DIR='/shared/mysql-postgres-export' \
 ```
 
 The script creates `DATABASE_URL` from `DB_USER`, `DB_PASS`, and `DB_NAME` in
-`server/.env`, imports into the `educa` tenant schema, uses
+`server/.env`, imports into the target tenant schema, uses
 `mysql -u root retaily_import` for every export, never invokes the MySQL
 password prompt, and refuses to overwrite an existing export file. It uses
 MySQL's backslash-escaped tab-delimited output and PostgreSQL text `\copy`,

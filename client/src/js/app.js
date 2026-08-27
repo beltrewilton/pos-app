@@ -1187,7 +1187,7 @@ function subscribeToInventory() {
   socketUrl.search = `vsn=2.0.0&token=${encodeURIComponent(session()?.token || "")}`;
   const socket = new WebSocket(socketUrl);
 
-  socket.addEventListener("open", () => socket.send(JSON.stringify(["1", "1", `inventory:educa:${storeId}`, "phx_join", {}])));
+  socket.addEventListener("open", () => socket.send(JSON.stringify(["1", "1", `inventory:${session()?.user?.tenant}:${storeId}`, "phx_join", {}])));
   socket.addEventListener("message", (event) => {
     const [, , , name, payload] = JSON.parse(event.data);
     if (name === "inventory_changed") refreshInventory(payload.product_ids).catch(console.error);
