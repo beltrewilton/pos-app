@@ -1,6 +1,6 @@
 // Use the LAN address while testing on a physical Android device. Replace this
 // with the production HTTPS endpoint before shipping the app.
-export const API_BASE_URL = "http://10.0.0.34:4000/api";
+export const API_BASE_URL = "http://10.0.0.31:4000/api";
 const rawFetch = window.fetch.bind(window);
 
 const SESSION_KEY = "educa-pos-session";

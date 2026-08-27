@@ -2,14 +2,12 @@
 set -euo pipefail
 
 # Required:
-#   EXPORT_DIR=/shared/mysql-postgres-export \
-#   ./sh/import_retaily_data.sh
+#   EXPORT_DIR=/private/tmp/mysql-files  ./sh/import_retaily_data.sh
 #
 # DATABASE_URL is constructed from DB_USER, DB_PASS, and DB_NAME in .env.
-# The target Triplex tenant schema is always educa.
-# EXPORT_DIR must be writable by the MySQL SERVER, allowed by its secure_file_priv
-# setting, and readable by the host running psql. When MySQL runs in Docker,
-# use a bind-mounted directory for EXPORT_DIR.
+# RETAILY_DB_PASSWORD supplies the remote MySQL password without prompting.
+# EXPORT_DIR is a local directory: table data is downloaded from MySQL here,
+# then imported into PostgreSQL.
 
 server_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 
@@ -26,10 +24,11 @@ set +a
 : "${DB_USER:?Set DB_USER in server/.env}"
 : "${DB_PASS:?Set DB_PASS in server/.env}"
 : "${DB_NAME:?Set DB_NAME in server/.env}"
+: "${RETAILY_DB_PASSWORD:?Set RETAILY_DB_PASSWORD in server/.env}"
 
 DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@localhost/${DB_NAME}"
-TENANT_SCHEMA='educa'
-: "${EXPORT_DIR:?Set EXPORT_DIR to a shared MySQL/PostgreSQL export directory}"
+TENANT_SCHEMA='evofit'
+: "${EXPORT_DIR:?Set EXPORT_DIR to a local MySQL download directory}"
 
 if [[ ! "$TENANT_SCHEMA" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
   echo "TENANT_SCHEMA must be a PostgreSQL identifier" >&2
@@ -41,38 +40,24 @@ if [[ ! "$EXPORT_DIR" = /* ]]; then
   exit 1
 fi
 
-mysql_escape() {
-  local value=$1
-  value=${value//\\/\\\\}
-  value=${value//\'/\'\'}
-  printf '%s' "$value"
-}
+mkdir -p "$EXPORT_DIR"
 
 export_and_copy() {
   local table=$1
   local columns=$2
   local export_path="$EXPORT_DIR/$table.tsv"
-  local mysql_export_path
+  local temporary_export_path
 
-  mysql_export_path=$(mysql_escape "$export_path")
+  temporary_export_path=$(mktemp "$EXPORT_DIR/.${table}.XXXXXX")
 
-  if [[ -e "$export_path" ]]; then
-    echo "Refusing to overwrite existing export: $export_path" >&2
-    exit 1
-  fi
-
-  echo "Exporting $table from MySQL..."
-  mysql -u root retaily_import -e "
-    SELECT $columns
-    INTO OUTFILE '$mysql_export_path'
-    FIELDS TERMINATED BY '\\t' ESCAPED BY '\\\\'
-    LINES TERMINATED BY '\\n'
-    FROM $table
-  "
+  echo "Downloading $table from remote MySQL..."
+  mysql -u rpt --host 143.198.119.176 -p"$RETAILY_DB_PASSWORD" retaily_db \
+    --batch --skip-column-names -e "SELECT $columns FROM $table" > "$temporary_export_path"
+  mv -f "$temporary_export_path" "$export_path"
 
   echo "Loading $table into $TENANT_SCHEMA..."
   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c \
-    "\\copy \"$TENANT_SCHEMA\".\"$table\" ($columns) FROM '$export_path' WITH (FORMAT text, DELIMITER E'\\t', NULL '\\N')"
+    "\\copy \"$TENANT_SCHEMA\".\"$table\" ($columns) FROM '$export_path' WITH (FORMAT text, DELIMITER E'\\t', NULL 'NULL')"
 }
 
 reset_sequence() {
