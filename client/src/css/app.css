@@ -746,7 +746,8 @@ button {
   display: none;
 }
 .catalog-panel[data-view="inventory"] .catalog-content,
-.catalog-panel[data-view="orders"] .catalog-content {
+.catalog-panel[data-view="orders"] .catalog-content,
+.catalog-panel[data-view="company-settings"] .catalog-content {
   display: none;
 }
 .operations-screen {
@@ -1969,7 +1970,8 @@ button {
   .catalog-panel[data-view="customers"] ~ .order-panel,
   .catalog-panel[data-view="invoices"] ~ .order-panel,
   .catalog-panel[data-view="inventory"] ~ .order-panel,
-  .catalog-panel[data-view="orders"] ~ .order-panel {
+  .catalog-panel[data-view="orders"] ~ .order-panel,
+  .catalog-panel[data-view="company-settings"] ~ .order-panel {
     display: none;
   }
 

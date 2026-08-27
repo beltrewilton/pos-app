@@ -115,6 +115,11 @@ export async function pricingLists() {
   if (!response.ok) throw new Error(`Could not load pricing lists: ${response.status}`);
   return response.json();
 }
+export async function stores() {
+  const response = await apiFetch(`${API_BASE_URL}/stores`);
+  if (!response.ok) throw new Error(`Could not load stores: ${response.status}`);
+  return response.json();
+}
 export async function companySettings() {
   const response = await apiFetch(`${API_BASE_URL}/company-settings`);
   if (!response.ok) throw new Error(`Could not load company settings: ${response.status}`);
@@ -148,6 +153,21 @@ export async function updateStore(id, attrs) {
 export async function deleteStore(id) {
   const response = await apiFetch(`${API_BASE_URL}/company-settings/stores/${id}`, { method: "DELETE" });
   if (!response.ok) throw new Error("Could not delete store.");
+  return response.json();
+}
+export async function createSequenceSet(attrs) {
+  const response = await apiFetch(`${API_BASE_URL}/company-settings/sequences`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(attrs) });
+  if (!response.ok) throw new Error("Could not save sequence set.");
+  return response.json();
+}
+export async function updateSequenceSet(id, attrs) {
+  const response = await apiFetch(`${API_BASE_URL}/company-settings/sequences/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(attrs) });
+  if (!response.ok) throw new Error("Could not save sequence set.");
+  return response.json();
+}
+export async function deleteSequenceSet(id) {
+  const response = await apiFetch(`${API_BASE_URL}/company-settings/sequences/${id}`, { method: "DELETE" });
+  if (!response.ok) throw new Error("Could not delete sequence set.");
   return response.json();
 }
 export async function setProductPrices(productId, prices) {

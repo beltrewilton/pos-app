@@ -38,6 +38,19 @@ defmodule PosServer.Retaily.InventoryContext do
     end
   end
 
+  def stores(%AccessScope{} = scope) do
+    query = from(store in Store, order_by: [asc: store.name], select: %{id: store.id, name: store.name})
+
+    query =
+      if AccessScope.admin?(scope) do
+        query
+      else
+        where(query, [store], store.id in ^scope.store_ids)
+      end
+
+    {:ok, Repo.all(query, prefix: scope.tenant)}
+  end
+
   def authorize_store(scope, store_id) do
     with {:ok, cashier, tenant} <- cashier(scope),
          :ok <- cashier_store?(cashier, store_id, tenant) do
@@ -55,7 +68,9 @@ defmodule PosServer.Retaily.InventoryContext do
 
   defp cashier(_), do: {:error, :unauthorized}
 
-  defp cashier_store?(%{admin?: true}, store_id, tenant), do: Repo.exists?(from(store in PosServer.Retaily.Store, where: store.id == ^store_id), prefix: tenant)
+  defp cashier_store?(%{admin?: true}, store_id, tenant) do
+    if Repo.exists?(from(store in PosServer.Retaily.Store, where: store.id == ^store_id), prefix: tenant), do: :ok, else: :error
+  end
   defp cashier_store?(cashier, store_id, tenant) do
     if Repo.exists?(from(link in UserStore, where: link.user_id == ^cashier.id and link.store_id == ^store_id), prefix: tenant), do: :ok, else: :error
   end

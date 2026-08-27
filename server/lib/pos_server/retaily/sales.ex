@@ -1,5 +1,6 @@
 defmodule PosServer.Retaily.Sequence do
   use Ecto.Schema
+  import Ecto.Changeset
 
   schema "app_sequence" do
     field :name, :string
@@ -8,6 +9,17 @@ defmodule PosServer.Retaily.Sequence do
     field :fill, :integer
     field :increment_by, :integer
     field :current_seq, :integer
+  end
+
+  def changeset(sequence, attrs) do
+    sequence
+    |> cast(attrs, [:name, :code, :prefix, :fill, :increment_by, :current_seq])
+    |> validate_required([:name, :code, :prefix, :fill, :increment_by, :current_seq])
+    |> validate_inclusion(:code, ["CF", "VF", "DV"])
+    |> validate_number(:fill, greater_than: 0)
+    |> validate_number(:increment_by, greater_than: 0)
+    |> validate_number(:current_seq, greater_than_or_equal_to: 0)
+    |> unique_constraint(:code)
   end
 end
 

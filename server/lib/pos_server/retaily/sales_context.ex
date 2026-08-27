@@ -155,7 +155,9 @@ defmodule PosServer.Retaily.Sales do
 
   defp cashier(_), do: {:error, :unauthorized}
 
-  defp cashier_store?(%{admin?: true}, store_id, tenant), do: Repo.exists?(from(store in PosServer.Retaily.Store, where: store.id == ^store_id), prefix: tenant)
+  defp cashier_store?(%{admin?: true}, store_id, tenant) do
+    if Repo.exists?(from(store in PosServer.Retaily.Store, where: store.id == ^store_id), prefix: tenant), do: :ok, else: :error
+  end
   defp cashier_store?(cashier, store_id, tenant) do
     if Repo.exists?(from(link in UserStore, where: link.user_id == ^cashier.id and link.store_id == ^store_id), prefix: tenant), do: :ok, else: :error
   end

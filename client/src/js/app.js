@@ -1,7 +1,7 @@
 import * as printer from "./printer.js";
 import { createPrintRelay } from "./print-relay.js";
 import Pica from "../vendor/pica/pica.mjs";
-import { API_BASE_URL, activeProducts, addSalePayment, adjustInventory, cancelSale, clearSession, companySettings, createCustomer, createPriceList, createProduct, createProductOrder, createSale, createStore, createUser, customerPurchases, customers, deactivateUser, deletePriceList, deleteStore, inventoryQuantities, inventorySummary, login, pricingLists, product, productOrders, purchaseSources, receiveProductOrder, saleDetails, salesReport, saveSession, session, setProductPrices, updatePriceList, updateProduct, updateStore, updateUser, userOptions, users } from "./api.js";
+import { API_BASE_URL, activeProducts, addSalePayment, adjustInventory, cancelSale, clearSession, companySettings, createCustomer, createPriceList, createProduct, createProductOrder, createSale, createSequenceSet, createStore, createUser, customerPurchases, customers, deactivateUser, deletePriceList, deleteSequenceSet, deleteStore, inventoryQuantities, inventorySummary, login, pricingLists, product, productOrders, purchaseSources, receiveProductOrder, saleDetails, salesReport, saveSession, session, setProductPrices, stores, updatePriceList, updateProduct, updateSequenceSet, updateStore, updateUser, userOptions, users } from "./api.js";
 import { createPos } from "./pos.js";
 import { formatCurrency, getLanguage, onLanguageChange, t, translateDocument } from "./i18n.js";
 import { createLanguageSwitcher } from "./language-switcher.js";
@@ -58,7 +58,8 @@ let mobileNavigationTrigger = null;
 let mobileNavigationRestoreFocus = true;
 const languageSwitcher = createLanguageSwitcher(document.querySelector("#language-switcher"));
 const userMenus = document.querySelectorAll(".user-menu");
-const storeId = 2;
+let storeId = null;
+let availableStores = [];
 const imageResizer = new Pica();
 const MAX_PRODUCT_IMAGE_BYTES = 10 * 1024 * 1024;
 document.querySelector('[data-inventory-sort="quantity"]').textContent = t("ui.currentQuantity");
@@ -129,6 +130,7 @@ const companySettingsCompany = document.querySelector("#company-settings-company
 const companySettingsStatus = document.querySelector("#company-settings-status");
 const priceListsContent = document.querySelector("#price-lists-content");
 const storesContent = document.querySelector("#stores-content");
+const sequenceSetsContent = document.querySelector("#sequence-sets-content");
 const inventoryTableBody = document.querySelector("#inventory-table-body");
 const ordersTableBody = document.querySelector("#orders-table-body");
 const inventorySearchInput = document.querySelector("#inventory-search");
@@ -149,10 +151,31 @@ let imagePreparationTask = null;
 let selectedProductImageFile = null;
 let purchaseOrderSort = { key: "last_updated", direction: "desc" };
 let purchaseOrderStatusFilter = "";
-let companySettingsData = { company: null, price_lists: [], stores: [] };
+let companySettingsData = { company: null, price_lists: [], stores: [], sequence_sets: [] };
 let editingCompanySetting = null;
 
 const mobileQuery = window.matchMedia("(max-width: 640px)");
+
+function populateStoreOptions() {
+  document.querySelectorAll("#inventory-store, #inventory-form-store, #order-destination").forEach((select) => {
+    const selected = String(storeId);
+    select.replaceChildren(...availableStores.map((store) => {
+      const option = document.createElement("option"); option.value = store.id; option.textContent = store.name; return option;
+    }));
+    select.value = selected;
+  });
+}
+
+async function initializeStores() {
+  const { entries } = await stores();
+  availableStores = entries;
+  storeId = entries[0]?.id || null;
+  populateStoreOptions();
+  if (!storeId) { productStatus.textContent = "No store is available for this account."; return; }
+  subscribeToInventory();
+  startPrintRelay();
+  loadProducts();
+}
 
 function navigationIcon() {
   return `<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>`;
@@ -803,6 +826,7 @@ function openInvoiceReport() {
   closeUsersPage();
   customersScreen.hidden = true;
   checkoutFlow.hidden = true;
+  closeOperations();
   catalogPanel.dataset.view = "invoices";
   appShell.classList.add("invoice-view");
   invoiceReport.hidden = false;
@@ -849,6 +873,16 @@ function companySettingRow(kind, entry) {
   [["Edit", "outline", "edit"], ["Delete", "destructive", "delete"]].forEach(([text, variant, action]) => { const button = document.createElement("button"); button.className = "btn"; button.type = "button"; button.dataset.variant = variant; button.dataset.size = "sm"; button.dataset.companySettingAction = action; button.dataset.kind = kind; button.dataset.id = entry.id; button.textContent = text; actions.appendChild(button); });
   row.append(copy, actions); return row;
 }
+function sequenceSetForm(entry = null) {
+  const form = document.createElement("form"); form.className = "form company-setting-form";
+  [["Name", "name", entry?.name, "text"], ["Code", "code", entry?.code, "text"], ["Prefix", "prefix", entry?.prefix, "text"], ["Digits", "fill", entry?.fill ?? 8, "number"], ["Increment", "increment_by", entry?.increment_by ?? 1, "number"], ["Next number", "current_seq", entry?.current_seq ?? 0, "number"]].forEach(([label, name, value, type]) => form.appendChild(companySettingField(label, name, value, { required: true, type })));
+  const actions = document.createElement("div"); actions.className = "form-actions"; actions.innerHTML = '<button class="btn" type="button" data-variant="outline" data-sequence-cancel>Cancel</button><button class="btn" type="submit" data-variant="default">Save</button>'; form.appendChild(actions); return form;
+}
+function sequenceSetRow(entry) {
+  const row = document.createElement("div"); row.className = "company-setting-row";
+  const copy = document.createElement("div"); const title = document.createElement("strong"); title.textContent = `${entry.code} · ${entry.name}`; const description = document.createElement("p"); description.className = "field-description"; description.textContent = `${entry.prefix}${String(entry.current_seq).padStart(entry.fill, "0")} · increments by ${entry.increment_by}`; copy.append(title, description);
+  const actions = document.createElement("div"); actions.className = "company-setting-actions"; [["Edit", "outline", "edit"], ["Delete", "destructive", "delete"]].forEach(([label, variant, action]) => { const button = document.createElement("button"); button.className = "btn"; button.type = "button"; button.dataset.variant = variant; button.dataset.size = "sm"; button.dataset.sequenceAction = action; button.dataset.id = entry.id; button.textContent = label; actions.appendChild(button); }); row.append(copy, actions); return row;
+}
 function renderCompanySettings() {
   const company = companySettingsData.company;
   companySettingsCompany.textContent = company ? [company.name, company.rnc ? `RNC ${company.rnc}` : ""].filter(Boolean).join(" · ") : "Company information is unavailable.";
@@ -860,6 +894,10 @@ function renderCompanySettings() {
   };
   renderList(priceListsContent, "price-list", companySettingsData.price_lists || [], "No price lists yet.");
   renderList(storesContent, "store", companySettingsData.stores || [], "No stores yet.");
+  sequenceSetsContent.replaceChildren();
+  if (editingCompanySetting?.kind === "sequence" && editingCompanySetting.id === "new") sequenceSetsContent.appendChild(sequenceSetForm());
+  (companySettingsData.sequence_sets || []).forEach((entry) => sequenceSetsContent.appendChild(editingCompanySetting?.kind === "sequence" && Number(editingCompanySetting.id) === Number(entry.id) ? sequenceSetForm(entry) : sequenceSetRow(entry)));
+  if (!(companySettingsData.sequence_sets || []).length && editingCompanySetting?.kind !== "sequence") { const message = document.createElement("p"); message.className = "field-description company-settings-empty"; message.textContent = "No sequences configured. Add CF, VF, and DV to complete sales."; sequenceSetsContent.appendChild(message); }
 }
 async function loadCompanySettings() {
   companySettingsStatus.textContent = "Loading company settings…";
@@ -1122,6 +1160,7 @@ function openPos(event) {
   customersScreen.hidden = true;
   inventoryScreen.hidden = true;
   ordersScreen.hidden = true;
+  purchaseOrderScreen.hidden = true;
   companySettingsScreen.hidden = true;
   checkoutFlow.hidden = true;
   startCheckoutButton.hidden = false;
@@ -1203,7 +1242,7 @@ function renderProducts() {
 }
 
 async function loadProducts() {
-  if (loading || !hasMore) return;
+  if (!storeId || loading || !hasMore) return;
   loading = true;
   productStatus.textContent = products.length ? t("product.loadingMore") : t("products.loading");
   try {
@@ -1315,6 +1354,7 @@ document.querySelector("#orders-nav").addEventListener("click", openOrders);
 document.querySelector("#company-settings-nav").addEventListener("click", openCompanySettings);
 document.querySelector("#add-price-list").addEventListener("click", () => { editingCompanySetting = { kind: "price-list", id: "new" }; renderCompanySettings(); priceListsContent.querySelector("input")?.focus(); });
 document.querySelector("#add-store").addEventListener("click", () => { editingCompanySetting = { kind: "store", id: "new" }; renderCompanySettings(); storesContent.querySelector("input")?.focus(); });
+document.querySelector("#add-sequence-set").addEventListener("click", () => { editingCompanySetting = { kind: "sequence", id: "new" }; renderCompanySettings(); sequenceSetsContent.querySelector("input")?.focus(); });
 [priceListsContent, storesContent].forEach((container) => {
   container.addEventListener("click", async (event) => {
     if (event.target.closest("[data-company-setting-cancel]")) { editingCompanySetting = null; renderCompanySettings(); return; }
@@ -1331,6 +1371,19 @@ document.querySelector("#add-store").addEventListener("click", () => { editingCo
     try { submit.disabled = true; if (kind === "store") current?.id === "new" ? await createStore(attrs) : await updateStore(current.id, attrs); else current?.id === "new" ? await createPriceList({ label: attrs.name }) : await updatePriceList(current.id, { label: attrs.name }); editingCompanySetting = null; await loadCompanySettings(); }
     catch (error) { companySettingsStatus.textContent = error.message; submit.disabled = false; }
   });
+});
+sequenceSetsContent.addEventListener("click", async (event) => {
+  if (event.target.closest("[data-sequence-cancel]")) { editingCompanySetting = null; renderCompanySettings(); return; }
+  const button = event.target.closest("[data-sequence-action]"); if (!button) return;
+  const id = Number(button.dataset.id);
+  if (button.dataset.sequenceAction === "edit") { editingCompanySetting = { kind: "sequence", id }; renderCompanySettings(); sequenceSetsContent.querySelector("input")?.focus(); return; }
+  if (!confirm("Delete this sequence set?")) return;
+  try { button.disabled = true; await deleteSequenceSet(id); editingCompanySetting = null; await loadCompanySettings(); } catch (error) { companySettingsStatus.textContent = error.message; button.disabled = false; }
+});
+sequenceSetsContent.addEventListener("submit", async (event) => {
+  event.preventDefault(); const form = event.target; if (!form.matches(".company-setting-form") || !form.reportValidity()) return;
+  const submit = form.querySelector('[type="submit"]'); const attrs = Object.fromEntries(new FormData(form)); ["fill", "increment_by", "current_seq"].forEach((key) => { attrs[key] = Number(attrs[key]); });
+  try { submit.disabled = true; editingCompanySetting?.id === "new" ? await createSequenceSet(attrs) : await updateSequenceSet(editingCompanySetting.id, attrs); editingCompanySetting = null; await loadCompanySettings(); } catch (error) { companySettingsStatus.textContent = error.message; submit.disabled = false; }
 });
 document.querySelectorAll(".mobile-navigation-link[data-navigation-target]").forEach((item) => {
   item.addEventListener("click", () => {
@@ -1788,7 +1841,6 @@ onLanguageChange(() => {
 });
 updateCustomerPicker();
 updatePrinterStatus();
-loadProducts();
 
 // Authentication and user management share the existing tenant API and scope model.
 const loginScreen = document.querySelector("#login-screen");
@@ -1819,8 +1871,7 @@ function showApplication() {
   appShell.hidden = false;
   syncUserMenu();
   applyAuthorization();
-  subscribeToInventory();
-  startPrintRelay();
+  initializeStores().catch((error) => { console.error(error); productStatus.textContent = error.message || "Stores could not be loaded."; });
 }
 function currentUserIdentity() {
   const current = session()?.user || {};
@@ -1925,6 +1976,6 @@ document.addEventListener("click", (event) => {
   const permission = { "sales-report-nav": "sales.view", "inventory-nav": "inventory.view", "orders-nav": "inventory.view", "company-settings-nav": "company.settings", "create-product": "product.add", "create-order": "inventory.movement.request" }[protectedControl.id];
   if (!allowed(permission)) { event.preventDefault(); event.stopImmediatePropagation(); showUnauthorized(); }
 }, true);
-loginForm.addEventListener("submit", async (event) => { event.preventDefault(); loginError.hidden = true; if (!loginForm.reportValidity()) return; const submit = document.querySelector("#login-submit"); submit.disabled = true; try { const result = await login(loginForm.elements.identifier.value.trim(), loginForm.elements.password.value); saveSession(result); loginForm.reset(); showApplication(); loadProducts(); } catch (error) { loginErrorMessage.textContent = t("auth.invalidCredentials"); loginError.hidden = false; } finally { submit.disabled = false; } });
+loginForm.addEventListener("submit", async (event) => { event.preventDefault(); loginError.hidden = true; if (!loginForm.reportValidity()) return; const submit = document.querySelector("#login-submit"); submit.disabled = true; try { const result = await login(loginForm.elements.identifier.value.trim(), loginForm.elements.password.value); saveSession(result); loginForm.reset(); showApplication(); } catch (error) { loginErrorMessage.textContent = t("auth.invalidCredentials"); loginError.hidden = false; } finally { submit.disabled = false; } });
 onLanguageChange(() => { if (!userScreen.hidden) editingUser ? renderUserForm(editingUser) : renderUsers(); });
 if (session()?.token) { showApplication(); handleRoute(); } else showLogin();
