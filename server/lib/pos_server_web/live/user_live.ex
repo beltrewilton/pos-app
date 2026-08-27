@@ -12,7 +12,9 @@ defmodule PosServerWeb.UserLive do
       {:ok, user} -> {:noreply, socket |> put_flash(:info, "#{user.name} and their company workspace have been created.") |> push_navigate(to: ~p"/users")}
       {:error, :user, changeset} -> {:noreply, assign_user_form(socket, changeset)}
       {:error, :company, changeset} -> {:noreply, assign_company_form(socket, changeset)}
-      {:error, :tenant, _} -> {:noreply, put_flash(socket, :error, "The tenant workspace could not be created. Please try again.")}
+      {:error, :tenant, reason} ->
+        IO.inspect(reason, label: "Tenant workspace creation failed")
+        {:noreply, put_flash(socket, :error, "The tenant workspace could not be created. Please try again.")}
     end
   end
 

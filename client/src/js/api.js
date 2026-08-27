@@ -170,6 +170,21 @@ export async function deleteSequenceSet(id) {
   if (!response.ok) throw new Error("Could not delete sequence set.");
   return response.json();
 }
+export async function createProvider(attrs) {
+  const response = await apiFetch(`${API_BASE_URL}/company-settings/providers`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(attrs) });
+  if (!response.ok) throw new Error("Could not save provider.");
+  return response.json();
+}
+export async function updateProvider(id, attrs) {
+  const response = await apiFetch(`${API_BASE_URL}/company-settings/providers/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(attrs) });
+  if (!response.ok) throw new Error("Could not save provider.");
+  return response.json();
+}
+export async function deleteProvider(id) {
+  const response = await apiFetch(`${API_BASE_URL}/company-settings/providers/${id}`, { method: "DELETE" });
+  if (!response.ok) throw new Error("Could not delete provider.");
+  return response.json();
+}
 export async function setProductPrices(productId, prices) {
   const response = await fetch(`${API_BASE_URL}/products/${productId}/prices`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prices }) });
   if (!response.ok) throw new Error(`Could not save product prices: ${response.status}`);

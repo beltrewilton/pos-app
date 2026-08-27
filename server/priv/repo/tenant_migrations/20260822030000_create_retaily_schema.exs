@@ -234,9 +234,11 @@ defmodule PosServer.Repo.Migrations.CreateRetailySchema do
       add :name, :string, size: 200
     end
 
+    tenant_prefix = prefix()
+
     execute(
       """
-      INSERT INTO scope_list (name) VALUES
+      INSERT INTO #{tenant_prefix}.scope_list (name) VALUES
         ('cx'),
         ('sales'),
         ('human'),
@@ -266,7 +268,7 @@ defmodule PosServer.Repo.Migrations.CreateRetailySchema do
         ('product.view.active_column'),
         ('pos.delivery')
       """,
-      "DELETE FROM scope_list"
+      "DELETE FROM #{tenant_prefix}.scope_list"
     )
 
     create table(:scopes) do

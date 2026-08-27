@@ -5,13 +5,13 @@ defmodule PosServer.Retaily.CompanySettings do
 
   alias PosServer.{Repo, TenantContext}
   alias PosServer.Accounts.{Company, UserCompany}
-  alias PosServer.Retaily.{Pricing, PricingList, Sequence, Store}
+  alias PosServer.Retaily.{Pricing, PricingList, Provider, Sequence, Store}
 
   def overview(scope) do
     tenant = TenantContext.tenant!()
 
     {:ok,
-     %{company: company(scope), price_lists: list_price_lists(tenant), stores: list_stores(tenant), sequence_sets: list_sequence_sets(tenant)}}
+     %{company: company(scope), price_lists: list_price_lists(tenant), stores: list_stores(tenant), sequence_sets: list_sequence_sets(tenant), providers: list_providers(tenant)}}
   end
 
   def create_price_list(scope, attrs), do: save_price_list(scope, %Pricing{}, attrs)
@@ -69,6 +69,20 @@ defmodule PosServer.Retaily.CompanySettings do
     end
   end
 
+  def create_provider(_scope, attrs), do: save_provider(%Provider{}, attrs)
+  def update_provider(_scope, id, attrs) do
+    case Repo.get(Provider, id, prefix: TenantContext.tenant!()) do
+      nil -> {:error, :not_found}
+      provider -> save_provider(provider, attrs)
+    end
+  end
+  def delete_provider(id) do
+    case Repo.get(Provider, id, prefix: TenantContext.tenant!()) do
+      nil -> {:error, :not_found}
+      provider -> Repo.delete(provider, prefix: TenantContext.tenant!()) |> write_result()
+    end
+  end
+
   defp save_price_list(scope, pricing, attrs) do
     now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
     label = attrs["label"] || attrs[:label]
@@ -98,9 +112,21 @@ defmodule PosServer.Retaily.CompanySettings do
     |> write_result()
   end
 
+  defp save_provider(provider, attrs) do
+    values =
+      Map.take(attrs, ["name"])
+      |> Map.put("date_create", provider.date_create || NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second))
+
+    provider
+    |> Provider.changeset(values)
+    |> Repo.insert_or_update(prefix: TenantContext.tenant!())
+    |> write_result()
+  end
+
   defp list_price_lists(tenant), do: Repo.all(from(pricing in Pricing, order_by: [asc: pricing.label], select: %{id: pricing.id, label: pricing.label, price_key: pricing.price_key, status: pricing.status}), prefix: tenant)
   defp list_stores(tenant), do: Repo.all(from(store in Store, order_by: [asc: store.name], select: %{id: store.id, name: store.name, address: store.address, slogan: store.slogan, company_id: store.company_id}), prefix: tenant)
   defp list_sequence_sets(tenant), do: Repo.all(from(sequence in Sequence, order_by: [asc: sequence.code], select: %{id: sequence.id, name: sequence.name, code: sequence.code, prefix: sequence.prefix, fill: sequence.fill, increment_by: sequence.increment_by, current_seq: sequence.current_seq}), prefix: tenant)
+  defp list_providers(tenant), do: Repo.all(from(provider in Provider, order_by: [asc: provider.name], select: %{id: provider.id, name: provider.name}), prefix: tenant)
 
   defp company(%{actor: :admin, actor_id: user_id}) do
     Repo.one!(from(company in Company, join: membership in UserCompany, on: membership.company_id == company.id, where: membership.user_id == ^user_id, limit: 1, select: %{id: company.id, name: company.company_name, rnc: company.rnc}), prefix: TenantContext.tenant!())

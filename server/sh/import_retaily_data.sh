@@ -27,7 +27,7 @@ set +a
 : "${RETAILY_DB_PASSWORD:?Set RETAILY_DB_PASSWORD in server/.env}"
 
 DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@localhost/${DB_NAME}"
-TENANT_SCHEMA='evofit'
+TENANT_SCHEMA='evococo'
 : "${EXPORT_DIR:?Set EXPORT_DIR to a local MySQL download directory}"
 
 if [[ ! "$TENANT_SCHEMA" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
@@ -82,7 +82,7 @@ export_and_copy pricing 'id, label, user_modified, date_create, price_key, statu
 export_and_copy product 'id, name, cost, price, margin, code, img_path, date_create, image_raw, active, user_modified, archived'
 export_and_copy product_bck 'id, name, cost, price, margin, code, img_path, date_create, image_raw, active, user_modified'
 export_and_copy provider 'id, name, date_create'
-export_and_copy scope_list 'id, name'
+# export_and_copy scope_list 'id, name'
 export_and_copy sale 'id, amount, sub, discount, tax_amount, delivery_charge, sequence, sequence_type, status, sale_type, date_create, login, client_id, store_id, additional_info'
 export_and_copy sale_line 'id, amount, tax_amount, discount, quantity, total_amount, sale_id, product_id'
 export_and_copy sale_paid 'id, amount, type, date_create, sale_id'
@@ -93,15 +93,15 @@ export_and_copy app_inventory 'id, prev_quantity, quantity, next_quantity, statu
 export_and_copy app_inventory_head 'id, name, date_create, date_close, status, memo, store_id'
 export_and_copy pricing_list 'id, price, user_modified, date_create, product_id, pricing_id'
 export_and_copy product_order 'id, name, memo, order_type, user_requester, user_receiver, date_opened, date_closed, from_origin_id, to_store_id, status'
-export_and_copy scopes 'id, name, user_id'
+# export_and_copy scopes 'id, name, user_id'
 export_and_copy product_order_line 'id, product_id, from_origin_id, to_store_id, product_order_id, quantity, quantity_observed, status, date_create, user_receiver, receiver_last_update, receiver_memo'
 export_and_copy bulk_order_line 'id, bulk_order_id, product_order_id'
 
 # Preserve the imported IDs and make the next generated ID valid.
 for table in \
   app_store app_users app_sequence bulk_order client delivery pricing product \
-  product_bck provider scope_list sale sale_line sale_paid app_inventory \
-  app_inventory_head pricing_list product_order scopes product_order_line bulk_order_line; do
+  product_bck provider sale sale_line sale_paid app_inventory \
+  app_inventory_head pricing_list product_order product_order_line bulk_order_line; do
   reset_sequence "$table"
 done
 

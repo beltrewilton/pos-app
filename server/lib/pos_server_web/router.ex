@@ -67,6 +67,9 @@ defmodule PosServerWeb.Router do
     post "/company-settings/sequences", CompanySettingsController, :create_sequence_set
     patch "/company-settings/sequences/:id", CompanySettingsController, :update_sequence_set
     delete "/company-settings/sequences/:id", CompanySettingsController, :delete_sequence_set
+    post "/company-settings/providers", CompanySettingsController, :create_provider
+    patch "/company-settings/providers/:id", CompanySettingsController, :update_provider
+    delete "/company-settings/providers/:id", CompanySettingsController, :delete_provider
     get "/inventory", InventoryController, :index
     get "/inventory/summary", InventoryController, :summary
     post "/inventory/adjustments", InventoryController, :adjust

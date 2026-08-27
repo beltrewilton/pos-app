@@ -92,10 +92,19 @@ end
 
 defmodule PosServer.Retaily.Provider do
   use Ecto.Schema
+  import Ecto.Changeset
 
   schema "provider" do
     field :name, :string
     field :date_create, :naive_datetime
+  end
+
+  def changeset(provider, attrs) do
+    provider
+    |> cast(attrs, [:name, :date_create])
+    |> validate_required([:name])
+    |> validate_length(:name, max: 50)
+    |> unique_constraint(:name)
   end
 end
 

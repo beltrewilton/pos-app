@@ -1,7 +1,7 @@
 import * as printer from "./printer.js";
 import { createPrintRelay } from "./print-relay.js";
 import Pica from "../vendor/pica/pica.mjs";
-import { API_BASE_URL, activeProducts, addSalePayment, adjustInventory, cancelSale, clearSession, companySettings, createCustomer, createPriceList, createProduct, createProductOrder, createSale, createSequenceSet, createStore, createUser, customerPurchases, customers, deactivateUser, deletePriceList, deleteSequenceSet, deleteStore, inventoryQuantities, inventorySummary, login, pricingLists, product, productOrders, purchaseSources, receiveProductOrder, saleDetails, salesReport, saveSession, session, setProductPrices, stores, updatePriceList, updateProduct, updateSequenceSet, updateStore, updateUser, userOptions, users } from "./api.js";
+import { API_BASE_URL, activeProducts, addSalePayment, adjustInventory, cancelSale, clearSession, companySettings, createCustomer, createPriceList, createProduct, createProductOrder, createProvider, createSale, createSequenceSet, createStore, createUser, customerPurchases, customers, deactivateUser, deletePriceList, deleteProvider, deleteSequenceSet, deleteStore, inventoryQuantities, inventorySummary, login, pricingLists, product, productOrders, purchaseSources, receiveProductOrder, saleDetails, salesReport, saveSession, session, setProductPrices, stores, updatePriceList, updateProduct, updateProvider, updateSequenceSet, updateStore, updateUser, userOptions, users } from "./api.js";
 import { createPos } from "./pos.js";
 import { formatCurrency, getLanguage, onLanguageChange, t, translateDocument } from "./i18n.js";
 import { createLanguageSwitcher } from "./language-switcher.js";
@@ -131,6 +131,7 @@ const companySettingsStatus = document.querySelector("#company-settings-status")
 const priceListsContent = document.querySelector("#price-lists-content");
 const storesContent = document.querySelector("#stores-content");
 const sequenceSetsContent = document.querySelector("#sequence-sets-content");
+const providersContent = document.querySelector("#providers-content");
 const inventoryTableBody = document.querySelector("#inventory-table-body");
 const ordersTableBody = document.querySelector("#orders-table-body");
 const inventorySearchInput = document.querySelector("#inventory-search");
@@ -151,7 +152,7 @@ let imagePreparationTask = null;
 let selectedProductImageFile = null;
 let purchaseOrderSort = { key: "last_updated", direction: "desc" };
 let purchaseOrderStatusFilter = "";
-let companySettingsData = { company: null, price_lists: [], stores: [], sequence_sets: [] };
+let companySettingsData = { company: null, price_lists: [], stores: [], sequence_sets: [], providers: [] };
 let editingCompanySetting = null;
 
 const mobileQuery = window.matchMedia("(max-width: 640px)");
@@ -856,7 +857,7 @@ function companySettingField(labelText, name, value = "", { required = false, ty
 }
 function companySettingForm(kind, entry = null) {
   const form = document.createElement("form"); form.className = "form company-setting-form"; form.dataset.kind = kind;
-  form.appendChild(companySettingField(kind === "price-list" ? "Price list label" : "Store name", "name", entry?.label || entry?.name, { required: true }));
+  form.appendChild(companySettingField(kind === "price-list" ? "Price list label" : kind === "provider" ? "Provider name" : "Store name", "name", entry?.label || entry?.name, { required: true }));
   if (kind === "store") form.appendChild(companySettingField("Address", "address", entry?.address));
   const actions = document.createElement("div"); actions.className = "form-actions";
   const cancel = document.createElement("button"); cancel.className = "btn"; cancel.type = "button"; cancel.dataset.variant = "outline"; cancel.dataset.companySettingCancel = ""; cancel.textContent = "Cancel";
@@ -894,6 +895,7 @@ function renderCompanySettings() {
   };
   renderList(priceListsContent, "price-list", companySettingsData.price_lists || [], "No price lists yet.");
   renderList(storesContent, "store", companySettingsData.stores || [], "No stores yet.");
+  renderList(providersContent, "provider", companySettingsData.providers || [], "No providers yet.");
   sequenceSetsContent.replaceChildren();
   if (editingCompanySetting?.kind === "sequence" && editingCompanySetting.id === "new") sequenceSetsContent.appendChild(sequenceSetForm());
   (companySettingsData.sequence_sets || []).forEach((entry) => sequenceSetsContent.appendChild(editingCompanySetting?.kind === "sequence" && Number(editingCompanySetting.id) === Number(entry.id) ? sequenceSetForm(entry) : sequenceSetRow(entry)));
@@ -1355,20 +1357,21 @@ document.querySelector("#company-settings-nav").addEventListener("click", openCo
 document.querySelector("#add-price-list").addEventListener("click", () => { editingCompanySetting = { kind: "price-list", id: "new" }; renderCompanySettings(); priceListsContent.querySelector("input")?.focus(); });
 document.querySelector("#add-store").addEventListener("click", () => { editingCompanySetting = { kind: "store", id: "new" }; renderCompanySettings(); storesContent.querySelector("input")?.focus(); });
 document.querySelector("#add-sequence-set").addEventListener("click", () => { editingCompanySetting = { kind: "sequence", id: "new" }; renderCompanySettings(); sequenceSetsContent.querySelector("input")?.focus(); });
-[priceListsContent, storesContent].forEach((container) => {
+document.querySelector("#add-provider").addEventListener("click", () => { editingCompanySetting = { kind: "provider", id: "new" }; renderCompanySettings(); providersContent.querySelector("input")?.focus(); });
+[priceListsContent, storesContent, providersContent].forEach((container) => {
   container.addEventListener("click", async (event) => {
     if (event.target.closest("[data-company-setting-cancel]")) { editingCompanySetting = null; renderCompanySettings(); return; }
     const button = event.target.closest("[data-company-setting-action]"); if (!button) return;
     const kind = button.dataset.kind; const id = Number(button.dataset.id);
     if (button.dataset.companySettingAction === "edit") { editingCompanySetting = { kind, id }; renderCompanySettings(); container.querySelector("input")?.focus(); return; }
-    if (!confirm(`Delete this ${kind === "store" ? "store" : "price list"}?`)) return;
-    try { button.disabled = true; kind === "store" ? await deleteStore(id) : await deletePriceList(id); editingCompanySetting = null; await loadCompanySettings(); }
+    if (!confirm(`Delete this ${kind === "price-list" ? "price list" : kind}?`)) return;
+    try { button.disabled = true; if (kind === "store") await deleteStore(id); else if (kind === "provider") await deleteProvider(id); else await deletePriceList(id); editingCompanySetting = null; await loadCompanySettings(); }
     catch (error) { companySettingsStatus.textContent = error.message; button.disabled = false; }
   });
   container.addEventListener("submit", async (event) => {
     event.preventDefault(); const form = event.target; if (!form.matches(".company-setting-form") || !form.reportValidity()) return;
     const kind = form.dataset.kind; const attrs = Object.fromEntries(new FormData(form)); const current = editingCompanySetting; const submit = form.querySelector('[type="submit"]');
-    try { submit.disabled = true; if (kind === "store") current?.id === "new" ? await createStore(attrs) : await updateStore(current.id, attrs); else current?.id === "new" ? await createPriceList({ label: attrs.name }) : await updatePriceList(current.id, { label: attrs.name }); editingCompanySetting = null; await loadCompanySettings(); }
+    try { submit.disabled = true; if (kind === "store") current?.id === "new" ? await createStore(attrs) : await updateStore(current.id, attrs); else if (kind === "provider") current?.id === "new" ? await createProvider(attrs) : await updateProvider(current.id, attrs); else current?.id === "new" ? await createPriceList({ label: attrs.name }) : await updatePriceList(current.id, { label: attrs.name }); editingCompanySetting = null; await loadCompanySettings(); }
     catch (error) { companySettingsStatus.textContent = error.message; submit.disabled = false; }
   });
 });
