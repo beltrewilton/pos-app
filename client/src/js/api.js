@@ -115,6 +115,41 @@ export async function pricingLists() {
   if (!response.ok) throw new Error(`Could not load pricing lists: ${response.status}`);
   return response.json();
 }
+export async function companySettings() {
+  const response = await apiFetch(`${API_BASE_URL}/company-settings`);
+  if (!response.ok) throw new Error(`Could not load company settings: ${response.status}`);
+  return response.json();
+}
+export async function createPriceList(attrs) {
+  const response = await apiFetch(`${API_BASE_URL}/company-settings/price-lists`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(attrs) });
+  if (!response.ok) throw new Error("Could not save price list.");
+  return response.json();
+}
+export async function updatePriceList(id, attrs) {
+  const response = await apiFetch(`${API_BASE_URL}/company-settings/price-lists/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(attrs) });
+  if (!response.ok) throw new Error("Could not save price list.");
+  return response.json();
+}
+export async function deletePriceList(id) {
+  const response = await apiFetch(`${API_BASE_URL}/company-settings/price-lists/${id}`, { method: "DELETE" });
+  if (!response.ok) throw new Error("Could not delete price list.");
+  return response.json();
+}
+export async function createStore(attrs) {
+  const response = await apiFetch(`${API_BASE_URL}/company-settings/stores`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(attrs) });
+  if (!response.ok) throw new Error("Could not save store.");
+  return response.json();
+}
+export async function updateStore(id, attrs) {
+  const response = await apiFetch(`${API_BASE_URL}/company-settings/stores/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(attrs) });
+  if (!response.ok) throw new Error("Could not save store.");
+  return response.json();
+}
+export async function deleteStore(id) {
+  const response = await apiFetch(`${API_BASE_URL}/company-settings/stores/${id}`, { method: "DELETE" });
+  if (!response.ok) throw new Error("Could not delete store.");
+  return response.json();
+}
 export async function setProductPrices(productId, prices) {
   const response = await fetch(`${API_BASE_URL}/products/${productId}/prices`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prices }) });
   if (!response.ok) throw new Error(`Could not save product prices: ${response.status}`);

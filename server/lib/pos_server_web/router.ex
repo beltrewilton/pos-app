@@ -56,6 +56,13 @@ defmodule PosServerWeb.Router do
     patch "/products/:id", ProductCreateController, :update
     post "/products/:id/prices", ProductCreateController, :set_prices
     get "/pricing-lists", PricingController, :index
+    get "/company-settings", CompanySettingsController, :index
+    post "/company-settings/price-lists", CompanySettingsController, :create_price_list
+    patch "/company-settings/price-lists/:id", CompanySettingsController, :update_price_list
+    delete "/company-settings/price-lists/:id", CompanySettingsController, :delete_price_list
+    post "/company-settings/stores", CompanySettingsController, :create_store
+    patch "/company-settings/stores/:id", CompanySettingsController, :update_store
+    delete "/company-settings/stores/:id", CompanySettingsController, :delete_store
     get "/inventory", InventoryController, :index
     get "/inventory/summary", InventoryController, :summary
     post "/inventory/adjustments", InventoryController, :adjust

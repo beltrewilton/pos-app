@@ -46,6 +46,7 @@ end
 
 defmodule PosServer.Retaily.Pricing do
   use Ecto.Schema
+  import Ecto.Changeset
 
   schema "pricing" do
     field :label, :string
@@ -55,6 +56,16 @@ defmodule PosServer.Retaily.Pricing do
     field :status, :integer, default: 1
 
     has_many :entries, PosServer.Retaily.PricingList
+  end
+
+  def changeset(pricing, attrs) do
+    pricing
+    |> cast(attrs, [:label, :price_key, :user_modified, :date_create, :status])
+    |> validate_required([:label, :price_key])
+    |> validate_length(:label, max: 90)
+    |> validate_length(:price_key, max: 45)
+    |> unique_constraint(:label)
+    |> unique_constraint(:price_key)
   end
 end
 

@@ -1007,6 +1007,28 @@ button {
   color: var(--muted-foreground);
   font-size: 0.82rem;
 }
+.company-settings-screen { min-width: 0; padding: 0 0 28px; }
+.company-settings-screen[hidden] { display: none; }
+.company-settings-fixed { position: sticky; top: 0; z-index: 3; padding-bottom: 10px; background: #f6f7f8; }
+.company-settings-topbar { position: static; }
+.company-settings-topbar h2 { margin: 1px 0 0; font-size: 1.35rem; line-height: 1; letter-spacing: -0.035em; }
+.company-summary { margin-bottom: 8px; }
+.company-summary .card-header { padding: .7rem .9rem; }
+.company-settings-status { min-height: 20px; margin: 0; color: var(--muted-foreground); font-size: .82rem; }
+.company-settings-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.company-settings-card { min-width: 0; }
+.company-settings-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.company-settings-card-header .btn { flex: 0 0 auto; }
+.company-settings-card .card-content { display: grid; gap: 8px; padding-top: 0; }
+.company-setting-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; padding: 9px 0; border-top: 1px solid var(--border); }
+.company-setting-row:first-child { border-top: 0; }
+.company-setting-row strong { display: block; overflow-wrap: anywhere; font-size: .875rem; }
+.company-setting-row .field-description { margin: 2px 0 0; }
+.company-setting-actions { display: flex; flex: 0 0 auto; gap: 6px; }
+.company-setting-form { padding-top: 8px; border-top: 1px solid var(--border); }
+.company-setting-form .form-field { margin-bottom: 8px; }
+.company-setting-form .form-actions { justify-content: flex-end; }
+.company-settings-empty { margin: 0; padding: 8px 0; }
 .invoice-table-container {
   overflow: visible;
 }
@@ -2293,4 +2315,10 @@ button {
   .user-form-card .card-content { padding: 14px; }
   .user-assignment .form-field-inline { min-height: 2.5rem; }
   .user-meta div { grid-template-columns: 74px minmax(0, 1fr); }
+  .company-settings-cards { grid-template-columns: 1fr; gap: 10px; }
+  .company-settings-card-header { align-items: center; }
+  .company-setting-row { align-items: flex-start; flex-direction: column; }
+  .company-setting-actions { width: 100%; }
+  .company-setting-actions .btn { flex: 1; min-height: 2.5rem; }
+  .company-setting-form .btn { min-height: 2.5rem; }
 }

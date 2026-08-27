@@ -234,6 +234,41 @@ defmodule PosServer.Repo.Migrations.CreateRetailySchema do
       add :name, :string, size: 200
     end
 
+    execute(
+      """
+      INSERT INTO scope_list (name) VALUES
+        ('cx'),
+        ('sales'),
+        ('human'),
+        ('dashboard.view'),
+        ('sales.pos'),
+        ('sales.view'),
+        ('inventory.view'),
+        ('inventory.stores'),
+        ('inventory.bulk'),
+        ('inventory.movement.request'),
+        ('inventory.movement.response'),
+        ('inventory.purchase.request'),
+        ('inventory.purchase.response'),
+        ('user.view'),
+        ('user.setting'),
+        ('company.settings'),
+        ('report.view'),
+        ('analityc.view'),
+        ('product.add'),
+        ('product.view'),
+        ('product.pricelist'),
+        ('product.view.cost'),
+        ('sales.filter.user'),
+        ('sales.filter.store'),
+        ('product.view.edit'),
+        ('product.edit'),
+        ('product.view.active_column'),
+        ('pos.delivery')
+      """,
+      "DELETE FROM scope_list"
+    )
+
     create table(:scopes) do
       add :name, :string, size: 50
       add :user_id, references(:app_users)

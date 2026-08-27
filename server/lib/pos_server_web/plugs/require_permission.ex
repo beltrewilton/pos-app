@@ -28,6 +28,7 @@ defmodule PosServerWeb.Plugs.RequirePermission do
       String.starts_with?(path, "/api/products") and method == "GET" -> "product.view"
       path == "/api/products" and method == "POST" -> "product.add"
       String.starts_with?(path, "/api/products/") and method in ["PATCH", "POST"] -> "product.edit"
+      String.starts_with?(path, "/api/company-settings") -> "company.settings"
       String.starts_with?(path, "/api/inventory") and method == "GET" -> "inventory.view"
       path == "/api/inventory/adjustments" and method == "POST" -> "inventory.stores"
       String.starts_with?(path, "/api/sales") and method == "GET" -> "sales.view"

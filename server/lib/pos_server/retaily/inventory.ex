@@ -1,5 +1,6 @@
 defmodule PosServer.Retaily.Store do
   use Ecto.Schema
+  import Ecto.Changeset
 
   schema "app_store" do
     field :name, :string
@@ -14,6 +15,15 @@ defmodule PosServer.Retaily.Store do
     has_many :received_product_orders, PosServer.Retaily.ProductOrder, foreign_key: :to_store_id
     has_many :product_order_lines, PosServer.Retaily.ProductOrderLine, foreign_key: :to_store_id
     many_to_many :users, PosServer.Retaily.User, join_through: PosServer.Retaily.UserStore
+  end
+
+  def changeset(store, attrs) do
+    store
+    |> cast(attrs, [:name, :company_id, :slogan, :logo, :address, :date_create])
+    |> validate_required([:name])
+    |> validate_length(:name, max: 50)
+    |> validate_length(:address, max: 200)
+    |> unique_constraint(:name)
   end
 end
 

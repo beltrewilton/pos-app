@@ -1,7 +1,7 @@
 import * as printer from "./printer.js";
 import { createPrintRelay } from "./print-relay.js";
 import Pica from "../vendor/pica/pica.mjs";
-import { API_BASE_URL, activeProducts, addSalePayment, adjustInventory, cancelSale, clearSession, createCustomer, createProduct, createProductOrder, createSale, createUser, customerPurchases, customers, deactivateUser, inventoryQuantities, inventorySummary, login, pricingLists, product, productOrders, purchaseSources, receiveProductOrder, saleDetails, salesReport, saveSession, session, setProductPrices, updateProduct, updateUser, userOptions, users } from "./api.js";
+import { API_BASE_URL, activeProducts, addSalePayment, adjustInventory, cancelSale, clearSession, companySettings, createCustomer, createPriceList, createProduct, createProductOrder, createSale, createStore, createUser, customerPurchases, customers, deactivateUser, deletePriceList, deleteStore, inventoryQuantities, inventorySummary, login, pricingLists, product, productOrders, purchaseSources, receiveProductOrder, saleDetails, salesReport, saveSession, session, setProductPrices, updatePriceList, updateProduct, updateStore, updateUser, userOptions, users } from "./api.js";
 import { createPos } from "./pos.js";
 import { formatCurrency, getLanguage, onLanguageChange, t, translateDocument } from "./i18n.js";
 import { createLanguageSwitcher } from "./language-switcher.js";
@@ -124,6 +124,11 @@ let invoiceSort = { key: "sequence", direction: "desc" };
 const inventoryScreen = document.querySelector("#inventory-screen");
 const ordersScreen = document.querySelector("#orders-screen");
 const purchaseOrderScreen = document.querySelector("#purchase-order-screen");
+const companySettingsScreen = document.querySelector("#company-settings-screen");
+const companySettingsCompany = document.querySelector("#company-settings-company");
+const companySettingsStatus = document.querySelector("#company-settings-status");
+const priceListsContent = document.querySelector("#price-lists-content");
+const storesContent = document.querySelector("#stores-content");
 const inventoryTableBody = document.querySelector("#inventory-table-body");
 const ordersTableBody = document.querySelector("#orders-table-body");
 const inventorySearchInput = document.querySelector("#inventory-search");
@@ -144,6 +149,8 @@ let imagePreparationTask = null;
 let selectedProductImageFile = null;
 let purchaseOrderSort = { key: "last_updated", direction: "desc" };
 let purchaseOrderStatusFilter = "";
+let companySettingsData = { company: null, price_lists: [], stores: [] };
+let editingCompanySetting = null;
 
 const mobileQuery = window.matchMedia("(max-width: 640px)");
 
@@ -813,9 +820,53 @@ function closeInvoiceReport() {
 }
 
 function formatOperationDate(value) { return value ? new Date(String(value).replace(" ", "T")).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—"; }
-function closeOperations() { inventoryScreen.hidden = true; ordersScreen.hidden = true; purchaseOrderScreen.hidden = true; }
+function closeOperations() { inventoryScreen.hidden = true; ordersScreen.hidden = true; purchaseOrderScreen.hidden = true; companySettingsScreen.hidden = true; }
 function openInventory() { openPos(); closeOperations(); catalogPanel.dataset.view = "inventory"; appShell.classList.add("invoice-view"); inventoryScreen.hidden = false; selectSidebar("inventory-nav"); loadInventory(); requestAnimationFrame(() => document.querySelector("#inventory-title").focus()); }
 function openOrders() { openPos(); closeOperations(); catalogPanel.dataset.view = "orders"; appShell.classList.add("invoice-view"); ordersScreen.hidden = false; selectSidebar("orders-nav"); loadOrders(); requestAnimationFrame(() => document.querySelector("#orders-title").focus()); }
+function companySettingField(labelText, name, value = "", { required = false, type = "text" } = {}) {
+  const field = document.createElement("div"); field.className = "form-field";
+  const id = `company-setting-${name}-${crypto.randomUUID()}`;
+  const label = document.createElement("label"); label.className = "label"; label.htmlFor = id; label.textContent = labelText;
+  const input = document.createElement("input"); input.className = "input"; input.id = id; input.name = name; input.type = type; input.value = value || ""; input.required = required;
+  field.append(label, input); return field;
+}
+function companySettingForm(kind, entry = null) {
+  const form = document.createElement("form"); form.className = "form company-setting-form"; form.dataset.kind = kind;
+  form.appendChild(companySettingField(kind === "price-list" ? "Price list label" : "Store name", "name", entry?.label || entry?.name, { required: true }));
+  if (kind === "store") form.appendChild(companySettingField("Address", "address", entry?.address));
+  const actions = document.createElement("div"); actions.className = "form-actions";
+  const cancel = document.createElement("button"); cancel.className = "btn"; cancel.type = "button"; cancel.dataset.variant = "outline"; cancel.dataset.companySettingCancel = ""; cancel.textContent = "Cancel";
+  const save = document.createElement("button"); save.className = "btn"; save.type = "submit"; save.dataset.variant = "default"; save.textContent = entry ? "Save" : "Create";
+  actions.append(cancel, save); form.appendChild(actions); return form;
+}
+function companySettingRow(kind, entry) {
+  const row = document.createElement("div"); row.className = "company-setting-row";
+  const copy = document.createElement("div");
+  const title = document.createElement("strong"); title.textContent = entry.label || entry.name;
+  const description = document.createElement("p"); description.className = "field-description"; description.textContent = kind === "store" ? entry.address || "No address provided" : entry.price_key || "";
+  copy.append(title, description);
+  const actions = document.createElement("div"); actions.className = "company-setting-actions";
+  [["Edit", "outline", "edit"], ["Delete", "destructive", "delete"]].forEach(([text, variant, action]) => { const button = document.createElement("button"); button.className = "btn"; button.type = "button"; button.dataset.variant = variant; button.dataset.size = "sm"; button.dataset.companySettingAction = action; button.dataset.kind = kind; button.dataset.id = entry.id; button.textContent = text; actions.appendChild(button); });
+  row.append(copy, actions); return row;
+}
+function renderCompanySettings() {
+  const company = companySettingsData.company;
+  companySettingsCompany.textContent = company ? [company.name, company.rnc ? `RNC ${company.rnc}` : ""].filter(Boolean).join(" · ") : "Company information is unavailable.";
+  const renderList = (container, kind, entries, empty) => {
+    container.replaceChildren();
+    if (editingCompanySetting?.kind === kind && editingCompanySetting.id === "new") container.appendChild(companySettingForm(kind));
+    entries.forEach((entry) => { if (editingCompanySetting?.kind === kind && Number(editingCompanySetting.id) === Number(entry.id)) container.appendChild(companySettingForm(kind, entry)); else container.appendChild(companySettingRow(kind, entry)); });
+    if (!entries.length && !(editingCompanySetting?.kind === kind)) { const message = document.createElement("p"); message.className = "field-description company-settings-empty"; message.textContent = empty; container.appendChild(message); }
+  };
+  renderList(priceListsContent, "price-list", companySettingsData.price_lists || [], "No price lists yet.");
+  renderList(storesContent, "store", companySettingsData.stores || [], "No stores yet.");
+}
+async function loadCompanySettings() {
+  companySettingsStatus.textContent = "Loading company settings…";
+  try { companySettingsData = await companySettings(); renderCompanySettings(); companySettingsStatus.textContent = ""; }
+  catch (error) { console.error(error); companySettingsStatus.textContent = error.message || "Company settings could not be loaded."; }
+}
+function openCompanySettings() { openPos(); closeOperations(); catalogPanel.dataset.view = "company-settings"; appShell.classList.add("invoice-view"); companySettingsScreen.hidden = false; selectSidebar("company-settings-nav"); loadCompanySettings(); requestAnimationFrame(() => document.querySelector("#company-settings-title").focus()); }
 function sortOperationEntries(entries, sort) { const factor = sort.direction === "asc" ? 1 : -1; return [...entries].sort((a, b) => { const left = a[sort.key] ?? "", right = b[sort.key] ?? ""; return (typeof left === "number" && typeof right === "number" ? left - right : String(left).localeCompare(String(right), undefined, { numeric: true, sensitivity: "base" })) * factor; }); }
 function renderInventory() {
   const q = inventorySearchInput.value.trim().toLowerCase();
@@ -1057,7 +1108,7 @@ function selectSidebar(id) {
     if (link.id === id) link.setAttribute("aria-current", "page");
     else link.removeAttribute("aria-current");
   });
-  const targetById = { "pos-nav": "pos", "sales-report-nav": "sales", "inventory-nav": "inventory", "orders-nav": "orders", "users-nav": "users", "customers-nav": "customers", "settings-nav": "settings" };
+  const targetById = { "pos-nav": "pos", "sales-report-nav": "sales", "inventory-nav": "inventory", "orders-nav": "orders", "company-settings-nav": "company-settings", "users-nav": "users", "customers-nav": "customers", "settings-nav": "settings" };
   const target = targetById[id];
   document.querySelectorAll(".mobile-navigation-link[data-navigation-target]").forEach((link) => {
     link.toggleAttribute("aria-current", link.dataset.navigationTarget === target);
@@ -1071,6 +1122,7 @@ function openPos(event) {
   customersScreen.hidden = true;
   inventoryScreen.hidden = true;
   ordersScreen.hidden = true;
+  companySettingsScreen.hidden = true;
   checkoutFlow.hidden = true;
   startCheckoutButton.hidden = false;
   delete catalogPanel.dataset.view;
@@ -1260,6 +1312,26 @@ document.querySelector("#pos-nav").addEventListener("click", openPos);
 document.querySelector("#sales-report-nav").addEventListener("click", openInvoiceReport);
 document.querySelector("#inventory-nav").addEventListener("click", openInventory);
 document.querySelector("#orders-nav").addEventListener("click", openOrders);
+document.querySelector("#company-settings-nav").addEventListener("click", openCompanySettings);
+document.querySelector("#add-price-list").addEventListener("click", () => { editingCompanySetting = { kind: "price-list", id: "new" }; renderCompanySettings(); priceListsContent.querySelector("input")?.focus(); });
+document.querySelector("#add-store").addEventListener("click", () => { editingCompanySetting = { kind: "store", id: "new" }; renderCompanySettings(); storesContent.querySelector("input")?.focus(); });
+[priceListsContent, storesContent].forEach((container) => {
+  container.addEventListener("click", async (event) => {
+    if (event.target.closest("[data-company-setting-cancel]")) { editingCompanySetting = null; renderCompanySettings(); return; }
+    const button = event.target.closest("[data-company-setting-action]"); if (!button) return;
+    const kind = button.dataset.kind; const id = Number(button.dataset.id);
+    if (button.dataset.companySettingAction === "edit") { editingCompanySetting = { kind, id }; renderCompanySettings(); container.querySelector("input")?.focus(); return; }
+    if (!confirm(`Delete this ${kind === "store" ? "store" : "price list"}?`)) return;
+    try { button.disabled = true; kind === "store" ? await deleteStore(id) : await deletePriceList(id); editingCompanySetting = null; await loadCompanySettings(); }
+    catch (error) { companySettingsStatus.textContent = error.message; button.disabled = false; }
+  });
+  container.addEventListener("submit", async (event) => {
+    event.preventDefault(); const form = event.target; if (!form.matches(".company-setting-form") || !form.reportValidity()) return;
+    const kind = form.dataset.kind; const attrs = Object.fromEntries(new FormData(form)); const current = editingCompanySetting; const submit = form.querySelector('[type="submit"]');
+    try { submit.disabled = true; if (kind === "store") current?.id === "new" ? await createStore(attrs) : await updateStore(current.id, attrs); else current?.id === "new" ? await createPriceList({ label: attrs.name }) : await updatePriceList(current.id, { label: attrs.name }); editingCompanySetting = null; await loadCompanySettings(); }
+    catch (error) { companySettingsStatus.textContent = error.message; submit.disabled = false; }
+  });
+});
 document.querySelectorAll(".mobile-navigation-link[data-navigation-target]").forEach((item) => {
   item.addEventListener("click", () => {
     const actions = {
@@ -1268,6 +1340,7 @@ document.querySelectorAll(".mobile-navigation-link[data-navigation-target]").for
       sales: openInvoiceReport,
       inventory: openInventory,
       orders: openOrders,
+      "company-settings": openCompanySettings,
       users: openUsers,
       settings: openSettings,
     };
@@ -1788,7 +1861,7 @@ document.addEventListener("click", (event) => {
   userMenus.forEach((menu) => { if (menu.open && !menu.contains(event.target)) menu.open = false; });
 });
 function applyAuthorization() {
-  const rules = { "pos-nav": "sales.pos", "sales-report-nav": "sales.view", "inventory-nav": "inventory.view", "orders-nav": "inventory.view", "users-nav": "user.view", "mobile-users-nav": "user.view", "create-product": "product.add", "create-order": "inventory.movement.request" };
+  const rules = { "pos-nav": "sales.pos", "sales-report-nav": "sales.view", "inventory-nav": "inventory.view", "orders-nav": "inventory.view", "company-settings-nav": "company.settings", "mobile-company-settings-nav": "company.settings", "users-nav": "user.view", "mobile-users-nav": "user.view", "create-product": "product.add", "create-order": "inventory.movement.request" };
   Object.entries(rules).forEach(([id, permission]) => { const control = document.querySelector(`#${id}`); if (control) control.hidden = !allowed(permission); });
 }
 function userName(user) { return [user.first_name, user.last_name].filter(Boolean).join(" ") || user.username; }
@@ -1847,9 +1920,9 @@ function handleRoute() {
 usersNav.addEventListener("click", openUsers);
 window.addEventListener("hashchange", handleRoute);
 document.addEventListener("click", (event) => {
-  const protectedControl = event.target.closest("#sales-report-nav, #inventory-nav, #orders-nav, #create-product, #create-order");
+  const protectedControl = event.target.closest("#sales-report-nav, #inventory-nav, #orders-nav, #company-settings-nav, #create-product, #create-order");
   if (!protectedControl) return;
-  const permission = { "sales-report-nav": "sales.view", "inventory-nav": "inventory.view", "orders-nav": "inventory.view", "create-product": "product.add", "create-order": "inventory.movement.request" }[protectedControl.id];
+  const permission = { "sales-report-nav": "sales.view", "inventory-nav": "inventory.view", "orders-nav": "inventory.view", "company-settings-nav": "company.settings", "create-product": "product.add", "create-order": "inventory.movement.request" }[protectedControl.id];
   if (!allowed(permission)) { event.preventDefault(); event.stopImmediatePropagation(); showUnauthorized(); }
 }, true);
 loginForm.addEventListener("submit", async (event) => { event.preventDefault(); loginError.hidden = true; if (!loginForm.reportValidity()) return; const submit = document.querySelector("#login-submit"); submit.disabled = true; try { const result = await login(loginForm.elements.identifier.value.trim(), loginForm.elements.password.value); saveSession(result); loginForm.reset(); showApplication(); loadProducts(); } catch (error) { loginErrorMessage.textContent = t("auth.invalidCredentials"); loginError.hidden = false; } finally { submit.disabled = false; } });
