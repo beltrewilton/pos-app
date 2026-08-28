@@ -1,7 +1,7 @@
 import * as printer from "./printer.js";
 import { createPrintRelay } from "./print-relay.js";
 import Pica from "../vendor/pica/pica.mjs";
-import { API_BASE_URL, activeProducts, addSalePayment, adjustInventory, cancelSale, clearSession, companySettings, createCustomer, createPriceList, createProduct, createProductOrder, createProvider, createSale, createSequenceSet, createStore, createUser, customerPurchases, customers, deactivateUser, deletePriceList, deleteProvider, deleteSequenceSet, deleteStore, inventoryQuantities, inventorySummary, login, pricingLists, product, productOrders, purchaseSources, receiveProductOrder, saleDetails, salesReport, saveSession, session, setProductPrices, stores, updatePriceList, updateProduct, updateProvider, updateSequenceSet, updateStore, updateUser, userOptions, users } from "./api.js";
+import { API_BASE_URL, activeProducts, addSalePayment, adjustInventory, cancelSale, clearSession, companySettings, createCustomer, createPriceList, createProduct, createProductOrder, createProvider, createSale, createSequenceSet, createStore, createUser, customerPurchases, customers, deactivateUser, deletePriceList, deleteProvider, deleteSequenceSet, deleteStore, inventoryQuantities, inventoryStoreQuantities, inventorySummary, login, pricingLists, product, productOrders, purchaseSources, receiveProductOrder, saleDetails, salesReport, saveSession, session, setProductPrices, stores, updatePriceList, updateProduct, updateProvider, updateSequenceSet, updateStore, updateUser, userOptions, users } from "./api.js";
 import { createPos } from "./pos.js";
 import { formatCurrency, getLanguage, onLanguageChange, t, translateDocument } from "./i18n.js";
 import { createLanguageSwitcher } from "./language-switcher.js";
@@ -58,12 +58,22 @@ let mobileNavigationTrigger = null;
 let mobileNavigationRestoreFocus = true;
 const languageSwitcher = createLanguageSwitcher(document.querySelector("#language-switcher"));
 const userMenus = document.querySelectorAll(".user-menu");
+const sidebarStoreSelect = document.querySelector("#sidebar-store");
+const sessionStoreStatus = document.querySelector("#session-store-status");
 let storeId = null;
 let availableStores = [];
+let inventorySocket = null;
 const imageResizer = new Pica();
 const MAX_PRODUCT_IMAGE_BYTES = 10 * 1024 * 1024;
 document.querySelector('[data-inventory-sort="quantity"]').textContent = t("ui.currentQuantity");
 document.querySelector('[data-inventory-sort="prev_quantity"]').textContent = t("ui.previousQuantity");
+const inventoryHeaderRow = document.querySelector("#inventory-screen .operations-table thead .table-row");
+inventoryHeaderRow.lastElementChild.remove();
+const totalQuantityHeader = document.createElement("th");
+totalQuantityHeader.className = "table-head";
+totalQuantityHeader.scope = "col";
+totalQuantityHeader.textContent = "Total quantity";
+inventoryHeaderRow.children[5].before(totalQuantityHeader);
 const pos = createPos({
   cartElement: document.querySelector("#cart"),
   totalTrigger: document.querySelector("#grand-total"),
@@ -141,6 +151,8 @@ const ordersStatus = document.querySelector("#orders-status");
 const ordersSummary = document.querySelector("#orders-summary");
 let inventoryEntries = [], purchaseOrders = [], purchaseOrderSources = [], purchaseOrderStatusCounts = {}, selectedOrder = null;
 let editingInventoryProductId = null;
+let expandedInventoryProductId = null;
+let expandedStoreQuantities = [];
 let inventorySort = { key: "last_update", direction: "desc" };
 let inventoryFilter = "";
 let pendingProductSelection = null;
@@ -158,7 +170,7 @@ let editingCompanySetting = null;
 const mobileQuery = window.matchMedia("(max-width: 640px)");
 
 function populateStoreOptions() {
-  document.querySelectorAll("#inventory-store, #inventory-form-store, #order-destination").forEach((select) => {
+  document.querySelectorAll("#inventory-store, #inventory-form-store, #order-destination, #sidebar-store").forEach((select) => {
     const selected = String(storeId);
     select.replaceChildren(...availableStores.map((store) => {
       const option = document.createElement("option"); option.value = store.id; option.textContent = store.name; return option;
@@ -167,12 +179,52 @@ function populateStoreOptions() {
   });
 }
 
+function selectedStore() { return availableStores.find((store) => Number(store.id) === Number(storeId)); }
+
+function updateSessionStore() {
+  const current = session();
+  if (!current || !storeId) return;
+  saveSession({ ...current, store_id: Number(storeId) });
+}
+
+function updateSessionStoreDisplay() {
+  const { login } = currentUserIdentity();
+  const store = selectedStore();
+  sessionStoreStatus.textContent = store ? `${login}@${store.name}` : login;
+}
+
+async function selectStore(nextStoreId) {
+  const next = availableStores.find((store) => Number(store.id) === Number(nextStoreId));
+  if (!next || Number(next.id) === Number(storeId)) return;
+  inventorySocket?.close();
+  storeId = next.id;
+  updateSessionStore();
+  populateStoreOptions();
+  updateSessionStoreDisplay();
+  products = [];
+  cursor = null;
+  hasMore = true;
+  inventoryEntries = [];
+  purchaseOrders = [];
+  selectedOrder = null;
+  editingInventoryProductId = null;
+  expandedInventoryProductId = null;
+  expandedStoreQuantities = [];
+  pos.clear();
+  subscribeToInventory();
+  await loadProducts();
+  if (!inventoryScreen.hidden) await loadInventory();
+  if (!ordersScreen.hidden) await loadOrders();
+}
+
 async function initializeStores() {
   const { entries } = await stores();
   availableStores = entries;
-  storeId = entries[0]?.id || null;
+  const selectedStoreId = session()?.store_id;
+  storeId = entries.find((store) => Number(store.id) === Number(selectedStoreId))?.id || null;
   populateStoreOptions();
-  if (!storeId) { productStatus.textContent = "No store is available for this account."; return; }
+  if (!storeId) throw new Error("Select a store to continue.");
+  updateSessionStoreDisplay();
   subscribeToInventory();
   startPrintRelay();
   loadProducts();
@@ -910,27 +962,38 @@ function openCompanySettings() { openPos(); closeOperations(); catalogPanel.data
 function sortOperationEntries(entries, sort) { const factor = sort.direction === "asc" ? 1 : -1; return [...entries].sort((a, b) => { const left = a[sort.key] ?? "", right = b[sort.key] ?? ""; return (typeof left === "number" && typeof right === "number" ? left - right : String(left).localeCompare(String(right), undefined, { numeric: true, sensitivity: "base" })) * factor; }); }
 function renderInventory() {
   const q = inventorySearchInput.value.trim().toLowerCase();
-  const entries = sortOperationEntries(q ? inventoryEntries.filter((e) => String(e.product_name || "").toLowerCase().includes(q)) : inventoryEntries, inventorySort);
-  inventoryTableBody.replaceChildren(...entries.map((entry) => {
+  const entries = sortOperationEntries(q ? inventoryEntries.filter((e) => `${e.product_name || ""} ${e.product_code || ""}`.toLowerCase().includes(q)) : inventoryEntries, inventorySort);
+  const rows = entries.flatMap((entry) => {
     const row = document.createElement("tr");
     row.className = "table-row";
     row.dataset.inventoryProductId = entry.product_id;
-    const labels = ["Product", "SKU", "Store", "Cost", "Price", "Current quantity", "Previous quantity", "Last updated", "Updated by"];
-    [entry.product_name || `Product #${entry.product_id}`, entry.product_code || "—", entry.store_name || "Current store", currency(entry.product_cost), entry.product_price == null ? "—" : currency(entry.product_price), entry.quantity ?? 0, entry.prev_quantity ?? "—", formatOperationDate(entry.last_update), entry.user_updated || "—"].forEach((value, index) => {
+    const labels = ["Product", "SKU", "Store", "Cost", "Price", "Total quantity", "Current quantity", "Previous quantity", "Last updated", "Updated by"];
+    [entry.product_name || `Product #${entry.product_id}`, entry.product_code || "—", entry.store_name || "Current store", currency(entry.product_cost), entry.product_price == null ? "—" : currency(entry.product_price), entry.total_quantity ?? entry.quantity ?? 0, entry.quantity ?? 0, entry.prev_quantity ?? "—", formatOperationDate(entry.last_update), entry.user_updated || "—"].forEach((value, index) => {
       const cell = document.createElement("td"); cell.className = "table-cell";
       cell.dataset.label = labels[index];
-      if (index === 0) { const button = document.createElement("button"); button.className = "btn"; button.type = "button"; button.dataset.variant = "link"; button.dataset.editProduct = entry.product_id; button.textContent = value; cell.appendChild(button); } else cell.textContent = value;
+      if (index === 0) { const button = document.createElement("button"); button.className = "btn"; button.type = "button"; button.dataset.variant = "link"; button.dataset.editProduct = entry.product_id; button.textContent = value; cell.appendChild(button); }
+      else if (index === 5) cell.innerHTML = `<button class="btn inventory-total-quantity" type="button" data-variant="link" data-total-quantity="${entry.product_id}" title="Show Quantity per Store" aria-expanded="${String(expandedInventoryProductId === entry.product_id)}">${value}</button>`;
+      else if (index === 6) {
+        if (editingInventoryProductId === entry.product_id) cell.innerHTML = `<div class="inventory-inline-editor"><label class="sr-only" for="inventory-quantity-${entry.product_id}">Current quantity</label><input id="inventory-quantity-${entry.product_id}" class="input" type="number" inputmode="numeric" value="${entry.quantity ?? 0}" aria-label="Current quantity for ${entry.product_name}"><button class="btn" type="button" data-variant="default" data-size="sm" data-save-inventory="${entry.product_id}">Update</button><button class="btn" type="button" data-variant="ghost" data-size="sm" data-cancel-inventory>Cancel</button></div>`;
+        else cell.innerHTML = `<div class="inventory-inline-editor"><span>${value}</span><button class="btn" type="button" data-variant="outline" data-size="sm" data-adjust-product="${entry.product_id}">Update</button></div>`;
+      } else cell.textContent = value;
       row.appendChild(cell);
     });
-    const action = document.createElement("td"); action.className = "table-cell inventory-row-action"; action.dataset.label = "Actions";
-    if (editingInventoryProductId === entry.product_id) {
-      action.innerHTML = `<div class="inventory-inline-editor"><label class="sr-only" for="inventory-add-${entry.product_id}">Quantity to add</label><input id="inventory-add-${entry.product_id}" class="input" type="number" inputmode="numeric" placeholder="Add" aria-label="Quantity to add"><button class="btn" type="button" data-variant="default" data-size="sm" data-save-inventory="${entry.product_id}">Save</button><button class="btn" type="button" data-variant="ghost" data-size="sm" data-cancel-inventory>Cancel</button></div>`;
-    } else {
-      action.innerHTML = `<button class="btn" type="button" data-variant="outline" data-size="sm" data-adjust-product="${entry.product_id}">Update</button>`;
-    }
-    row.appendChild(action);
-    return row;
-  }));
+    if (expandedInventoryProductId !== entry.product_id) return [row];
+    const storeRows = expandedStoreQuantities.map((storeEntry) => {
+      const storeRow = document.createElement("tr");
+      storeRow.className = "table-row inventory-store-row";
+      storeRow.dataset.inventoryProductId = entry.product_id;
+      ["", "", "Store"].forEach((value, index) => { const cell = document.createElement("td"); cell.className = "table-cell"; cell.dataset.label = labels[index]; cell.textContent = value; storeRow.appendChild(cell); });
+      const storeCell = document.createElement("td"); storeCell.className = "table-cell inventory-store-name"; storeCell.colSpan = 2; storeCell.dataset.label = "Store"; storeCell.textContent = storeEntry.store_name; storeRow.appendChild(storeCell);
+      [""].forEach((value) => { const cell = document.createElement("td"); cell.className = "table-cell"; cell.dataset.label = labels[5]; cell.textContent = value; storeRow.appendChild(cell); });
+      const quantityCell = document.createElement("td"); quantityCell.className = "table-cell"; quantityCell.dataset.label = labels[6]; quantityCell.innerHTML = `<div class="inventory-inline-editor"><label class="sr-only" for="inventory-store-quantity-${entry.product_id}-${storeEntry.store_id}">Quantity for ${storeEntry.store_name}</label><input id="inventory-store-quantity-${entry.product_id}-${storeEntry.store_id}" class="input" type="number" inputmode="numeric" value="${storeEntry.quantity ?? 0}" aria-label="Quantity for ${storeEntry.store_name}"><button class="btn" type="button" data-variant="default" data-size="sm" data-save-store-inventory="${entry.product_id}" data-store-id="${storeEntry.store_id}">Update</button></div>`; storeRow.appendChild(quantityCell);
+      [storeEntry.prev_quantity ?? "—", formatOperationDate(storeEntry.last_update), storeEntry.user_updated || "—"].forEach((value, offset) => { const cell = document.createElement("td"); cell.className = "table-cell"; cell.dataset.label = labels[offset + 7]; cell.textContent = value; storeRow.appendChild(cell); });
+      return storeRow;
+    });
+    return [row, ...storeRows];
+  });
+  inventoryTableBody.replaceChildren(...rows);
   inventoryStatus.textContent = entries.length ? `${entries.length} products` : "No inventory found.";
 }
 function percentage(value) { return `${(Number(value || 0) * 100).toFixed(1)}%`; }
@@ -982,7 +1045,7 @@ function focusInventoryRow(productId) {
   const row = inventoryTableBody.querySelector(`[data-inventory-product-id="${productId}"]`);
   if (!row) return;
   row.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  row.querySelector("[data-adjust-product]")?.focus({ preventScroll: true });
+  row.querySelector("[data-adjust-product], [data-save-inventory]")?.focus({ preventScroll: true });
 }
 function renderInventoryWithoutMoving() {
   const scrollTop = catalogPanel.scrollTop;
@@ -1058,8 +1121,8 @@ function showOrderDetail(order) {
   detail.querySelectorAll("[data-order-product-edit]").forEach((button) => button.addEventListener("click", () => openProductEditor(Number(button.dataset.orderProductEdit), () => loadOrders().then(() => showOrderDetail(purchaseOrders.find((item) => item.id === order.id))))));
   requestAnimationFrame(() => document.querySelector("#purchase-order-title").focus());
 }
-function openPurchaseOrderCreate() { ordersScreen.hidden = true; purchaseOrderScreen.hidden = false; const detail = document.querySelector("#order-detail"); const sources = purchaseOrderSources.map((source) => `<option value="${source.id}">${source.name}</option>`).join(""); detail.innerHTML = `<div class="card-header"><div><p class="eyebrow">Operations</p><h3 class="card-title">Create purchase order</h3><p class="field-description">Add products and confirm the requested quantities.</p></div></div><form id="purchase-order-create-form" class="form card-content"><div class="order-form-grid"><div class="form-field"><label class="label" for="purchase-order-source">Source / provider</label><select id="purchase-order-source" class="select" required><option value="" disabled selected>Select a source</option>${sources}</select></div><div class="form-field"><label class="label" for="purchase-order-destination">Destination store</label><input id="purchase-order-destination" class="input" type="text" value="Current store" readonly></div></div><div id="order-lines" class="order-lines"></div><button id="add-order-line" class="btn" type="button" data-variant="outline" data-size="sm">Add product</button><p id="purchase-order-create-status" class="field-description" role="status"></p><div class="form-actions"><button class="btn" type="submit" data-variant="default">Create order</button></div></form>`; detail.querySelector("#add-order-line").addEventListener("click", () => addOrderLine(true)); detail.querySelector("form").addEventListener("submit", createPurchaseOrder); addOrderLine(true); requestAnimationFrame(() => document.querySelector("#purchase-order-source").focus()); }
-async function createPurchaseOrder(event) { event.preventDefault(); const lines = orderLinesPayload(); const status = document.querySelector("#purchase-order-create-status"); if (!lines.length) { status.textContent = "Add at least one product and quantity."; return; } status.textContent = "Creating…"; try { const order = await createProductOrder({ order_type: "purchase", from_origin_id: Number(document.querySelector("#purchase-order-source").value), to_store_id: storeId, lines }); purchaseOrders.unshift(order); renderOrders(); showOrderDetail(order); window.toast?.success({ title: "Purchase order created", description: `Order #${order.id} is ready to process.` }); } catch (error) { status.textContent = error.message; } }
+function openPurchaseOrderCreate() { ordersScreen.hidden = true; purchaseOrderScreen.hidden = false; const detail = document.querySelector("#order-detail"); const sources = purchaseOrderSources.map((source) => `<option value="${source.id}">${source.name}</option>`).join(""); const destinations = availableStores.map((store) => `<option value="${store.id}"${Number(store.id) === Number(storeId) ? " selected" : ""}>${store.name}</option>`).join(""); detail.innerHTML = `<div class="card-header"><div><p class="eyebrow">Operations</p><h3 class="card-title">Create purchase order</h3><p class="field-description">Add products and confirm the requested quantities.</p></div></div><form id="purchase-order-create-form" class="form card-content"><div class="order-form-grid"><div class="form-field"><label class="label" for="purchase-order-source">Source / provider</label><select id="purchase-order-source" class="select" required><option value="" disabled selected>Select a source</option>${sources}</select></div><div class="form-field"><label class="label" for="purchase-order-destination">Destination store</label><select id="purchase-order-destination" class="select" required>${destinations}</select></div></div><div id="order-lines" class="order-lines"></div><button id="add-order-line" class="btn" type="button" data-variant="outline" data-size="sm">Add product</button><p id="purchase-order-create-status" class="field-description" role="status"></p><div class="form-actions"><button class="btn" type="submit" data-variant="default">Create order</button></div></form>`; detail.querySelector("#add-order-line").addEventListener("click", () => addOrderLine(true)); detail.querySelector("#purchase-order-destination").addEventListener("change", () => document.querySelectorAll("#order-lines .order-line[data-product-id]").forEach(refreshOrderLineInventoryQuantity)); detail.querySelector("form").addEventListener("submit", createPurchaseOrder); addOrderLine(true); requestAnimationFrame(() => document.querySelector("#purchase-order-source").focus()); }
+async function createPurchaseOrder(event) { event.preventDefault(); const lines = orderLinesPayload(); const status = document.querySelector("#purchase-order-create-status"); if (!lines.length) { status.textContent = "Add at least one product and quantity."; return; } status.textContent = "Creating…"; try { const order = await createProductOrder({ order_type: "purchase", from_origin_id: Number(document.querySelector("#purchase-order-source").value), to_store_id: Number(document.querySelector("#purchase-order-destination").value), lines }); purchaseOrders.unshift(order); renderOrders(); showOrderDetail(order); window.toast?.success({ title: "Purchase order created", description: `Order #${order.id} is ready to process.` }); } catch (error) { status.textContent = error.message; } }
 function fillProductOptions(select) { const entries = inventoryEntries.length ? inventoryEntries : products.map((product) => ({ product_id: product.id, product_name: product.name })); select.replaceChildren(...entries.map((e) => new Option(e.product_name, e.product_id))); }
 function openProductDialog(onCreated = null) {
   pendingProductSelection = onCreated;
@@ -1121,21 +1184,29 @@ function openInventoryDialog(productId) { const dialog = document.querySelector(
 function updateInventoryCurrent() { const entry = inventoryEntries.find((e) => String(e.product_id) === document.querySelector("#inventory-product").value); document.querySelector("#inventory-current").value = entry?.quantity ?? 0; }
 function orderLineProducts() { return inventoryEntries.length ? inventoryEntries : products.map((product) => ({ product_id: product.id, product_name: product.name, inventory_quantity: product.inventory_quantity })); }
 function orderLinesPayload() { return [...document.querySelectorAll("#order-lines .order-line")].map((line) => ({ product_id: Number(line.dataset.productId), quantity: Number(line.querySelector("input[type='number']").value) })).filter((line) => line.product_id > 0 && line.quantity > 0); }
+async function refreshOrderLineInventoryQuantity(line) {
+  const productId = Number(line.dataset.productId);
+  const destinationStoreId = Number(document.querySelector("#purchase-order-destination")?.value);
+  const current = line.querySelector("[aria-label='Current inventory quantity']");
+  if (!productId || !destinationStoreId || !current) return;
+  current.value = "…";
+  try {
+    const { entries } = await inventoryQuantities(destinationStoreId, [productId]);
+    const inventory = entries.find((entry) => Number(entry.product_id) === productId);
+    if (Number(line.dataset.productId) === productId && Number(document.querySelector("#purchase-order-destination")?.value) === destinationStoreId) current.value = inventory?.quantity ?? 0;
+  } catch {
+    if (Number(line.dataset.productId) === productId && Number(document.querySelector("#purchase-order-destination")?.value) === destinationStoreId) current.value = "—";
+  }
+}
 function addOrderLine(empty = true) { const line = document.createElement("div"); line.className = "order-line"; const edit = document.createElement("button"); edit.className = "btn"; edit.type = "button"; edit.dataset.variant = "outline"; edit.dataset.size = "icon-sm"; edit.setAttribute("aria-label", "Edit selected product"); edit.disabled = true; edit.textContent = "✎"; const picker = document.createElement("div"); picker.className = "product-combobox"; const product = document.createElement("input"); product.className = "input"; product.type = "text"; product.placeholder = "Search products…"; product.autocomplete = "off"; product.spellcheck = false; product.setAttribute("autocorrect", "off"); product.setAttribute("autocapitalize", "off"); product.setAttribute("role", "combobox"); product.setAttribute("aria-label", "Product"); product.setAttribute("aria-autocomplete", "list"); product.setAttribute("aria-expanded", "false"); const create = document.createElement("button"); create.className = "btn"; create.type = "button"; create.dataset.variant = "outline"; create.dataset.size = "icon-sm"; create.setAttribute("aria-label", "Create product"); create.textContent = "+"; const results = document.createElement("ul"); results.className = "product-combobox-list"; results.id = `order-products-${crypto.randomUUID()}`; results.setAttribute("role", "listbox"); results.hidden = true; product.setAttribute("aria-controls", results.id); const current = document.createElement("input"); current.className = "input numeric"; current.type = "text"; current.readOnly = true; current.value = "—"; current.setAttribute("aria-label", "Current inventory quantity"); const qty = document.createElement("input"); qty.className = "input"; qty.type = "number"; qty.min = "1"; qty.required = !empty; qty.setAttribute("aria-label", "Requested quantity"); const remove = document.createElement("button"); remove.className = "btn"; remove.type = "button"; remove.dataset.variant = "ghost"; remove.dataset.size = "sm"; remove.textContent = "Remove";
   let matches = [], activeIndex = -1;
   const close = () => { results.hidden = true; product.setAttribute("aria-expanded", "false"); activeIndex = -1; };
   const choose = async (entry) => {
     line.dataset.productId = entry.product_id;
     product.value = entry.product_code ? `${entry.product_name} · ${entry.product_code}` : entry.product_name;
-    current.value = entry.quantity ?? entry.inventory_quantity ?? 0;
+    current.value = "…";
     edit.disabled = false; close(); qty.focus();
-    try {
-      const { entries } = await inventoryQuantities(storeId, [Number(entry.product_id)]);
-      const refreshed = entries.find((item) => Number(item.product_id) === Number(entry.product_id));
-      if (String(line.dataset.productId) === String(entry.product_id)) current.value = refreshed?.quantity ?? 0;
-    } catch {
-      if (String(line.dataset.productId) === String(entry.product_id)) current.value = entry.quantity ?? entry.inventory_quantity ?? 0;
-    }
+    refreshOrderLineInventoryQuantity(line);
   };
   const render = () => { const query = product.value.trim().toLowerCase(); matches = orderLineProducts().filter((entry) => `${entry.product_name} ${entry.product_code || ""}`.toLowerCase().includes(query)).slice(0, 50); results.replaceChildren(...matches.map((entry, index) => { const option = document.createElement("li"); option.id = `order-product-${crypto.randomUUID()}`; option.setAttribute("role", "option"); option.setAttribute("aria-selected", String(index === activeIndex)); option.textContent = entry.product_code ? `${entry.product_name} · ${entry.product_code}` : entry.product_name; option.addEventListener("mousedown", (event) => { event.preventDefault(); choose(entry); }); return option; })); results.hidden = matches.length === 0; product.setAttribute("aria-expanded", String(matches.length > 0)); product.setAttribute("aria-activedescendant", activeIndex >= 0 ? results.children[activeIndex]?.id || "" : ""); };
   product.addEventListener("input", () => { delete line.dataset.productId; edit.disabled = true; activeIndex = -1; render(); }); product.addEventListener("focus", render); product.addEventListener("keydown", (event) => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); if (!matches.length) render(); activeIndex = event.key === "ArrowUp" && activeIndex < 0 ? matches.length - 1 : Math.max(0, Math.min(matches.length - 1, activeIndex + (event.key === "ArrowDown" ? 1 : -1))); render(); } else if (event.key === "Home" && matches.length) { event.preventDefault(); activeIndex = 0; render(); } else if (event.key === "End" && matches.length) { event.preventDefault(); activeIndex = matches.length - 1; render(); } else if (event.key === "Enter" && matches.length) { event.preventDefault(); choose(matches[Math.max(activeIndex, 0)]); } else if (event.key === "Escape") close(); }); product.addEventListener("blur", () => setTimeout(close, 120));
@@ -1274,11 +1345,12 @@ async function refreshInventory(productIds) {
 }
 
 function subscribeToInventory() {
+  inventorySocket?.close();
   const socketUrl = new URL(API_BASE_URL);
   socketUrl.protocol = socketUrl.protocol === "https:" ? "wss:" : "ws:";
   socketUrl.pathname = "/socket/websocket";
   socketUrl.search = `vsn=2.0.0&token=${encodeURIComponent(session()?.token || "")}`;
-  const socket = new WebSocket(socketUrl);
+  const socket = inventorySocket = new WebSocket(socketUrl);
 
   socket.addEventListener("open", () => socket.send(JSON.stringify(["1", "1", `inventory:${session()?.user?.tenant}:${storeId}`, "phx_join", {}])));
   socket.addEventListener("message", (event) => {
@@ -1407,7 +1479,8 @@ document.querySelectorAll(".mobile-navigation-link[data-navigation-target]").for
 document.querySelector("#inventory-screen thead").addEventListener("click", (event) => { const button = event.target.closest("[data-inventory-sort]"); if (!button) return; const key = button.dataset.inventorySort; inventorySort = { key, direction: inventorySort.key === key && inventorySort.direction === "asc" ? "desc" : "asc" }; document.querySelectorAll("[data-inventory-sort]").forEach((item) => item.parentElement.setAttribute("aria-sort", item === button ? (inventorySort.direction === "asc" ? "ascending" : "descending") : "none")); renderInventory(); });
 document.querySelector("#orders-screen thead").addEventListener("click", (event) => { const button = event.target.closest("[data-order-sort]"); if (!button) return; const key = button.dataset.orderSort; purchaseOrderSort = { key, direction: purchaseOrderSort.key === key && purchaseOrderSort.direction === "asc" ? "desc" : "asc" }; document.querySelectorAll("[data-order-sort]").forEach((item) => item.parentElement.setAttribute("aria-sort", item === button ? (purchaseOrderSort.direction === "asc" ? "ascending" : "descending") : "none")); renderOrders(); });
 inventorySearchInput.addEventListener("input", renderInventory);
-document.querySelector("#inventory-store").addEventListener("change", loadInventory);
+document.querySelector("#inventory-store").addEventListener("change", (event) => selectStore(event.currentTarget.value));
+sidebarStoreSelect.addEventListener("change", (event) => selectStore(event.currentTarget.value));
 document.querySelector("#inventory-kpis-toggle").addEventListener("click", (event) => {
   const expanded = event.currentTarget.getAttribute("aria-expanded") !== "true";
   inventorySummaryGrid.classList.toggle("is-collapsed", !expanded);
@@ -1423,19 +1496,53 @@ inventorySummaryGrid.addEventListener("click", (event) => {
 inventoryTableBody.addEventListener("click", async (event) => {
   const editProduct = event.target.closest("[data-edit-product]");
   if (editProduct) { openProductEditor(Number(editProduct.dataset.editProduct)); return; }
+  const totalQuantity = event.target.closest("[data-total-quantity]");
+  if (totalQuantity) {
+    const productId = Number(totalQuantity.dataset.totalQuantity);
+    if (expandedInventoryProductId === productId) { expandedInventoryProductId = null; expandedStoreQuantities = []; renderInventoryWithoutMoving(); return; }
+    totalQuantity.disabled = true;
+    try {
+      expandedStoreQuantities = (await inventoryStoreQuantities(storeId, productId)).entries;
+      expandedInventoryProductId = productId;
+      renderInventoryWithoutMoving();
+    } catch (error) { inventoryStatus.textContent = error.message; totalQuantity.disabled = false; }
+    return;
+  }
   const update = event.target.closest("[data-adjust-product]");
   const cancel = event.target.closest("[data-cancel-inventory]");
   const save = event.target.closest("[data-save-inventory]");
-  if (update) { editingInventoryProductId = Number(update.dataset.adjustProduct); renderInventoryWithoutMoving(); return; }
+  const saveStore = event.target.closest("[data-save-store-inventory]");
+  if (update) { editingInventoryProductId = Number(update.dataset.adjustProduct); renderInventoryWithoutMoving(); requestAnimationFrame(() => document.querySelector(`#inventory-quantity-${editingInventoryProductId}`)?.focus()); return; }
   if (cancel) { editingInventoryProductId = null; renderInventoryWithoutMoving(); return; }
+  if (saveStore) {
+    const productId = Number(saveStore.dataset.saveStoreInventory);
+    const targetStoreId = Number(saveStore.dataset.storeId);
+    const input = document.querySelector(`#inventory-store-quantity-${productId}-${targetStoreId}`);
+    const quantity = Number(input.value);
+    const storeEntry = expandedStoreQuantities.find((item) => Number(item.store_id) === targetStoreId);
+    const entry = inventoryEntries.find((item) => Number(item.product_id) === productId);
+    if (!Number.isInteger(quantity) || !storeEntry || !entry) { input.focus(); return; }
+    saveStore.disabled = true;
+    try {
+      const updated = await adjustInventory({ product_id: productId, store_id: targetStoreId, quantity: quantity - Number(storeEntry.quantity || 0) });
+      expandedStoreQuantities = expandedStoreQuantities.map((item) => Number(item.store_id) === targetStoreId ? { ...item, ...updated } : item);
+      const delta = Math.max(Number(updated.quantity), 0) - Math.max(Number(storeEntry.quantity || 0), 0);
+      inventoryEntries = inventoryEntries.map((item) => Number(item.product_id) === productId ? { ...item, total_quantity: Number(item.total_quantity ?? item.quantity ?? 0) + delta, ...(targetStoreId === Number(storeId) ? { quantity: updated.quantity, prev_quantity: updated.prev_quantity, last_update: updated.last_update, user_updated: updated.user_updated } : {}) } : item);
+      if (targetStoreId === Number(storeId)) { products = products.map((item) => Number(item.id) === productId ? { ...item, inventory_quantity: updated.quantity } : item); renderProducts(); }
+      renderInventoryWithoutMoving();
+      window.toast?.success({ title: "Inventory updated", description: "The store quantity was refreshed." });
+    } catch (error) { saveStore.disabled = false; inventoryStatus.textContent = error.message; }
+    return;
+  }
   if (!save) return;
   const productId = Number(save.dataset.saveInventory);
-  const input = document.querySelector(`#inventory-add-${productId}`);
+  const input = document.querySelector(`#inventory-quantity-${productId}`);
   const quantity = Number(input.value);
-  if (!Number.isInteger(quantity)) { input.focus(); return; }
+  const entry = inventoryEntries.find((item) => Number(item.product_id) === productId);
+  if (!Number.isInteger(quantity) || !entry) { input.focus(); return; }
   save.disabled = true;
   try {
-    await adjustInventory({ product_id: productId, store_id: document.querySelector("#inventory-store").value, quantity });
+    await adjustInventory({ product_id: productId, store_id: storeId, quantity: quantity - Number(entry.quantity || 0) });
     editingInventoryProductId = null;
     await loadInventory(productId);
     refreshInventory([productId]).catch(console.error);
@@ -1444,6 +1551,13 @@ inventoryTableBody.addEventListener("click", async (event) => {
     save.disabled = false;
     inventoryStatus.textContent = error.message;
   }
+});
+inventoryTableBody.addEventListener("keydown", (event) => {
+  const storeInput = event.target.closest("[id^='inventory-store-quantity-']");
+  if (storeInput && event.key === "Enter") { event.preventDefault(); storeInput.closest(".inventory-inline-editor")?.querySelector("[data-save-store-inventory]")?.click(); }
+  const input = event.target.closest("[id^='inventory-quantity-']");
+  if (input && event.key === "Enter") { event.preventDefault(); input.closest(".inventory-inline-editor")?.querySelector("[data-save-inventory]")?.click(); }
+  if (input && event.key === "Escape") { editingInventoryProductId = null; renderInventoryWithoutMoving(); }
 });
 document.querySelector("#inventory-product").addEventListener("change", updateInventoryCurrent);
 document.querySelector("#create-product").addEventListener("click", () => openProductDialog());
@@ -1850,12 +1964,15 @@ const loginScreen = document.querySelector("#login-screen");
 const loginForm = document.querySelector("#login-form");
 const loginError = document.querySelector("#login-error");
 const loginErrorMessage = document.querySelector("#login-error-message");
+const loginStoreField = document.querySelector("#login-store-field");
+const loginStoreSelect = document.querySelector("#login-store");
 const usersNav = document.querySelector("#users-nav");
 const userScreen = document.querySelector("#users-screen");
 let managedUsers = [];
 let assignmentOptions = { stores: [], scopes: [] };
 let editingUser = null;
 let userFilter = "";
+let pendingLogin = null;
 
 function allowed(permission) {
   const current = session()?.user;
@@ -1868,6 +1985,39 @@ function showLogin(message = "") {
   loginError.hidden = !message;
   loginErrorMessage.textContent = message;
   requestAnimationFrame(() => document.querySelector("#login-identifier").focus());
+}
+async function requestStoreSelection(result) {
+  pendingLogin = result;
+  saveSession(result);
+  try {
+    const { entries } = await stores();
+    if (!entries.length) throw new Error("No store is available for this account.");
+    loginStoreSelect.replaceChildren(new Option("Select a store", "", true, true), ...entries.map((store) => new Option(store.name, store.id)));
+    loginStoreSelect.disabled = false;
+    loginStoreField.hidden = false;
+    loginForm.elements.identifier.disabled = true;
+    loginForm.elements.password.disabled = true;
+    document.querySelector("#login-submit").textContent = "Continue";
+    requestAnimationFrame(() => loginStoreSelect.focus());
+  } catch (error) {
+    clearSession();
+    pendingLogin = null;
+    loginErrorMessage.textContent = error.message || "Stores could not be loaded.";
+    loginError.hidden = false;
+  }
+}
+function completeStoreSelection() {
+  const selected = Number(loginStoreSelect.value);
+  if (!Number.isInteger(selected) || selected <= 0 || !pendingLogin) { loginStoreSelect.focus(); loginStoreSelect.reportValidity(); return; }
+  saveSession({ ...pendingLogin, store_id: selected });
+  pendingLogin = null;
+  loginStoreField.hidden = true;
+  loginStoreSelect.disabled = true;
+  loginForm.elements.identifier.disabled = false;
+  loginForm.elements.password.disabled = false;
+  document.querySelector("#login-submit").textContent = "Sign in";
+  loginForm.reset();
+  showApplication();
 }
 function showApplication() {
   loginScreen.hidden = true;
@@ -1907,6 +2057,12 @@ function logout() {
   printRelay?.close();
   clearInterval(printerAvailabilityTimer);
   clearSession();
+  pendingLogin = null;
+  loginStoreField.hidden = true;
+  loginStoreSelect.disabled = true;
+  loginForm.elements.identifier.disabled = false;
+  loginForm.elements.password.disabled = false;
+  document.querySelector("#login-submit").textContent = "Sign in";
   closeMobileNavigation({ restoreFocus: false });
   showLogin();
 }
@@ -1979,6 +2135,6 @@ document.addEventListener("click", (event) => {
   const permission = { "sales-report-nav": "sales.view", "inventory-nav": "inventory.view", "orders-nav": "inventory.view", "company-settings-nav": "company.settings", "create-product": "product.add", "create-order": "inventory.movement.request" }[protectedControl.id];
   if (!allowed(permission)) { event.preventDefault(); event.stopImmediatePropagation(); showUnauthorized(); }
 }, true);
-loginForm.addEventListener("submit", async (event) => { event.preventDefault(); loginError.hidden = true; if (!loginForm.reportValidity()) return; const submit = document.querySelector("#login-submit"); submit.disabled = true; try { const result = await login(loginForm.elements.identifier.value.trim(), loginForm.elements.password.value); saveSession(result); loginForm.reset(); showApplication(); } catch (error) { loginErrorMessage.textContent = t("auth.invalidCredentials"); loginError.hidden = false; } finally { submit.disabled = false; } });
+loginForm.addEventListener("submit", async (event) => { event.preventDefault(); loginError.hidden = true; if (pendingLogin) { completeStoreSelection(); return; } if (!loginForm.reportValidity()) return; const submit = document.querySelector("#login-submit"); submit.disabled = true; try { await requestStoreSelection(await login(loginForm.elements.identifier.value.trim(), loginForm.elements.password.value)); } catch (error) { loginErrorMessage.textContent = t("auth.invalidCredentials"); loginError.hidden = false; } finally { submit.disabled = false; } });
 onLanguageChange(() => { if (!userScreen.hidden) editingUser ? renderUserForm(editingUser) : renderUsers(); });
-if (session()?.token) { showApplication(); handleRoute(); } else showLogin();
+if (session()?.token && session()?.store_id) { showApplication(); handleRoute(); } else if (session()?.token) { showLogin(); requestStoreSelection(session()); } else showLogin();

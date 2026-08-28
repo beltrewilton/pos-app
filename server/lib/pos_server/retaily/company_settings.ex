@@ -5,7 +5,7 @@ defmodule PosServer.Retaily.CompanySettings do
 
   alias PosServer.{Repo, TenantContext}
   alias PosServer.Accounts.{Company, UserCompany}
-  alias PosServer.Retaily.{Pricing, PricingList, Provider, Sequence, Store}
+  alias PosServer.Retaily.{Inventory, Pricing, PricingList, Product, Provider, Sequence, Store}
 
   def overview(scope) do
     tenant = TenantContext.tenant!()
@@ -99,10 +99,43 @@ defmodule PosServer.Retaily.CompanySettings do
     values = Map.take(attrs, ["name", "address", "slogan"])
       |> Map.merge(%{"company_id" => to_string(company_id), "date_create" => store.date_create || NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)})
 
-    store
-    |> Store.changeset(values)
-    |> Repo.insert_or_update(prefix: TenantContext.tenant!())
-    |> write_result()
+    tenant = TenantContext.tenant!()
+    changeset = Store.changeset(store, values)
+
+    if store.id do
+      Repo.update(changeset, prefix: tenant) |> write_result()
+    else
+      Repo.transaction(fn ->
+        with {:ok, created} <- Repo.insert(changeset, prefix: tenant),
+             {_, _} <- initialize_store_inventory(created.id, scope.user.name, tenant) do
+          created
+        else
+          {:error, changeset} -> Repo.rollback(changeset)
+        end
+      end)
+      |> transaction_result()
+    end
+  end
+
+  defp initialize_store_inventory(store_id, username, tenant) do
+    now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+
+    rows =
+      Repo.all(
+        from(product in Product,
+          select: %{
+            product_id: product.id,
+            store_id: type(^store_id, :integer),
+            quantity: 0,
+            prev_quantity: 0,
+            last_update: type(^now, :naive_datetime),
+            user_updated: type(^username, :string)
+          }
+        ),
+        prefix: tenant
+      )
+
+    if rows == [], do: {0, nil}, else: Repo.insert_all(Inventory, rows, prefix: tenant, on_conflict: :nothing, conflict_target: [:product_id, :store_id])
   end
 
   defp save_sequence_set(sequence, attrs) do

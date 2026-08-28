@@ -19,7 +19,7 @@ defmodule PosServerWeb.InventoryController do
   def index(conn, params) do
     with {:ok, store_id} <- positive_integer(params["store_id"]),
          {:ok, inventory_filter} <- inventory_filter(params["inventory_filter"]),
-         {:ok, entries} <- inventory_entries(conn.assigns.current_scope, store_id, params["product_ids"], inventory_filter) do
+         {:ok, entries} <- inventory_entries(conn.assigns.current_scope, store_id, params["product_ids"], params["all_stores"], inventory_filter) do
       json(conn, %{entries: entries})
     else
       {:error, :invalid_params} -> conn |> put_status(:bad_request) |> json(%{error: "store_id, product_ids, or inventory_filter is invalid"})
@@ -28,8 +28,13 @@ defmodule PosServerWeb.InventoryController do
     end
   end
 
-  defp inventory_entries(scope, store_id, nil, inventory_filter), do: InventoryContext.list(scope, store_id, inventory_filter)
-  defp inventory_entries(scope, store_id, ids, _inventory_filter) do
+  defp inventory_entries(scope, store_id, nil, _all_stores, inventory_filter), do: InventoryContext.list(scope, store_id, inventory_filter)
+  defp inventory_entries(scope, store_id, ids, "true", _inventory_filter) do
+    with {:ok, [product_id]} <- product_ids(ids) do
+      InventoryContext.product_store_quantities(scope, store_id, product_id)
+    end
+  end
+  defp inventory_entries(scope, store_id, ids, _all_stores, _inventory_filter) do
     with {:ok, product_ids} <- product_ids(ids) do
       InventoryContext.quantities(scope, store_id, product_ids)
     end
@@ -54,6 +59,18 @@ defmodule PosServerWeb.InventoryController do
         |> json(%{errors: Changeset.traverse_errors(changeset, fn {message, _} -> message end)})
 
       {:error, :not_found} -> conn |> put_status(:not_found) |> json(%{error: "inventory or product not found"})
+      {:error, :forbidden_store} -> conn |> put_status(:forbidden) |> json(%{error: "store is not assigned to cashier"})
+      {:error, reason} -> conn |> put_status(:unprocessable_entity) |> json(%{error: to_string(reason)})
+    end
+  end
+
+  def move(conn, params) do
+    case Orders.move_inventory(conn.assigns.current_scope, params) do
+      {:ok, result} -> json(conn, result)
+      {:error, %Changeset{} = changeset} -> conn |> put_status(:unprocessable_entity) |> json(%{errors: Changeset.traverse_errors(changeset, fn {message, _} -> message end)})
+      {:error, :same_store} -> conn |> put_status(:unprocessable_entity) |> json(%{error: "origin and destination stores must be different"})
+      {:error, :insufficient_inventory} -> conn |> put_status(:unprocessable_entity) |> json(%{error: "origin store does not have enough available inventory"})
+      {:error, :not_found} -> conn |> put_status(:not_found) |> json(%{error: "inventory, product, or store not found"})
       {:error, :forbidden_store} -> conn |> put_status(:forbidden) |> json(%{error: "store is not assigned to cashier"})
       {:error, reason} -> conn |> put_status(:unprocessable_entity) |> json(%{error: to_string(reason)})
     end

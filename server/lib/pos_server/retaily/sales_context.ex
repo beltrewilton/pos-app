@@ -106,7 +106,10 @@ defmodule PosServer.Retaily.Sales do
   @doc "Returns the ten newest purchases for a customer that the cashier can access."
   def recent_customer_purchases(scope, customer_id) do
     with {:ok, cashier, tenant} <- cashier(scope) do
-      store_ids = cashier_store_ids(cashier.id, tenant)
+      # Admin scopes are represented by a lightweight session map without an
+      # employee record id. `cashier_store_ids/2` deliberately accepts nil for
+      # that case and returns every store in the tenant.
+      store_ids = cashier_store_ids(Map.get(cashier, :id), tenant)
 
       purchases =
         from(sale in Sale,

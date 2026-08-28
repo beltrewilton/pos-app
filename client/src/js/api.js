@@ -200,6 +200,16 @@ export async function inventoryQuantities(storeId, productIds) {
   return response.json();
 }
 
+export async function inventoryStoreQuantities(storeId, productId) {
+  const url = new URL(`${API_BASE_URL}/inventory`);
+  url.searchParams.set("store_id", storeId);
+  url.searchParams.set("product_ids", productId);
+  url.searchParams.set("all_stores", "true");
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Could not load store quantities: ${response.status}`);
+  return response.json();
+}
+
 export async function inventorySummary(storeId) {
   const url = new URL(`${API_BASE_URL}/inventory/summary`);
   url.searchParams.set("store_id", storeId);
@@ -211,6 +221,15 @@ export async function inventorySummary(storeId) {
 export async function adjustInventory(adjustment) {
   const response = await fetch(`${API_BASE_URL}/inventory/adjustments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(adjustment) });
   if (!response.ok) throw new Error(`Could not update inventory: ${response.status}`);
+  return response.json();
+}
+
+export async function moveInventory(move) {
+  const response = await fetch(`${API_BASE_URL}/inventory/moves`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(move) });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.error || "Could not move products.");
+  }
   return response.json();
 }
 

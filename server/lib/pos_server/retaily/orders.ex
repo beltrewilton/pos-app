@@ -4,7 +4,7 @@ defmodule PosServer.Retaily.Orders do
   import Ecto.Query
 
   alias Ecto.Changeset
-  alias PosServer.Repo
+  alias PosServer.{InventoryEvents, Repo}
   alias PosServer.Accounts.Scope, as: AccessScope
   alias PosServer.Retaily.OrderRequests.{Create, Receive}
   alias PosServer.Retaily.{Inventory, InventoryContext, Product, ProductOrder, ProductOrderLine, Provider, Store, User, UserStore}
@@ -67,22 +67,24 @@ defmodule PosServer.Retaily.Orders do
 
   def receive_order(scope, order_id, attrs) do
     with {:ok, receipt} <- valid(Receive, attrs),
-         {:ok, cashier, tenant} <- cashier(scope) do
-      Repo.transaction(fn ->
-        with %ProductOrder{} = order <- locked_order(order_id, tenant),
-             :ok <- cashier_store?(cashier, order.to_store_id, tenant),
-             :ok <- order_open?(order),
-             lines <- locked_lines(order.id, tenant),
-             :ok <- valid_receipt_lines?(receipt.lines, lines),
-             :ok <- receive_lines(lines, receipt, cashier.username, tenant),
-             {:ok, _} <- close_order(order, cashier.username, tenant) do
-          order_response(order.id, tenant)
-        else
-          nil -> Repo.rollback(:not_found)
-          :error -> Repo.rollback(:forbidden_store)
-          {:error, reason} -> Repo.rollback(reason)
-        end
-      end)
+         {:ok, cashier, tenant} <- cashier(scope),
+         {:ok, order} <- Repo.transaction(fn ->
+           with %ProductOrder{} = order <- locked_order(order_id, tenant),
+                :ok <- cashier_store?(cashier, order.to_store_id, tenant),
+                :ok <- order_open?(order),
+                lines <- locked_lines(order.id, tenant),
+                :ok <- valid_receipt_lines?(receipt.lines, lines),
+                :ok <- receive_lines(lines, receipt, cashier.username, tenant),
+                {:ok, _} <- close_order(order, cashier.username, tenant) do
+             order_response(order.id, tenant)
+           else
+             nil -> Repo.rollback(:not_found)
+             :error -> Repo.rollback(:forbidden_store)
+             {:error, reason} -> Repo.rollback(reason)
+           end
+         end) do
+        InventoryEvents.broadcast(tenant, order.to_store_id, Enum.map(order.lines, & &1.product_id))
+        {:ok, order}
     else
       :error -> {:error, :forbidden_store}
       {:error, _reason} = error -> error
@@ -94,15 +96,17 @@ defmodule PosServer.Retaily.Orders do
          {:ok, store_id} <- positive_integer(attrs["store_id"]),
          {:ok, quantity} <- integer(attrs["quantity"]),
          {:ok, cashier, tenant} <- cashier(scope),
-         :ok <- cashier_store?(cashier, store_id, tenant) do
-      Repo.transaction(fn ->
-        with %Product{} <- Repo.get(Product, product_id, prefix: tenant),
-             %Inventory{} = inventory <- locked_inventory(product_id, store_id, tenant) do
-          update_inventory!(inventory, quantity, cashier.username, tenant)
-        else
-          nil -> Repo.rollback(:not_found)
-        end
-      end)
+         :ok <- cashier_store?(cashier, store_id, tenant),
+         {:ok, inventory} <- Repo.transaction(fn ->
+           with %Product{} <- Repo.get(Product, product_id, prefix: tenant),
+                %Inventory{} = inventory <- locked_inventory(product_id, store_id, tenant) do
+             update_inventory!(inventory, quantity, cashier.username, tenant)
+           else
+             nil -> Repo.rollback(:not_found)
+           end
+         end) do
+        InventoryEvents.broadcast(tenant, store_id, [product_id])
+        {:ok, inventory}
     else
       :error -> {:error, :forbidden_store}
       {:error, _reason} = error -> error

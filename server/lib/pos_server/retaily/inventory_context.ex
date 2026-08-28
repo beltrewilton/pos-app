@@ -14,9 +14,10 @@ defmodule PosServer.Retaily.InventoryContext do
           join: product in Product, on: product.id == inventory.product_id,
           join: store in Store, on: store.id == inventory.store_id,
           left_join: price in subquery(default_prices_query()), on: price.product_id == product.id,
+          left_join: totals in subquery(total_quantities_query()), on: totals.product_id == product.id,
           where: inventory.store_id == ^store_id,
           order_by: [asc: product.name],
-          select: %{id: inventory.id, product_id: inventory.product_id, product_name: product.name, product_code: product.code, product_cost: product.cost, product_price: price.price, store_id: inventory.store_id, store_name: store.name, quantity: inventory.quantity, prev_quantity: inventory.prev_quantity, last_update: inventory.last_update, user_updated: inventory.user_updated}
+          select: %{id: inventory.id, product_id: inventory.product_id, product_name: product.name, product_code: product.code, product_cost: product.cost, product_price: price.price, total_quantity: totals.quantity, store_id: inventory.store_id, store_name: store.name, quantity: inventory.quantity, prev_quantity: inventory.prev_quantity, last_update: inventory.last_update, user_updated: inventory.user_updated}
         )
         |> apply_inventory_filter(inventory_filter)
         |> Repo.all(prefix: tenant)
@@ -35,6 +36,21 @@ defmodule PosServer.Retaily.InventoryContext do
         |> Repo.all(prefix: tenant)
 
       {:ok, entries}
+    end
+  end
+
+  def product_store_quantities(scope, store_id, product_id) do
+    with {:ok, tenant} <- authorize_store(scope, store_id) do
+      {:ok,
+       Repo.all(
+         from(inventory in Inventory,
+           join: store in Store, on: store.id == inventory.store_id,
+           where: inventory.product_id == ^product_id,
+           order_by: [asc: store.name],
+           select: %{id: inventory.id, product_id: inventory.product_id, store_id: inventory.store_id, store_name: store.name, quantity: inventory.quantity, prev_quantity: inventory.prev_quantity, last_update: inventory.last_update, user_updated: inventory.user_updated}
+         ),
+         prefix: tenant
+       )}
     end
   end
 
@@ -87,6 +103,13 @@ defmodule PosServer.Retaily.InventoryContext do
       distinct: entry.product_id,
       order_by: [asc: entry.product_id, desc: entry.id],
       select: %{product_id: entry.product_id, price: entry.price}
+    )
+  end
+
+  defp total_quantities_query do
+    from(inventory in Inventory,
+      group_by: inventory.product_id,
+      select: %{product_id: inventory.product_id, quantity: fragment("sum(GREATEST(?, 0))", inventory.quantity)}
     )
   end
 end

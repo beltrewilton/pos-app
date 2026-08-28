@@ -4,7 +4,7 @@ defmodule PosServerWeb.ProductCreateController do
   import Ecto.Query
   alias Ecto.Changeset
   alias PosServer.{Repo, TenantContext}
-  alias PosServer.Retaily.{Inventory, InventoryContext, PricingList, Product}
+  alias PosServer.Retaily.{Inventory, InventoryContext, PricingList, Product, Store}
 
   def create(conn, attrs) do
     with {:ok, store_id} <- positive_integer(attrs["store_id"]),
@@ -17,7 +17,7 @@ defmodule PosServerWeb.ProductCreateController do
           |> Map.merge(%{"active" => attrs["active"] || 1, "user_modified" => username, "date_create" => now, "archived" => "0"})
 
         with {:ok, product} <- %Product{} |> Product.changeset(product_attrs) |> Repo.insert(prefix: tenant),
-             {:ok, _inventory} <- %Inventory{} |> Inventory.changeset(%{product_id: product.id, store_id: store_id, quantity: 0, prev_quantity: 0, last_update: now, user_updated: username}) |> Repo.insert(prefix: tenant) do
+             {_, _} <- initialize_inventory(product.id, username, now, tenant) do
           product_response(product)
         else
           {:error, changeset} -> Repo.rollback(changeset)
@@ -103,6 +103,24 @@ defmodule PosServerWeb.ProductCreateController do
   end
   defp positive_integer(value) when is_integer(value) and value > 0, do: {:ok, value}
   defp positive_integer(_), do: {:error, :invalid_params}
+  defp initialize_inventory(product_id, username, now, tenant) do
+    rows =
+      Repo.all(
+        from(store in Store,
+          select: %{
+            product_id: type(^product_id, :integer),
+            store_id: store.id,
+            quantity: 0,
+            prev_quantity: 0,
+            last_update: type(^now, :naive_datetime),
+            user_updated: type(^username, :string)
+          }
+        ),
+        prefix: tenant
+      )
+
+    if rows == [], do: {0, nil}, else: Repo.insert_all(Inventory, rows, prefix: tenant, on_conflict: :nothing, conflict_target: [:product_id, :store_id])
+  end
   defp product_response(product), do: %{id: product.id, name: product.name, cost: product.cost, margin: product.margin, code: product.code, img_path: product.img_path, image_raw: product.image_raw, active: product.active}
   defp price_response(entry), do: %{id: entry.id, product_id: entry.product_id, pricing_id: entry.pricing_id, price: entry.price, date_create: entry.date_create}
 end
