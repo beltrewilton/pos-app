@@ -37,5 +37,10 @@ SELECT
 FROM catalog
 WHERE catalog.price IS NOT NULL
   AND ($1::bigint IS NULL OR catalog.id > $1)
+  AND (
+    NULLIF($5::text, '') IS NULL
+    OR catalog.name ILIKE '%' || $5 || '%'
+    OR COALESCE(catalog.code, '') ILIKE '%' || $5 || '%'
+  )
 ORDER BY catalog.id ASC
 LIMIT $2;

@@ -9,7 +9,7 @@ defmodule PosServerWeb.ProductController do
     with {:ok, cursor} <- parse_cursor(params["cursor"]),
          {:ok, store_id} <- parse_store_id(params["store_id"]),
          {:ok, _tenant} <- InventoryContext.authorize_store(conn.assigns.current_scope, store_id),
-         {:ok, page} <- Sql.active_products_page(cursor, limit: @page_size, store_id: store_id) do
+         {:ok, page} <- Sql.active_products_page(cursor, limit: @page_size, store_id: store_id, search: params["search"]) do
       json(conn, %{
         entries: page.entries,
         has_more: page.has_more?,

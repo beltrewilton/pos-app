@@ -817,10 +817,13 @@ button {
 #inventory-screen .operations-table tbody > .table-row:not(.inventory-store-row) > td:nth-child(8) { width: 7.25rem; min-width: 7.25rem; max-width: 7.25rem; }
 .inventory-summary {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 12px;
   margin: 0 0 16px;
 }
+.inventory-summary-card { grid-column: span 2; }
+.inventory-summary-valuation { grid-column: span 4; border-top: 3px solid #249a68 !important; }
+.inventory-summary-compact { grid-column: span 1; }
 .inventory-summary.is-collapsed > :nth-child(n + 4) { display: none; }
 .inventory-summary-section { margin-bottom: 16px; }
 .inventory-summary-section .inventory-summary { margin-bottom: 4px; }
@@ -833,6 +836,12 @@ button {
 .inventory-summary-card .card-title { font-size: .85rem; }
 .inventory-kpi-value { margin: 0; font-size: 1.25rem; font-weight: 780; letter-spacing: -.04em; }
 .inventory-kpi-detail { min-height: 2.2em; margin: 3px 0 0; overflow-wrap: anywhere; color: var(--muted-foreground); font-size: .72rem; line-height: 1.35; }
+.inventory-valuation-content { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 12px; align-items: start; }
+.inventory-valuation-caption { margin: 3px 0 0; color: var(--muted-foreground); font-size: .72rem; line-height: 1.35; }
+.inventory-valuation-breakdown { align-self: start; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px 12px; }
+.inventory-valuation-store { min-width: 0; }
+.inventory-valuation-store-amount { margin: 0; overflow-wrap: anywhere; font-size: .9rem; font-weight: 700; letter-spacing: -.025em; line-height: 1.25; }
+.inventory-valuation-store-name { margin: 2px 0 0; overflow-wrap: anywhere; color: var(--muted-foreground); font-size: .68rem; line-height: 1.25; }
 .inventory-summary-negative { border-top: 3px solid var(--destructive) !important; }
 .inventory-summary-warning { border-top: 3px solid #d38a1c !important; }
 .operations-table-container { overflow: visible; }
@@ -2177,6 +2186,8 @@ button {
 
   .invoice-summary .card,
   .inventory-summary .card { flex: 0 0 min(78vw, 270px); scroll-snap-align: start; }
+  .inventory-summary .inventory-summary-valuation { flex-basis: min(96vw, 540px); }
+  .inventory-summary .inventory-summary-compact { flex-basis: min(39vw, 135px); }
   .inventory-summary.is-collapsed > :nth-child(n + 4) { display: block; }
   .inventory-kpis-toggle { display: none; }
 

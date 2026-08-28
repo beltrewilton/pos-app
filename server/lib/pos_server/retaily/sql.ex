@@ -27,7 +27,7 @@ defmodule PosServer.Retaily.Sql do
     with :ok <- validate_cursor(after_id),
          {:ok, page_size} <- page_size(opts),
          {:ok, store_id} <- store_id(opts),
-         {:ok, result} <- run(tenant, "active_products", [after_id, page_size + 1, @tax_rate, store_id]) do
+         {:ok, result} <- run(tenant, "active_products", [after_id, page_size + 1, @tax_rate, store_id, normalize_search(Keyword.get(opts, :search))]) do
       entries = result |> rows_as_maps() |> Enum.take(page_size)
       has_more? = result.num_rows > page_size
 

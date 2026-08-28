@@ -85,10 +85,11 @@ export async function health() {
   return response.json();
 }
 
-export async function activeProducts(storeId, cursor = null) {
+export async function activeProducts(storeId, cursor = null, search = "") {
   const url = new URL(`${API_BASE_URL}/products`);
   url.searchParams.set("store_id", storeId);
   if (cursor !== null) url.searchParams.set("cursor", cursor);
+  if (search.trim()) url.searchParams.set("search", search.trim());
 
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Could not load products: ${response.status}`);

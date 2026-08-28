@@ -113,6 +113,35 @@ defmodule PosServer.Retaily.Orders do
     end
   end
 
+  def move_inventory(scope, attrs) do
+    attrs = Map.put(attrs, "order_type", "move")
+
+    with {:ok, request} <- valid(Create, attrs),
+         false <- request.from_origin_id == request.to_store_id,
+         {:ok, cashier, tenant} <- cashier(scope),
+         :ok <- cashier_store?(cashier, request.from_origin_id, tenant),
+         :ok <- cashier_store?(cashier, request.to_store_id, tenant),
+         {:ok, result} <- Repo.transaction(fn ->
+           with %Store{} <- Repo.get(Store, request.from_origin_id, prefix: tenant),
+                %Store{} <- Repo.get(Store, request.to_store_id, prefix: tenant),
+                :ok <- products_exist?(request.lines, tenant),
+                :ok <- move_lines(request.lines, request.from_origin_id, request.to_store_id, cashier.username, tenant) do
+             %{product_ids: request.lines |> Enum.map(& &1.product_id) |> Enum.uniq()}
+           else
+             nil -> Repo.rollback(:not_found)
+             {:error, reason} -> Repo.rollback(reason)
+           end
+         end) do
+      InventoryEvents.broadcast(tenant, request.from_origin_id, result.product_ids)
+      InventoryEvents.broadcast(tenant, request.to_store_id, result.product_ids)
+      {:ok, result}
+    else
+      true -> {:error, :same_store}
+      :error -> {:error, :forbidden_store}
+      {:error, _reason} = error -> error
+    end
+  end
+
   defp valid(module, attrs) do
     changeset = module.changeset(struct(module), attrs)
     if changeset.valid?, do: {:ok, Changeset.apply_changes(changeset)}, else: {:error, changeset}
@@ -165,6 +194,21 @@ defmodule PosServer.Retaily.Orders do
       else
         nil -> {:halt, {:error, :inventory_not_found}}
         {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
+
+  defp move_lines(lines, from_store_id, to_store_id, username, tenant) do
+    Enum.reduce_while(lines, :ok, fn line, :ok ->
+      with %Inventory{} = origin <- locked_inventory(line.product_id, from_store_id, tenant),
+           %Inventory{} = destination <- locked_inventory(line.product_id, to_store_id, tenant),
+           true <- (origin.quantity || 0) >= line.quantity do
+        update_inventory!(origin, -line.quantity, username, tenant)
+        update_inventory!(destination, line.quantity, username, tenant)
+        {:cont, :ok}
+      else
+        nil -> {:halt, {:error, :not_found}}
+        false -> {:halt, {:error, :insufficient_inventory}}
       end
     end)
   end

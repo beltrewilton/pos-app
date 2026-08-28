@@ -22,11 +22,13 @@ inventory_metrics AS (
 ),
 inventory_by_store AS (
   SELECT
-    inventory.store_id,
+    store.id AS store_id,
+    store.name AS store_name,
     COALESCE(SUM(COALESCE(inventory.quantity, 0)::numeric * COALESCE(product.cost, 0)::numeric) FILTER (WHERE COALESCE(inventory.quantity, 0) > 0), 0) AS inventory_valuation
-  FROM {{prefix}}.app_inventory AS inventory
+  FROM {{prefix}}.app_store AS store
+  LEFT JOIN {{prefix}}.app_inventory AS inventory ON inventory.store_id = store.id
   LEFT JOIN {{prefix}}.product AS product ON product.id = inventory.product_id
-  GROUP BY inventory.store_id
+  GROUP BY store.id, store.name
 ),
 company_inventory_metrics AS (
   SELECT COALESCE(SUM(inventory_valuation), 0) AS company_inventory_valuation
@@ -99,6 +101,13 @@ receiving_metrics AS (
 SELECT
   inventory_metrics.inventory_valuation,
   company_inventory_metrics.company_inventory_valuation,
+  COALESCE((
+    SELECT jsonb_agg(item ORDER BY item.store_name)
+    FROM (
+      SELECT store_id, store_name, inventory_valuation
+      FROM inventory_by_store
+    ) AS item
+  ), '[]'::jsonb) AS inventory_valuation_by_store,
   inventory_metrics.negative_stock_sku_count,
   inventory_metrics.negative_stock_units,
   inventory_metrics.negative_stock_value,
