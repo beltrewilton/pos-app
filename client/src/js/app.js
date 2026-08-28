@@ -131,7 +131,8 @@ let calendarRange = { from: "", to: "" };
 let invoiceStatusFilter = "";
 let expandedInvoiceId = null;
 const invoiceDetails = new Map();
-let invoiceSort = { key: "sequence", direction: "desc" };
+let invoiceSort = { key: "date_create", direction: "desc" };
+let invoicesStale = false;
 const inventoryScreen = document.querySelector("#inventory-screen");
 const ordersScreen = document.querySelector("#orders-screen");
 const purchaseOrderScreen = document.querySelector("#purchase-order-screen");
@@ -374,7 +375,7 @@ function purchaseRows(purchase) {
   purchase.items.forEach((item) => {
     const itemRow = document.createElement("tr");
     itemRow.className = "table-row";
-    [item.name || `Product #${item.product_id}`, item.quantity, currency(item.price), currency(item.discount), currency(item.total)].forEach((value, index) => {
+    [item.name || `Product #${item.product_id}`, item.quantity, currency(item.price), discountPercentage(item.discount), currency(item.total)].forEach((value, index) => {
       const itemCell = document.createElement("td");
       itemCell.className = index > 1 ? "table-cell numeric" : "table-cell";
       itemCell.textContent = value;
@@ -497,6 +498,10 @@ function closeCustomers() {
 
 function currency(value) {
   return formatCurrency(value);
+}
+
+function discountPercentage(value) {
+  return `${Number(value || 0)}%`;
 }
 
 function renderCurrencyPlaceholders() {
@@ -657,7 +662,16 @@ function invoiceRow(invoice) {
   const date = document.createElement("td");
   date.className = "table-cell";
   date.dataset.label = labels[2];
-  date.textContent = invoice.date_create ? new Date(invoice.date_create.replace(" ", "T")).toLocaleDateString() : "—";
+  if (invoice.date_create) {
+    const value = new Date(invoice.date_create.replace(" ", "T"));
+    const dateText = document.createElement("span");
+    dateText.className = "invoice-date";
+    dateText.textContent = value.toLocaleDateString("en-GB");
+    const timeText = document.createElement("span");
+    timeText.className = "invoice-time";
+    timeText.textContent = value.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+    date.append(dateText, timeText);
+  } else date.textContent = "—";
   row.appendChild(date);
   const status = document.createElement("td");
   status.className = "table-cell";
@@ -790,7 +804,7 @@ function invoiceDetailsRow(invoice) {
     const body = document.createElement("tbody");
     detail.lines.forEach((line) => {
       const lineRow = document.createElement("tr"); lineRow.className = "table-row";
-      [line.product?.name || "—", line.quantity, currency(line.amount), currency(line.discount), currency(line.total_amount)].forEach((value, index) => {
+      [line.product?.name || "—", line.quantity, currency(line.amount), discountPercentage(line.discount), currency(line.total_amount)].forEach((value, index) => {
         const td = document.createElement("td"); td.className = index ? "table-cell numeric" : "table-cell"; td.textContent = value; lineRow.appendChild(td);
       });
       body.appendChild(lineRow);
@@ -869,6 +883,7 @@ async function loadInvoices({ reset = false } = {}) {
     invoiceHasMore = page.has_more;
     updateInvoiceSummary(page.summary);
     renderInvoices();
+    if (reset) invoicesStale = false;
     invoiceReportStatus.textContent = invoiceHasMore ? "Scroll for more invoices" : `${invoices.length} invoices loaded`;
   } catch (error) {
     console.error(error);
@@ -886,7 +901,9 @@ function openInvoiceReport() {
   invoiceReport.hidden = false;
   updateInvoiceStickyOffset();
   selectSidebar("sales-report-nav");
-  if (!invoices.length) loadInvoices({ reset: true });
+  if (!invoices.length || invoicesStale) {
+    loadInvoices({ reset: true });
+  }
   requestAnimationFrame(() => document.querySelector("#invoice-report-title").focus());
 }
 
@@ -1956,7 +1973,7 @@ document.querySelector("#payment-lines").addEventListener("change", () => { upda
 document.querySelector("#payment-lines").addEventListener("input", updatePaymentCompletion);
 document.querySelector("#payment-lines").addEventListener("focusin", (event) => { if (mobileQuery.matches && event.target.matches("input")) event.target.scrollIntoView({ behavior: "smooth", block: "center" }); });
 document.querySelector("#credit-toggle").addEventListener("click", (event) => { const active = event.currentTarget.getAttribute("aria-pressed") !== "true"; event.currentTarget.setAttribute("aria-pressed", String(active)); event.currentTarget.dataset.variant = active ? "default" : "outline"; document.querySelector("#payment-inputs").hidden = active; document.querySelector("#complete-sale").disabled = false; updatePaymentChoice(); });
-document.querySelector("#complete-sale").addEventListener("click", async () => { const complete = document.querySelector("#complete-sale"); const credit = document.querySelector("#credit-toggle").getAttribute("aria-pressed") === "true"; const payments = [...document.querySelectorAll(".payment-line")].map((line) => ({ type: line.querySelector("select").value, amount: Number(line.querySelector("input").value) || 0 })).filter((line) => line.amount); if (!credit && payments.reduce((sum, line) => sum + line.amount, 0) < pos.total()) return; const receipt = pos.receipt(); complete.disabled = true; try { await createSale({ store_id: storeId, client_id: selectedCustomer.id, sequence_type: document.querySelector("[data-sequence][data-variant=default]").dataset.sequence, status: credit ? "CREDIT" : "CASH", sale_type: receipt.delivery ? "FOR_DELIVER" : "IN_SHOP", delivery_charge: receipt.delivery, lines: receipt.items.map((item) => ({ product_id: Number(item.id), quantity: item.qty, discount: item.discount })), payments: credit ? [] : payments }); await refreshInventory(receipt.items.map((item) => item.id)).catch(console.error); completedReceipt = { ...receipt, language: getLanguage() }; document.querySelector("#receipt-print-status").textContent = ""; renderPrintTargets(); resetCompletedOrder(); closeCheckout(); document.querySelector("#receipt-dialog").showModal(); } catch (error) { checkoutStatus.textContent = error.message; complete.disabled = false; } });
+document.querySelector("#complete-sale").addEventListener("click", async () => { const complete = document.querySelector("#complete-sale"); const credit = document.querySelector("#credit-toggle").getAttribute("aria-pressed") === "true"; const payments = [...document.querySelectorAll(".payment-line")].map((line) => ({ type: line.querySelector("select").value, amount: Number(line.querySelector("input").value) || 0 })).filter((line) => line.amount); if (!credit && payments.reduce((sum, line) => sum + line.amount, 0) < pos.total()) return; const receipt = pos.receipt(); complete.disabled = true; try { await createSale({ store_id: storeId, client_id: selectedCustomer.id, sequence_type: document.querySelector("[data-sequence][data-variant=default]").dataset.sequence, status: credit ? "CREDIT" : "CASH", sale_type: receipt.delivery ? "FOR_DELIVER" : "IN_SHOP", delivery_charge: receipt.delivery, lines: receipt.items.map((item) => ({ product_id: Number(item.id), quantity: item.qty, discount: item.discount })), payments: credit ? [] : payments }); invoicesStale = true; await refreshInventory(receipt.items.map((item) => item.id)).catch(console.error); completedReceipt = { ...receipt, language: getLanguage() }; document.querySelector("#receipt-print-status").textContent = ""; renderPrintTargets(); resetCompletedOrder(); closeCheckout(); document.querySelector("#receipt-dialog").showModal(); } catch (error) { checkoutStatus.textContent = error.message; complete.disabled = false; } });
 document.querySelector("#skip-print").addEventListener("click", () => { document.querySelector("#receipt-dialog").close(); completedReceipt = null; });
 document.querySelector("#print-receipt").addEventListener("click", async () => {
   const button = document.querySelector("#print-receipt"), status = document.querySelector("#receipt-print-status");

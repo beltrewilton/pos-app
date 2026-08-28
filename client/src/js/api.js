@@ -299,7 +299,7 @@ export async function createSale(sale) {
 export async function salesReport(storeId, cursor = null, search = "", dateFrom = "", dateTo = "", invoiceStatus = "") {
   const url = new URL(`${API_BASE_URL}/sales/report`);
   url.searchParams.set("store_id", storeId);
-  if (cursor !== null) url.searchParams.set("cursor", cursor);
+  if (cursor !== null) url.searchParams.set("cursor", `${cursor.date_create},${cursor.id}`);
   if (search) url.searchParams.set("search", search);
   if (dateFrom) url.searchParams.set("date_from", dateFrom);
   if (dateTo) url.searchParams.set("date_to", dateTo);

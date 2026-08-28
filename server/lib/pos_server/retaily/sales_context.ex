@@ -285,6 +285,10 @@ defmodule PosServer.Retaily.Sales do
     Repo.one(from(payment in SalePaid, where: payment.sale_id == ^sale_id, select: coalesce(sum(payment.amount), ^@zero)), prefix: tenant)
   end
 
+  defp outstanding_balance(amount, paid) do
+    if Decimal.positive?(Decimal.sub(amount, paid)), do: Decimal.sub(amount, paid), else: @zero
+  end
+
   defp restore_inventory!(line, store_id, tenant) do
     inventory = Repo.one!(from(i in Inventory, where: i.store_id == ^store_id and i.product_id == ^line.product_id, lock: "FOR UPDATE"), prefix: tenant)
     quantity = trunc(line.quantity)
@@ -301,7 +305,8 @@ defmodule PosServer.Retaily.Sales do
 
   defp serialize_sale(sale) do
     paid = sale.total_paid || Enum.reduce(sale.sale_paids, @zero, &Decimal.add(&1.amount, &2))
-    due = sale.due_balance || Decimal.sub(sale.amount, paid)
+    # An overpayment is cash returned as change, never a negative invoice balance.
+    due = sale.due_balance || outstanding_balance(sale.amount, paid)
     invoice_status = sale.invoice_status || if(sale.status == "RETURN", do: "cancelled", else: if(Decimal.positive?(due), do: "open", else: "close"))
     %{
       id: sale.id,
@@ -393,11 +398,12 @@ defmodule PosServer.Retaily.Sales do
         total_paid: coalesce(payment_total.total_paid, ^@zero),
         due_balance:
           fragment(
-            "CASE WHEN ? = 'RETURN' THEN ? ELSE ? - COALESCE(?, ?) END",
+            "CASE WHEN ? = 'RETURN' THEN ? ELSE GREATEST(? - COALESCE(?, ?), ?) END",
             sale.status,
             ^@zero,
             sale.amount,
             payment_total.total_paid,
+            ^@zero,
             ^@zero
           ),
         invoice_status:

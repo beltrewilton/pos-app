@@ -33,7 +33,7 @@ defmodule PosServerWeb.SaleController do
       {:error, :invalid_cursor} ->
         conn
         |> put_status(:bad_request)
-        |> json(%{error: "cursor must be a non-negative integer"})
+        |> json(%{error: "cursor is invalid"})
 
       :error ->
         conn
@@ -141,13 +141,17 @@ defmodule PosServerWeb.SaleController do
   defp parse_cursor(nil), do: {:ok, nil}
 
   defp parse_cursor(cursor) when is_binary(cursor) do
-    case Integer.parse(cursor) do
-      {value, ""} when value >= 0 -> {:ok, value}
+    with [date_create, id] <- String.split(cursor, ",", parts: 2),
+         {:ok, date_create} <- NaiveDateTime.from_iso8601(date_create),
+         {id, ""} <- Integer.parse(id),
+         true <- id >= 0 do
+      {:ok, %{date_create: date_create, id: id}}
+    else
       _ -> {:error, :invalid_cursor}
     end
   end
 
-  defp parse_cursor(_), do: {:error, :invalid_cursor}
+  defp parse_cursor(_cursor), do: {:error, :invalid_cursor}
 
   defp parse_date(nil), do: {:ok, nil}
 

@@ -43,21 +43,25 @@ LEFT JOIN LATERAL (
   FROM {{prefix}}.sale_line AS sale_line
   WHERE sale_line.sale_id = sale.id
 ) AS line_totals ON TRUE
-WHERE sale.store_id = $3
-  AND ($1::bigint IS NULL OR sale.id < $1)
+WHERE sale.store_id = $4
   AND (
-    NULLIF($4::text, '') IS NULL
-    OR client.name ILIKE '%' || $4 || '%'
+    $1::timestamp IS NULL
+    OR sale.date_create < $1::timestamp
+    OR (sale.date_create = $1::timestamp AND sale.id < $2::bigint)
   )
-  AND ($5::date IS NULL OR sale.date_create >= $5::date)
-  AND ($6::date IS NULL OR sale.date_create < $6::date + INTERVAL '1 day')
   AND (
-    $7::text IS NULL
+    NULLIF($5::text, '') IS NULL
+    OR client.name ILIKE '%' || $5 || '%'
+  )
+  AND ($6::date IS NULL OR sale.date_create >= $6::date)
+  AND ($7::date IS NULL OR sale.date_create < $7::date + INTERVAL '1 day')
+  AND (
+    $8::text IS NULL
     OR CASE
       WHEN sale.status = 'RETURN' THEN 'cancelled'
       WHEN sale.amount - COALESCE(payment_totals.total_paid, 0) > 0 THEN 'open'
       ELSE 'close'
-    END = $7
+    END = $8
   )
-ORDER BY sale.id DESC
-LIMIT $2;
+ORDER BY sale.date_create DESC, sale.id DESC
+LIMIT $3;

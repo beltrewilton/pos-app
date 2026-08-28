@@ -216,6 +216,26 @@ defmodule PosServerWeb.SaleControllerTest do
     assert response["invoice_status"] == "close"
   end
 
+  test "treats an overpayment as change instead of a negative invoice balance", %{walex_conn: conn} do
+    response =
+      conn
+      |> post(~p"/api/sales", %{
+        store_id: 2,
+        client_id: 30_218,
+        sequence_type: "DV",
+        status: "CASH",
+        sale_type: "IN_SHOP",
+        delivery_charge: "0",
+        lines: [%{product_id: 19_383, quantity: 1, discount: "0"}],
+        payments: [%{amount: "250", type: "CASH"}]
+      })
+      |> json_response(:created)
+
+    assert response["total_paid"] in ["250", "250.00"]
+    assert response["due_balance"] in ["0", "0.00"]
+    assert response["invoice_status"] == "close"
+  end
+
   test "settles a ten-product credit sale with payments on different days", %{walex_conn: conn} do
     before_quantities = inventory_quantities(Enum.map(large_credit_sale_lines(), & &1.product_id))
     sale =

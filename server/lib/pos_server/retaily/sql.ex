@@ -16,7 +16,7 @@ defmodule PosServer.Retaily.Sql do
   @type page :: %{
           entries: [map()],
           has_more?: boolean(),
-          next_cursor: non_neg_integer() | nil
+          next_cursor: non_neg_integer() | %{date_create: NaiveDateTime.t(), id: non_neg_integer()} | nil
         }
 
   @spec active_products_page(non_neg_integer() | nil, keyword()) ::
@@ -60,17 +60,18 @@ defmodule PosServer.Retaily.Sql do
     end
   end
 
-  @spec sales_report_page(pos_integer(), non_neg_integer() | nil, keyword()) ::
+  @spec sales_report_page(pos_integer(), %{date_create: NaiveDateTime.t(), id: non_neg_integer()} | nil, keyword()) ::
           {:ok, page()} | {:error, term()}
-  def sales_report_page(store_id, before_id \\ nil, opts \\ []) do
+  def sales_report_page(store_id, cursor \\ nil, opts \\ []) do
     tenant = TenantContext.tenant!()
 
-    with :ok <- validate_cursor(before_id),
+    with :ok <- validate_sales_report_cursor(cursor),
          {:ok, page_size} <- page_size(opts),
          {:ok, store_id} <- store_id(store_id),
          {:ok, result} <-
            run(tenant, "sales_report", [
-             before_id,
+             cursor_date(cursor),
+             cursor_id(cursor),
              page_size + 1,
              store_id,
              normalize_search(Keyword.get(opts, :search)),
@@ -85,7 +86,7 @@ defmodule PosServer.Retaily.Sql do
        %{
          entries: entries,
          has_more?: has_more?,
-         next_cursor: next_cursor(entries, has_more?)
+         next_cursor: sales_report_next_cursor(entries, has_more?)
        }}
     end
   end
@@ -146,6 +147,20 @@ defmodule PosServer.Retaily.Sql do
   defp next_cursor(entries, true), do: entries |> List.last() |> Map.fetch!("id")
   defp next_cursor(_entries, false), do: nil
 
+  defp sales_report_next_cursor(entries, true) do
+    entries
+    |> List.last()
+    |> then(fn entry -> %{date_create: Map.fetch!(entry, "date_create"), id: Map.fetch!(entry, "id")} end)
+  end
+
+  defp sales_report_next_cursor(_entries, false), do: nil
+
+  defp cursor_date(nil), do: nil
+  defp cursor_date(%{date_create: date_create}), do: date_create
+
+  defp cursor_id(nil), do: nil
+  defp cursor_id(%{id: id}), do: id
+
   defp page_size(opts) do
     case Keyword.get(opts, :limit, 50) do
       limit when is_integer(limit) and limit > 0 and limit <= @max_page_size -> {:ok, limit}
@@ -165,6 +180,10 @@ defmodule PosServer.Retaily.Sql do
   defp validate_cursor(nil), do: :ok
   defp validate_cursor(cursor) when is_integer(cursor) and cursor >= 0, do: :ok
   defp validate_cursor(_cursor), do: {:error, :invalid_cursor}
+
+  defp validate_sales_report_cursor(nil), do: :ok
+  defp validate_sales_report_cursor(%{date_create: %NaiveDateTime{}, id: id}) when is_integer(id) and id >= 0, do: :ok
+  defp validate_sales_report_cursor(_cursor), do: {:error, :invalid_cursor}
 
   defp normalize_search(search) when is_binary(search), do: String.trim(search)
   defp normalize_search(_search), do: nil

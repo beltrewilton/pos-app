@@ -1128,6 +1128,16 @@ button {
   padding-top: 16px;
   padding-bottom: 16px;
 }
+.invoice-date,
+.invoice-time {
+  display: block;
+  white-space: nowrap;
+}
+.invoice-time {
+  margin-top: 2px;
+  color: var(--muted-foreground);
+  font-size: 0.78rem;
+}
 .invoice-detail-trigger {
   display: inline-flex;
   align-items: center;
