@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Required:
-#   EXPORT_DIR=/private/tmp/mysql-files  ./sh/import_retaily_data.sh
+#   EXPORT_DIR=/private/tmp/mysql-files ./sh/import_retaily_data.sh TENANT_SCHEMA
 #
 # DATABASE_URL is constructed from DB_USER, DB_PASS, and DB_NAME in .env.
 # RETAILY_DB_PASSWORD supplies the remote MySQL password without prompting.
@@ -10,6 +10,13 @@ set -euo pipefail
 # then imported into PostgreSQL.
 
 server_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+
+if [[ $# -ne 1 ]]; then
+  echo "Usage: $0 TENANT_SCHEMA" >&2
+  exit 1
+fi
+
+TENANT_SCHEMA=$1
 
 if [[ ! -f "$server_dir/.env" ]]; then
   echo "Missing $server_dir/.env" >&2
@@ -27,7 +34,6 @@ set +a
 : "${RETAILY_DB_PASSWORD:?Set RETAILY_DB_PASSWORD in server/.env}"
 
 DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@localhost/${DB_NAME}"
-TENANT_SCHEMA='evococo'
 : "${EXPORT_DIR:?Set EXPORT_DIR to a local MySQL download directory}"
 
 if [[ ! "$TENANT_SCHEMA" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then

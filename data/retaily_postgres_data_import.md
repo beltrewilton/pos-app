@@ -11,7 +11,7 @@ in PostgreSQL.
 2. Run the application migrations from `server`:
 
    ```bash
-   ./sh/migrate.sh
+   ./sh/migrate.sh <tenant_schema>
    ```
 
 3. Create the destination tenant through the normal company/onboarding flow.
@@ -54,7 +54,7 @@ foreign-key order. Use a shared directory that is allowed by MySQL's
 ```bash
 cd server
 EXPORT_DIR='/shared/mysql-postgres-export' \
-./sh/import_retaily_data.sh
+./sh/import_retaily_data.sh <tenant_schema>
 ```
 
 The script creates `DATABASE_URL` from `DB_USER`, `DB_PASS`, and `DB_NAME` in
