@@ -963,6 +963,9 @@ button {
 .catalog-panel[data-view="customers"] .catalog-content {
   display: none;
 }
+.catalog-panel[data-view="customer-detail"] .catalog-content {
+  display: none;
+}
 .catalog-panel[data-view="invoices"] .catalog-content {
   display: none;
 }
@@ -1498,7 +1501,7 @@ button {
 }
 .customers-screen {
   min-width: 0;
-  padding: clamp(24px, 4vw, 56px);
+  padding: 0 0 28px;
 }
 .customers-screen[hidden] {
   display: none;
@@ -1509,6 +1512,9 @@ button {
 }
 .invoice-report[hidden] {
   display: none;
+}
+.customer-detail-card {
+  margin-top: 18px;
 }
 .invoice-report-fixed {
   position: sticky;
@@ -2888,6 +2894,7 @@ dialog#customer-purchases-dialog .dialog-content {
 
   .catalog-panel[data-view="checkout"] ~ .order-panel,
   .catalog-panel[data-view="customers"] ~ .order-panel,
+  .catalog-panel[data-view="customer-detail"] ~ .order-panel,
   .catalog-panel[data-view="invoices"] ~ .order-panel,
   .catalog-panel[data-view="inventory"] ~ .order-panel,
   .catalog-panel[data-view="orders"] ~ .order-panel,
@@ -2895,7 +2902,10 @@ dialog#customer-purchases-dialog .dialog-content {
     display: none;
   }
 
-  .customers-screen,
+  .customers-screen {
+    padding: 0 0 20px;
+  }
+
   .checkout-flow {
     padding: 18px 0;
   }

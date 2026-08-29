@@ -1,7 +1,7 @@
 import * as printer from "./printer.js";
 import { createPrintRelay } from "./print-relay.js";
 import Pica from "../vendor/pica/pica.mjs";
-import { API_BASE_URL, activeProducts, addSalePayment, adjustInventory, cancelSale, clearSession, companySettings, createCustomer, createPriceList, createProduct, createProductOrder, createProvider, createSale, createSequenceSet, createStore, createUser, customerPurchases, customers, deactivateUser, deletePriceList, deleteProvider, deleteSequenceSet, deleteStore, inventoryQuantities, inventoryStoreQuantities, inventorySummary, login, moveInventory, pricingLists, product, productOrders, productTraces, purchaseSources, receiveProductOrder, saleDetails, salesReport, saveSession, session, setProductPrices, stores, updatePriceList, updateProduct, updateProvider, updateSequenceSet, updateStore, updateUser, userOptions, users } from "./api.js";
+import { API_BASE_URL, activeProducts, addSalePayment, adjustInventory, cancelSale, clearSession, companySettings, createCustomer, createPriceList, createProduct, createProductOrder, createProvider, createSale, createSequenceSet, createStore, createUser, customerDetail, customerPurchases, customers, deactivateUser, deletePriceList, deleteProvider, deleteSequenceSet, deleteStore, inventoryQuantities, inventoryStoreQuantities, inventorySummary, login, moveInventory, pricingLists, product, productOrders, productTraces, purchaseSources, receiveProductOrder, saleDetails, salesReport, saveSession, session, setProductPrices, stores, updatePriceList, updateProduct, updateProvider, updateSequenceSet, updateStore, updateUser, userOptions, users } from "./api.js";
 import { createPos } from "./pos.js";
 import { formatCurrency, getLanguage, onLanguageChange, t, translateDocument } from "./i18n.js";
 import { createLanguageSwitcher } from "./language-switcher.js";
@@ -22,6 +22,9 @@ const productSentinel = document.querySelector("#products-sentinel");
 const customersScreen = document.querySelector("#customers-screen");
 const customersTableBody = document.querySelector("#customers-table-body");
 const customersStatus = document.querySelector("#customers-status");
+const customerDetailPanel = document.querySelector("#customer-detail");
+const customerDetailScreen = document.querySelector("#customer-detail-screen");
+const customersBackButton = document.querySelector("#customers-back");
 const customerSearch = document.querySelector("#customer-search");
 const customerDialog = document.querySelector("#customer-dialog");
 const customerForm = document.querySelector("#customer-form");
@@ -511,11 +514,30 @@ function resetCompletedOrder() {
 function customerRow(customer) {
   const row = document.createElement("tr");
   row.className = "table-row";
-  const values = [[t("customer.name"), customer.name || "—"], [t("customer.phone"), customer.celphone || "—"], [t("customer.email"), customer.email || "—"]];
+  const values = [["Name", customer.name || "—"], ["Document ID", customer.document_id || "—"], ["Phone", customer.celphone || "—"], ["Email", customer.email || "—"], ["Wholesale", Number(customer.wholesaler) === 1 ? "Yes" : "No"], ["Pending balance", currency(Math.max(Number(customer.pending_balance || 0), 0))], ["Last purchase", customer.last_purchase_date ? new Date(customer.last_purchase_date.replace(" ", "T")).toLocaleDateString() : "—"]];
   values.forEach(([label, value]) => { const cell = document.createElement("td"); cell.className = "table-cell"; cell.dataset.label = label; cell.textContent = value; row.appendChild(cell); });
   const action = document.createElement("td"); action.className = "table-cell customer-action";
-  const choose = document.createElement("button"); choose.className = "btn"; choose.type = "button"; choose.dataset.variant = "outline"; choose.dataset.size = "sm"; choose.dataset.customerId = customer.id; choose.textContent = t("customer.choose"); choose.setAttribute("aria-label", `${t("customer.choose")}: ${customer.name || ""}`); action.appendChild(choose); row.appendChild(action);
+  const actionButton = document.createElement("button"); actionButton.className = "btn"; actionButton.type = "button"; actionButton.dataset.variant = "outline"; actionButton.dataset.size = "sm"; actionButton.dataset.customerId = customer.id;
+  const standalone = customerReturn === "standalone";
+  actionButton.textContent = standalone ? "View" : t("customer.choose"); actionButton.setAttribute("aria-label", `${standalone ? "View" : t("customer.choose")}: ${customer.name || ""}`); action.appendChild(actionButton); row.appendChild(action);
   return row;
+}
+
+function customerDate(value) { const parts = dateTimeParts(value); return parts ? `${parts.date} ${parts.time}` : "—"; }
+async function openCustomerDetail(id) {
+  customerListScrollTop = catalogPanel.scrollTop;
+  customersScreen.hidden = true;
+  customerDetailScreen.hidden = false;
+  catalogPanel.dataset.view = "customer-detail";
+  catalogPanel.scrollTop = 0;
+  customerDetailPanel.innerHTML = '<div class="card-content invoice-details-skeleton" role="status" aria-label="Loading customer details"><span class="skeleton skeleton-line" style="width:40%"></span><span class="skeleton skeleton-line" style="width:75%"></span></div>';
+  document.querySelector("#customer-detail-title").focus();
+  try {
+    const detail = await customerDetail(id), customer = detail.customer, summary = detail.summary;
+    const purchases = detail.purchases.map((purchase) => `<tr class="table-row"><td class="table-cell">${purchase.sequence || `#${purchase.id}`}</td><td class="table-cell">${customerDate(purchase.date_create)}</td><td class="table-cell numeric">${currency(purchase.amount)}</td><td class="table-cell numeric">${currency(purchase.total_paid)}</td><td class="table-cell numeric">${currency(Math.max(Number(purchase.due_balance || 0), 0))}</td><td class="table-cell">${purchase.invoice_status || "—"}</td><td class="table-cell">${purchase.salesperson || "—"}</td><td class="table-cell">${purchase.store_id || "—"}</td><td class="table-cell"><button class="btn" type="button" data-variant="ghost" data-customer-invoice>View</button></td></tr>`).join("") || '<tr class="table-row"><td class="table-cell muted" colspan="9">No purchases found for this customer.</td></tr>';
+    customerDetailPanel.innerHTML = `<div class="card-header"><div><p class="eyebrow">Customer account</p><h3 class="card-title">${customer.name || "Customer"}</h3><p class="card-description">${customer.document_id || "No document ID"} · ${customer.celphone || "No phone"}</p></div></div><div class="card-content"><p class="card-description">${customer.address || "No address"} · ${customer.email || "No email"} · ${Number(customer.wholesaler) === 1 ? "Wholesaler" : "Retail"} · Created ${customerDate(customer.date_create)}</p><section class="invoice-summary"><article class="card"><div class="card-header"><p class="card-title">Pending balance</p></div><div class="card-content"><p class="invoice-kpi-value numeric">${currency(summary.pending_balance)}</p></div></article><article class="card"><div class="card-header"><p class="card-title">Total invoiced</p></div><div class="card-content"><p class="invoice-kpi-value numeric">${currency(summary.total_invoiced)}</p></div></article><article class="card"><div class="card-header"><p class="card-title">Total paid</p></div><div class="card-content"><p class="invoice-kpi-value numeric">${currency(summary.total_paid)}</p></div></article><article class="card"><div class="card-header"><p class="card-title">Outstanding balance</p></div><div class="card-content"><p class="invoice-kpi-value numeric">${currency(summary.pending_balance)}</p></div></article><article class="card"><div class="card-header"><p class="card-title">Purchases</p></div><div class="card-content"><p class="invoice-kpi-value numeric">${summary.purchase_count}</p></div></article><article class="card"><div class="card-header"><p class="card-title">Last purchase</p></div><div class="card-content"><p class="card-description">${customerDate(summary.last_purchase_date)}</p></div></article></section><div class="table-container"><p class="invoice-table-section-title">Purchase history</p><table class="table"><thead><tr class="table-row"><th class="table-head">Invoice</th><th class="table-head">Date</th><th class="table-head">Total</th><th class="table-head">Paid</th><th class="table-head">Balance</th><th class="table-head">Status</th><th class="table-head">Sales person</th><th class="table-head">Store</th><th class="table-head">Action</th></tr></thead><tbody>${purchases}</tbody></table></div></div>`;
+    customerDetailPanel.querySelectorAll("[data-customer-invoice]").forEach((button) => button.addEventListener("click", () => { invoiceSearch.value = customer.name || ""; openInvoiceReport(); loadInvoices({ reset: true }); }));
+  } catch (error) { customerDetailPanel.textContent = error.message; }
 }
 
 async function loadCustomers() {
@@ -527,7 +549,10 @@ async function loadCustomers() {
     if (!page.entries.length) customersStatus.textContent = t("customer.empty");
     else customersStatus.textContent = "";
     customersTableBody.querySelectorAll("[data-customer-id]").forEach((button) => {
-      button.addEventListener("click", () => selectCustomer(page.entries.find((customer) => String(customer.id) === button.dataset.customerId)));
+      button.addEventListener("click", () => {
+        const customer = page.entries.find((entry) => String(entry.id) === button.dataset.customerId);
+        if (customerReturn === "standalone") openCustomerDetail(button.dataset.customerId); else selectCustomer(customer);
+      });
     });
   } catch (error) {
     console.error(error); customersStatus.textContent = t("customer.error");
@@ -535,22 +560,43 @@ async function loadCustomers() {
 }
 
 let customerReturn = "pos";
+let customerListScrollTop = 0;
 function openCustomers(returnTo = "pos") {
   closeUsersPage();
   customerReturn = returnTo;
+  const standalone = returnTo === "standalone";
+  invoiceReport.hidden = true;
+  customerDetailScreen.hidden = true;
+  closeOperations();
+  checkoutFlow.hidden = true;
   catalogPanel.dataset.view = "customers";
   customersScreen.hidden = false;
-  if (returnTo === "pos") selectSidebar("customers-nav");
+  customersBackButton.hidden = standalone;
+  appShell.classList.toggle("invoice-view", standalone);
+  if (standalone) selectSidebar("customers-nav");
   loadCustomers();
   requestAnimationFrame(() => (mobileQuery.matches ? customerSearch : document.querySelector("#customers-title")).focus());
 }
 
 function closeCustomers() {
   customersScreen.hidden = true;
+  customerDetailScreen.hidden = true;
+  customersBackButton.hidden = false;
   if (catalogPanel.dataset.view === "customers") delete catalogPanel.dataset.view;
+  if (customerReturn === "standalone") { openPos(); document.querySelector("#customers-nav").focus(); return; }
   if (customerReturn === "checkout") { catalogPanel.dataset.view = "checkout"; checkoutFlow.hidden = false; showCheckoutStage("customer"); }
   else if (customerReturn === "cart") { setMobileCart(true); }
   else { selectSidebar("pos-nav"); (mobileQuery.matches ? mobileCartNav : orderTitle).focus(); }
+}
+
+function closeCustomerDetail() {
+  customerDetailScreen.hidden = true;
+  customersScreen.hidden = false;
+  catalogPanel.dataset.view = "customers";
+  requestAnimationFrame(() => {
+    catalogPanel.scrollTop = customerListScrollTop;
+    customersTableBody.querySelector(`[data-customer-id]`)?.focus();
+  });
 }
 
 function currency(value) {
@@ -1060,6 +1106,7 @@ async function loadInvoices({ reset = false } = {}) {
 function openInvoiceReport() {
   closeUsersPage();
   customersScreen.hidden = true;
+  customerDetailScreen.hidden = true;
   checkoutFlow.hidden = true;
   closeOperations();
   catalogPanel.dataset.view = "invoices";
@@ -1523,6 +1570,7 @@ function openPos(event) {
   closeUsersPage();
   invoiceReport.hidden = true;
   customersScreen.hidden = true;
+  customerDetailScreen.hidden = true;
   inventoryScreen.hidden = true;
   ordersScreen.hidden = true;
   purchaseOrderScreen.hidden = true;
@@ -1734,6 +1782,8 @@ orderTitle.addEventListener("click", () => {
 clearCustomerButton.addEventListener("click", () => { if (!checkoutFlow.hidden && checkoutStage === "payment") return; selectedCustomer = null; updateCustomerPicker(); });
 customerPurchasesButton.addEventListener("click", openCustomerPurchases);
 document.querySelector("#customers-back").addEventListener("click", closeCustomers);
+document.querySelector("#customer-detail-back").addEventListener("click", closeCustomerDetail);
+document.querySelector("#customers-nav").addEventListener("click", () => openCustomers("standalone"));
 customerSearch.addEventListener("input", () => { clearTimeout(customerSearchTimer); customerSearchTimer = setTimeout(loadCustomers, 220); });
 document.querySelector("#pos-nav").addEventListener("click", openPos);
 document.querySelector("#sales-report-nav").addEventListener("click", openInvoiceReport);
@@ -1778,7 +1828,7 @@ document.querySelectorAll(".mobile-navigation-link[data-navigation-target]").for
   item.addEventListener("click", () => {
     const actions = {
       pos: openPos,
-      customers: () => openCustomers("pos"),
+      customers: () => openCustomers("standalone"),
       sales: openInvoiceReport,
       inventory: openInventory,
       orders: openOrders,
@@ -2178,8 +2228,11 @@ customerForm.addEventListener("submit", async (event) => {
   const submit = document.querySelector("#customer-submit");
   customerFormStatus.hidden = true; submit.disabled = true;
   try {
-    const customer = await createCustomer(Object.fromEntries(new FormData(customerForm)));
-    customerForm.reset(); customerDialog.close(); selectCustomer(customer);
+    const attrs = Object.fromEntries(new FormData(customerForm));
+    attrs.is_wholesaler = customerForm.elements.is_wholesaler.checked;
+    const customer = await createCustomer(attrs);
+    customerForm.reset(); customerDialog.close();
+    if (!customersScreen.hidden) { loadCustomers(); openCustomerDetail(customer.id); } else selectCustomer(customer);
   } catch (error) {
     console.error(error); customerFormStatus.textContent = t("customer.saveError"); customerFormStatus.hidden = false;
   } finally { submit.disabled = false; }

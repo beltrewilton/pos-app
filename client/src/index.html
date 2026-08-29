@@ -39,6 +39,7 @@
     <main class="pos-shell" id="app-shell" hidden>
       <nav class="sidebar-rail" aria-label="Primary navigation" data-i18n-aria-label="nav.primary">
         <a id="pos-nav" class="sidebar-link" href="#" aria-current="page" aria-label="POS"><svg aria-hidden="true"><use href="#nav-icon-pos"/></svg></a>
+        <button id="customers-nav" class="sidebar-link" type="button" aria-label="Customers"><svg aria-hidden="true"><use href="#nav-icon-customers"/></svg></button>
         <button
           id="sales-report-nav"
           class="sidebar-link"
@@ -164,16 +165,15 @@
         <div id="products-sentinel" aria-hidden="true"></div>
         </div>
         <section id="customers-screen" class="customers-screen" aria-labelledby="customers-title" hidden>
-          <header class="customers-header">
-            <div>
-              <p class="eyebrow" data-i18n="customer.label">Customers</p>
-              <h2 id="customers-title" class="h3" tabindex="-1" data-i18n="customer.list">Customer list</h2>
-            </div>
-            <div class="customers-header-actions">
-              <button id="create-customer" class="btn" type="button" data-variant="default" data-dialog-trigger="customer-dialog" aria-haspopup="dialog" data-i18n="customer.create">Create customer</button>
-              <button id="customers-back" class="btn" type="button" data-variant="outline" data-i18n="action.back">Back</button>
-            </div>
-          </header>
+          <div class="invoice-report-fixed">
+            <header class="topbar invoice-topbar">
+              <div class="brand-lockup"><span class="brand-mark" aria-hidden="true">E</span><div><p class="eyebrow" data-i18n="customer.label">Customers</p><h2 id="customers-title" tabindex="-1" data-i18n="customer.list">Customer list</h2></div></div>
+              <div class="customers-header-actions">
+                <button id="create-customer" class="btn" type="button" data-variant="default" data-dialog-trigger="customer-dialog" aria-haspopup="dialog" data-i18n="customer.create">Create customer</button>
+                <button id="customers-back" class="btn" type="button" data-variant="outline" data-i18n="action.back">Back</button>
+              </div>
+            </header>
+          </div>
           <div class="customer-search-field">
             <label class="sr-only" for="customer-search" data-i18n="customer.search">Search customers</label>
             <input id="customer-search" class="input" type="search" autocomplete="off" data-i18n-placeholder="customer.searchPlaceholder" placeholder="Search customers by name or phone" />
@@ -181,11 +181,20 @@
           <p id="customers-status" class="customers-status" role="status"></p>
           <div class="table-container">
             <table class="table">
-              <caption class="table-caption" data-i18n="customer.tableCaption">Choose a customer for this sale.</caption>
-              <thead><tr class="table-row"><th class="table-head" scope="col" data-i18n="customer.name">Name</th><th class="table-head" scope="col" data-i18n="customer.phone">Phone</th><th class="table-head" scope="col" data-i18n="customer.email">Email</th><th class="table-head" scope="col"><span class="sr-only" data-i18n="customer.select">Select customer</span></th></tr></thead>
+              <caption class="table-caption">Customer accounts and purchase activity.</caption>
+              <thead><tr class="table-row"><th class="table-head" scope="col">Name</th><th class="table-head" scope="col">Document ID</th><th class="table-head" scope="col">Phone</th><th class="table-head" scope="col">Email</th><th class="table-head" scope="col">Wholesale</th><th class="table-head" scope="col">Pending balance</th><th class="table-head" scope="col">Last purchase</th><th class="table-head" scope="col"><span class="sr-only">View customer</span></th></tr></thead>
               <tbody id="customers-table-body"></tbody>
             </table>
           </div>
+        </section>
+        <section id="customer-detail-screen" class="invoice-report customer-detail-screen" aria-labelledby="customer-detail-title" hidden>
+          <div class="invoice-report-fixed">
+            <header class="topbar invoice-topbar">
+              <div class="brand-lockup"><span class="brand-mark" aria-hidden="true">E</span><div><p class="eyebrow">Customers</p><h2 id="customer-detail-title" tabindex="-1">Customer detail</h2></div></div>
+              <button id="customer-detail-back" class="btn" type="button" data-variant="outline" data-size="sm">Back to customers</button>
+            </header>
+          </div>
+          <article id="customer-detail" class="card customer-detail-card" aria-live="polite"></article>
         </section>
         <section id="invoice-report" class="invoice-report" aria-labelledby="invoice-report-title" hidden>
           <div class="invoice-report-fixed">
@@ -487,8 +496,11 @@
         <div class="dialog-header"><h2 id="customer-dialog-title" class="dialog-title" data-i18n="customer.create">Create customer</h2><p class="dialog-description" data-i18n="customer.createDescription">Add a customer, then use them on this sale.</p></div>
         <form id="customer-form" class="form">
           <div class="form-field"><label class="label" for="customer-name" data-i18n="customer.name">Name</label><input id="customer-name" class="input" name="name" required autocomplete="name" /></div>
+          <div class="form-field"><label class="label" for="customer-document-id" data-i18n="customer.documentId">Document ID</label><input id="customer-document-id" class="input" name="document_id" maxlength="30" autocomplete="off" /></div>
+          <div class="form-field"><label class="label" for="customer-address" data-i18n="customer.address">Address</label><input id="customer-address" class="input" name="address" autocomplete="street-address" /></div>
           <div class="form-field"><label class="label" for="customer-phone" data-i18n="customer.phone">Phone</label><input id="customer-phone" class="input" name="celphone" type="tel" autocomplete="tel" /></div>
           <div class="form-field"><label class="label" for="customer-email" data-i18n="customer.email">Email</label><input id="customer-email" class="input" name="email" type="email" autocomplete="email" /></div>
+          <div class="form-field-inline"><input id="customer-is-wholesaler" class="checkbox" name="is_wholesaler" type="checkbox" /><label class="label" for="customer-is-wholesaler" data-i18n="customer.isWholesaler">Is wholesaler</label></div>
           <p id="customer-form-status" class="field-error" role="alert" hidden></p>
           <div class="dialog-footer"><button class="btn" type="button" data-variant="outline" data-dialog-close data-i18n="action.cancel">Cancel</button><button id="customer-submit" class="btn" type="submit" data-variant="default" data-i18n="customer.save">Save customer</button></div>
         </form>

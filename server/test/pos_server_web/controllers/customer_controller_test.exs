@@ -36,6 +36,26 @@ defmodule PosServerWeb.CustomerControllerTest do
            |> Enum.map(& &1["id"]) == [30_220]
   end
 
+  test "creates a customer with identity, contact, and wholesale details", %{walex_conn: conn} do
+    customer =
+      conn
+      |> post(~p"/api/customers", %{
+        "name" => "WHOLESALE CUSTOMER",
+        "document_id" => "132-12345-6",
+        "address" => "123 Main Street",
+        "celphone" => "809-555-0100",
+        "email" => "wholesale@example.test",
+        "is_wholesaler" => true
+      })
+      |> json_response(:created)
+
+    assert customer["document_id"] == "132-12345-6"
+    assert customer["address"] == "123 Main Street"
+    assert customer["celphone"] == "809-555-0100"
+    assert customer["wholesaler"] == 1
+    assert customer["is_wholesaler"]
+  end
+
   defp token_for(name) do
     {:ok, user} =
       Accounts.create_user(%{

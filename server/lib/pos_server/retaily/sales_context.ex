@@ -127,6 +127,32 @@ defmodule PosServer.Retaily.Sales do
     end
   end
 
+  def customer_detail(scope, customer_id) do
+    with {:ok, cashier, tenant} <- cashier(scope) do
+      store_ids = cashier_store_ids(Map.get(cashier, :id), tenant)
+      customer = Repo.get(Client, customer_id, prefix: tenant)
+
+      if customer do
+        sales =
+          from(sale in Sale,
+            where: sale.client_id == ^customer_id and sale.store_id in ^store_ids and sale.status != "RETURN"
+          )
+          |> with_payment_totals()
+          |> Repo.all(prefix: tenant)
+
+        summary = Enum.reduce(sales, %{purchase_count: 0, total_invoiced: @zero, total_paid: @zero, pending_balance: @zero, last_purchase_date: nil}, fn sale, acc ->
+          %{acc | purchase_count: acc.purchase_count + 1, total_invoiced: Decimal.add(acc.total_invoiced, sale.amount), total_paid: Decimal.add(acc.total_paid, sale.total_paid), pending_balance: Decimal.add(acc.pending_balance, sale.due_balance), last_purchase_date: max_date(acc.last_purchase_date, sale.date_create)}
+        end)
+
+        with {:ok, purchases} <- recent_customer_purchases(scope, customer_id) do
+          {:ok, %{customer: serialize_client(customer) |> Map.merge(%{date_create: customer.date_create, wholesaler: customer.wholesaler}), summary: summary, purchases: purchases}}
+        end
+      else
+        {:error, :not_found}
+      end
+    end
+  end
+
   def get_sale(scope, sale_id) do
     with {:ok, cashier, tenant} <- cashier(scope),
          %Sale{} = sale <- Repo.get(Sale, sale_id, prefix: tenant),
@@ -386,13 +412,20 @@ defmodule PosServer.Retaily.Sales do
       id: sale.id,
       sequence: sale.sequence,
       amount: sale.amount,
+      total_paid: sale.total_paid,
+      due_balance: sale.due_balance,
       date_create: sale.date_create,
+      store_id: sale.store_id,
       status: sale.status,
       invoice_status: sale.invoice_status,
       salesperson: sale.login,
       items: Enum.map(sale.sale_lines, &serialize_purchase_item/1)
     }
   end
+
+  defp max_date(nil, date), do: date
+  defp max_date(date, nil), do: date
+  defp max_date(left, right), do: if(NaiveDateTime.compare(left, right) == :lt, do: right, else: left)
 
   defp serialize_purchase_item(line) do
     %{

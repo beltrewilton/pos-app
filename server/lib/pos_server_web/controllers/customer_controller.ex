@@ -30,8 +30,9 @@ defmodule PosServerWeb.CustomerController do
 
   def create(conn, params) do
     tenant = TenantContext.tenant!()
+    attrs = params |> Map.put_new("wholesaler", wholesaler_value(params["is_wholesaler"])) |> Map.delete("is_wholesaler")
 
-    case %Client{} |> Client.changeset(params) |> Repo.insert(prefix: tenant) do
+    case %Client{} |> Client.changeset(attrs) |> Repo.insert(prefix: tenant) do
       {:ok, client} -> conn |> put_status(:created) |> json(customer_response(client))
 
       {:error, %Changeset{} = changeset} ->
@@ -49,6 +50,18 @@ defmodule PosServerWeb.CustomerController do
       :error -> conn |> put_status(:bad_request) |> json(%{error: "customer id must be a positive integer"})
       {:error, :unauthorized} -> conn |> put_status(:unauthorized) |> json(%{error: "unauthorized"})
       {:error, reason} -> conn |> put_status(:internal_server_error) |> json(%{error: "could not load customer purchases", details: inspect(reason)})
+    end
+  end
+
+  def show(conn, %{"id" => id}) do
+    with {:ok, customer_id} <- parse_id(id),
+         {:ok, detail} <- Sales.customer_detail(conn.assigns.current_scope, customer_id) do
+      json(conn, detail)
+    else
+      :error -> conn |> put_status(:bad_request) |> json(%{error: "customer id must be a positive integer"})
+      {:error, :not_found} -> conn |> put_status(:not_found) |> json(%{error: "customer not found"})
+      {:error, :unauthorized} -> conn |> put_status(:unauthorized) |> json(%{error: "unauthorized"})
+      {:error, reason} -> conn |> put_status(:internal_server_error) |> json(%{error: "could not load customer", details: inspect(reason)})
     end
   end
 
@@ -79,7 +92,11 @@ defmodule PosServerWeb.CustomerController do
       celphone: client.celphone,
       email: client.email,
       date_create: client.date_create,
-      wholesaler: client.wholesaler
+      wholesaler: client.wholesaler,
+      is_wholesaler: client.wholesaler == 1
     }
   end
+
+  defp wholesaler_value(value) when value in [true, 1, "1", "true", "on"], do: 1
+  defp wholesaler_value(_value), do: 0
 end

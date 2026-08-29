@@ -66,6 +66,16 @@ Object.assign(translations.por, {
   "unauthorized.title": "Não autorizado", "unauthorized.accessDenied": "Acesso negado", "unauthorized.message": "Você não tem permissão para acessar esta tela", "unauthorized.description": "Volte para uma área disponível para sua conta.", "unauthorized.goBack": "Voltar"
 });
 
+Object.assign(translations.eng, {
+  "customer.documentId": "Document ID", "customer.address": "Address", "customer.isWholesaler": "Is wholesaler"
+});
+Object.assign(translations.latam, {
+  "customer.documentId": "Documento de identidad", "customer.address": "Dirección", "customer.isWholesaler": "Es mayorista"
+});
+Object.assign(translations.por, {
+  "customer.documentId": "Documento de identificação", "customer.address": "Endereço", "customer.isWholesaler": "É atacadista"
+});
+
 const LANGUAGE_KEY = "retaily-pos-language";
 const staticLabelKeys = {
   Sales: "ui.sales", "Invoice report": "ui.invoiceReport", "Search product": "ui.searchProduct", "Store or warehouse": "ui.storeWarehouse", "Any date": "ui.anyDate", Apply: "ui.apply", Clear: "ui.clear", Paid: "ui.paid", Pending: "ui.pending", Cancelled: "ui.cancelled", Invoice: "ui.invoice", Customer: "ui.customer", Date: "ui.date", Status: "ui.status", Balance: "ui.balance", Actions: "ui.actions",
