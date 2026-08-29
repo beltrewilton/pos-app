@@ -71,6 +71,7 @@ defmodule PosServerWeb.Router do
     patch "/company-settings/providers/:id", CompanySettingsController, :update_provider
     delete "/company-settings/providers/:id", CompanySettingsController, :delete_provider
     get "/inventory", InventoryController, :index
+    get "/inventory/:product_id/traces", InventoryController, :traces
     get "/inventory/summary", InventoryController, :summary
     post "/inventory/adjustments", InventoryController, :adjust
     post "/inventory/moves", InventoryController, :move

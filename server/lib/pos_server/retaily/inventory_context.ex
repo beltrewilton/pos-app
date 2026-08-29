@@ -6,6 +6,7 @@ defmodule PosServer.Retaily.InventoryContext do
   alias PosServer.Repo
   alias PosServer.Accounts.Scope, as: AccessScope
   alias PosServer.Retaily.{Inventory, PricingList, Product, Store, User, UserStore}
+  alias PosServer.Retaily.ProductTraces
 
   def list(scope, store_id, inventory_filter \\ nil) do
     with {:ok, tenant} <- authorize_store(scope, store_id) do
@@ -53,6 +54,8 @@ defmodule PosServer.Retaily.InventoryContext do
        )}
     end
   end
+
+  def product_traces(scope, store_id, product_id), do: ProductTraces.list(scope, store_id, product_id)
 
   def stores(%AccessScope{} = scope) do
     query = from(store in Store, order_by: [asc: store.name], select: %{id: store.id, name: store.name})

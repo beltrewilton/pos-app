@@ -64,6 +64,18 @@ defmodule PosServerWeb.InventoryController do
     end
   end
 
+  def traces(conn, %{"product_id" => product_id, "store_id" => store_id}) do
+    with {:ok, product_id} <- positive_integer(product_id),
+         {:ok, store_id} <- positive_integer(store_id),
+         {:ok, entries} <- InventoryContext.product_traces(conn.assigns.current_scope, store_id, product_id) do
+      json(conn, %{entries: entries})
+    else
+      {:error, :invalid_params} -> conn |> put_status(:bad_request) |> json(%{error: "product_id and store_id are required"})
+      :error -> conn |> put_status(:forbidden) |> json(%{error: "store is not assigned to cashier"})
+      {:error, reason} -> conn |> put_status(:unprocessable_entity) |> json(%{error: to_string(reason)})
+    end
+  end
+
   def move(conn, params) do
     case Orders.move_inventory(conn.assigns.current_scope, params) do
       {:ok, result} -> json(conn, result)

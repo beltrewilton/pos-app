@@ -1,7 +1,7 @@
 import * as printer from "./printer.js";
 import { createPrintRelay } from "./print-relay.js";
 import Pica from "../vendor/pica/pica.mjs";
-import { API_BASE_URL, activeProducts, addSalePayment, adjustInventory, cancelSale, clearSession, companySettings, createCustomer, createPriceList, createProduct, createProductOrder, createProvider, createSale, createSequenceSet, createStore, createUser, customerPurchases, customers, deactivateUser, deletePriceList, deleteProvider, deleteSequenceSet, deleteStore, inventoryQuantities, inventoryStoreQuantities, inventorySummary, login, moveInventory, pricingLists, product, productOrders, purchaseSources, receiveProductOrder, saleDetails, salesReport, saveSession, session, setProductPrices, stores, updatePriceList, updateProduct, updateProvider, updateSequenceSet, updateStore, updateUser, userOptions, users } from "./api.js";
+import { API_BASE_URL, activeProducts, addSalePayment, adjustInventory, cancelSale, clearSession, companySettings, createCustomer, createPriceList, createProduct, createProductOrder, createProvider, createSale, createSequenceSet, createStore, createUser, customerPurchases, customers, deactivateUser, deletePriceList, deleteProvider, deleteSequenceSet, deleteStore, inventoryQuantities, inventoryStoreQuantities, inventorySummary, login, moveInventory, pricingLists, product, productOrders, productTraces, purchaseSources, receiveProductOrder, saleDetails, salesReport, saveSession, session, setProductPrices, stores, updatePriceList, updateProduct, updateProvider, updateSequenceSet, updateStore, updateUser, userOptions, users } from "./api.js";
 import { createPos } from "./pos.js";
 import { formatCurrency, getLanguage, onLanguageChange, t, translateDocument } from "./i18n.js";
 import { createLanguageSwitcher } from "./language-switcher.js";
@@ -157,6 +157,9 @@ let editingInventoryProductId = null;
 let expandedInventoryProductId = null;
 let expandedStoreQuantities = [];
 let loadingStoreQuantitiesProductId = null;
+let expandedTraceProductId = null;
+let expandedProductTraces = [];
+let loadingTraceProductId = null;
 let inventorySort = { key: "last_update", direction: "desc" };
 let inventoryFilter = "";
 let pendingProductSelection = null;
@@ -214,6 +217,9 @@ async function selectStore(nextStoreId) {
   editingInventoryProductId = null;
   expandedInventoryProductId = null;
   expandedStoreQuantities = [];
+  expandedTraceProductId = null;
+  expandedProductTraces = [];
+  loadingTraceProductId = null;
   pos.clear();
   subscribeToInventory();
   await loadProducts();
@@ -1141,7 +1147,11 @@ function renderInventory() {
       const cell = document.createElement("td"); cell.className = "table-cell";
       cell.dataset.label = labels[index];
       if (index === 0) { const button = document.createElement("button"); button.className = "btn"; button.type = "button"; button.dataset.variant = "link"; button.dataset.editProduct = entry.product_id; button.textContent = value; cell.appendChild(button); }
-      else if (index === 5) {
+      else if (index === 1) {
+        const isLoading = loadingTraceProductId === entry.product_id;
+        const isExpanded = expandedTraceProductId === entry.product_id && !isLoading;
+        cell.innerHTML = `<button class="btn inventory-sku-trace" type="button" data-variant="link" data-product-traces="${entry.product_id}" aria-expanded="${String(isExpanded)}" title="Show product history"${isLoading ? ' aria-busy="true"' : ""}>${isLoading ? '<span class="inventory-quantity-spinner" aria-hidden="true"></span>' : value}</button>`;
+      } else if (index === 5) {
         const isLoading = loadingStoreQuantitiesProductId === entry.product_id;
         const isExpanded = expandedInventoryProductId === entry.product_id && !isLoading;
         cell.innerHTML = `<button class="btn inventory-total-quantity" type="button" data-variant="link" data-total-quantity="${entry.product_id}" title="Show Quantity per Store" aria-expanded="${String(isExpanded)}"${isLoading ? ' aria-busy="true" aria-label="Loading quantity per store"' : ""}><span class="inventory-total-quantity-indicator" aria-hidden="true">${isExpanded ? "▾" : "▸"}</span>${isLoading ? '<span class="inventory-quantity-spinner" aria-hidden="true"></span>' : value}</button>`;
@@ -1152,6 +1162,15 @@ function renderInventory() {
       } else cell.textContent = value;
       row.appendChild(cell);
     });
+    if (expandedTraceProductId === entry.product_id) {
+      if (loadingTraceProductId === entry.product_id) return [row];
+      const traceRow = document.createElement("tr");
+      traceRow.className = "table-row inventory-traces-row";
+      const traceCell = document.createElement("td"); traceCell.className = "table-cell"; traceCell.colSpan = labels.length;
+      traceCell.innerHTML = traceHistoryMarkup(expandedProductTraces);
+      traceRow.appendChild(traceCell);
+      return [row, traceRow];
+    }
     if (expandedInventoryProductId !== entry.product_id) return [row];
     if (loadingStoreQuantitiesProductId === entry.product_id) return [row];
     const storeRows = expandedStoreQuantities.map((storeEntry) => {
@@ -1169,6 +1188,16 @@ function renderInventory() {
   });
   inventoryTableBody.replaceChildren(...rows);
   inventoryStatus.textContent = entries.length ? `${entries.length} products` : "No inventory found.";
+}
+function traceHistoryMarkup(traces) {
+  if (!traces.length) return '<p class="field-description">No trace history yet.</p>';
+  const title = { sale: "Sale", inventory_adjustment: "Adjustment", purchase: "Purchase", store_transfer_out: "Transfer out", store_transfer_in: "Transfer in" };
+  return `<div class="inventory-trace-wrap"><table class="table inventory-trace-table"><thead><tr class="table-row"><th class="table-head">Date / time</th><th class="table-head">Event</th><th class="table-head">Store</th><th class="table-head">Change</th><th class="table-head">Before → after</th><th class="table-head">Operator</th><th class="table-head">Context</th></tr></thead><tbody>${traces.map((trace) => {
+    const sign = Number(trace.quantity_change) > 0 ? "+" : "";
+    const provider = trace.metadata?.provider_name || trace.metadata?.["provider_name"];
+    const context = [trace.customer_name ? `Customer: ${trace.customer_name}` : "", provider ? `Provider: ${provider}` : "", trace.destination_store_name ? `To: ${trace.destination_store_name}` : "", trace.source_store_name && trace.event_type === "store_transfer_in" ? `From: ${trace.source_store_name}` : "", trace.reference_type ? `${trace.reference_type.replaceAll("_", " ")} #${trace.reference_id}` : ""].filter(Boolean).join(" · ") || "—";
+    return `<tr class="table-row"><td class="table-cell">${formatOperationDate(trace.inserted_at)}</td><td class="table-cell">${title[trace.event_type] || trace.event_type}</td><td class="table-cell">${trace.store_name || "—"}</td><td class="table-cell numeric">${sign}${trace.quantity_change}</td><td class="table-cell numeric">${trace.quantity_before} → ${trace.quantity_after}</td><td class="table-cell">${trace.operator_username || "—"}</td><td class="table-cell">${context}</td></tr>`;
+  }).join("")}</tbody></table></div>`;
 }
 function percentage(value) { return `${(Number(value || 0) * 100).toFixed(1)}%`; }
 function compactList(items, formatter, empty = "No activity") { return Array.isArray(items) && items.length ? items.map(formatter).join(" · ") : empty; }
@@ -1741,6 +1770,8 @@ inventoryTableBody.addEventListener("click", async (event) => {
     loadingStoreQuantitiesProductId = productId;
     renderInventoryWithoutMoving();
     try {
+      await new Promise(requestAnimationFrame);
+      if (expandedInventoryProductId !== productId || loadingStoreQuantitiesProductId !== productId) return;
       expandedStoreQuantities = (await inventoryStoreQuantities(storeId, productId)).entries;
       if (expandedInventoryProductId !== productId) return;
       loadingStoreQuantitiesProductId = null;
@@ -1752,6 +1783,23 @@ inventoryTableBody.addEventListener("click", async (event) => {
       expandedStoreQuantities = [];
       renderInventoryWithoutMoving();
       inventoryStatus.textContent = error.message;
+    }
+    return;
+  }
+  const traceTrigger = event.target.closest("[data-product-traces]");
+  if (traceTrigger) {
+    const productId = Number(traceTrigger.dataset.productTraces);
+    if (expandedTraceProductId === productId) { expandedTraceProductId = null; expandedProductTraces = []; loadingTraceProductId = null; renderInventoryWithoutMoving(); return; }
+    expandedTraceProductId = productId; expandedProductTraces = []; loadingTraceProductId = productId; renderInventoryWithoutMoving();
+    try {
+      await new Promise(requestAnimationFrame);
+      if (expandedTraceProductId !== productId || loadingTraceProductId !== productId) return;
+      expandedProductTraces = (await productTraces(storeId, productId)).entries;
+      if (expandedTraceProductId !== productId) return;
+      loadingTraceProductId = null; renderInventoryWithoutMoving();
+    } catch (error) {
+      if (expandedTraceProductId !== productId) return;
+      loadingTraceProductId = null; expandedTraceProductId = null; expandedProductTraces = []; renderInventoryWithoutMoving(); inventoryStatus.textContent = error.message;
     }
     return;
   }

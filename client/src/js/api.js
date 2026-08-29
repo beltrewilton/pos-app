@@ -231,6 +231,14 @@ export async function inventorySummary(storeId) {
   return response.json();
 }
 
+export async function productTraces(storeId, productId) {
+  const url = new URL(`${API_BASE_URL}/inventory/${productId}/traces`);
+  url.searchParams.set("store_id", storeId);
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Could not load product history: ${response.status}`);
+  return response.json();
+}
+
 export async function adjustInventory(adjustment) {
   const response = await fetch(`${API_BASE_URL}/inventory/adjustments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(adjustment) });
   if (!response.ok) throw new Error(`Could not update inventory: ${response.status}`);

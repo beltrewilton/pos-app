@@ -10,6 +10,7 @@ defmodule PosServer.Application do
     children = [
       PosServerWeb.Telemetry,
       PosServer.Repo,
+      {Task.Supervisor, name: PosServer.TaskSupervisor},
       {DNSCluster, query: Application.get_env(:pos_server, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: PosServer.PubSub},
       PosServerWeb.Presence,

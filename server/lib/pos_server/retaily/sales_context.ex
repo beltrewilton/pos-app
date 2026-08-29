@@ -7,7 +7,7 @@ defmodule PosServer.Retaily.Sales do
   alias Ecto.Changeset
   alias PosServer.{InventoryEvents, Repo}
   alias PosServer.Accounts.Scope, as: AccessScope
-  alias PosServer.Retaily.{Client, Inventory, PricingList, Product, Sale, SaleLine, SalePaid, Sequence, User, UserStore}
+  alias PosServer.Retaily.{Client, Inventory, PricingList, Product, ProductTraces, Sale, SaleLine, SalePaid, Sequence, User, UserStore}
   alias PosServer.Retaily.SaleRequests.{Checkout, Payment}
 
   @tax_rate Decimal.new("0.18")
@@ -18,7 +18,7 @@ defmodule PosServer.Retaily.Sales do
          {:ok, cashier, tenant} <- cashier(scope) do
       with {:ok, sale} <- Repo.transaction(fn ->
         with :ok <- cashier_store?(cashier, checkout.store_id, tenant),
-             %Client{} <- Repo.get(Client, checkout.client_id, prefix: tenant),
+             %Client{} = client <- Repo.get(Client, checkout.client_id, prefix: tenant),
              {:ok, sequence} <- next_sequence(checkout.sequence_type, tenant),
              {:ok, lines} <- sale_lines(checkout.lines, checkout.store_id, tenant),
              totals <- totals(lines, checkout),
@@ -26,7 +26,7 @@ defmodule PosServer.Retaily.Sales do
              {:ok, sale} <- insert_sale(checkout, cashier.username, sequence, totals, tenant),
              {:ok, _} <- insert_lines(lines, sale.id, tenant),
              {:ok, _} <- insert_payments(checkout.payments, sale.id, cashier.username, tenant) do
-          sale_response(sale.id, tenant)
+          %{sale: sale_response(sale.id, tenant), traces: sale_trace_attrs(lines, sale, checkout, client.name, cashier.username)}
         else
           nil -> Repo.rollback(:not_found)
           {:error, reason} -> Repo.rollback(reason)
@@ -34,7 +34,8 @@ defmodule PosServer.Retaily.Sales do
         end
       end) do
         InventoryEvents.broadcast(tenant, checkout.store_id, Enum.map(checkout.lines, & &1.product_id))
-        {:ok, sale}
+        ProductTraces.dispatch(tenant, sale.traces)
+        {:ok, sale.sale}
       end
     end
   end
@@ -204,8 +205,9 @@ defmodule PosServer.Retaily.Sales do
             if Decimal.negative?(extended) do
               {:halt, {:error, :discount_exceeds_line}}
             else
-              Repo.update!(Changeset.change(inventory, prev_quantity: inventory.quantity, quantity: inventory.quantity - line.quantity), prefix: tenant)
-              {:cont, {:ok, [%{line: line, price: unit_price, discount: discount, total: extended} | result]}}
+              before = inventory.quantity || 0
+              Repo.update!(Changeset.change(inventory, prev_quantity: before, quantity: before - line.quantity), prefix: tenant)
+              {:cont, {:ok, [%{line: line, price: unit_price, discount: discount, total: extended, quantity_before: before, quantity_after: before - line.quantity, unit_cost: product.cost} | result]}}
             end
         end
       end)
@@ -216,6 +218,16 @@ defmodule PosServer.Retaily.Sales do
     %Sale{}
     |> Sale.changeset(%{amount: totals.amount, sub: totals.sub, discount: totals.discount, discount_type: totals.discount_type, discount_input: totals.discount_input, tax_amount: totals.tax, delivery_charge: checkout.delivery_charge, sequence: sequence, sequence_type: checkout.sequence_type, status: checkout.status, sale_type: checkout.sale_type, login: login, client_id: checkout.client_id, store_id: checkout.store_id, additional_info: checkout.additional_info})
     |> Repo.insert(prefix: tenant)
+  end
+
+  defp sale_trace_attrs(lines, sale, checkout, customer_name, username) do
+    Enum.map(lines, fn %{line: line, price: price, discount: discount, quantity_before: before, quantity_after: quantity_after, unit_cost: cost} ->
+      %{product_id: line.product_id, store_id: checkout.store_id, event_type: "sale", quantity_before: before,
+        quantity_change: -line.quantity, quantity_after: quantity_after, unit_cost: cost, unit_price: Decimal.to_float(price),
+        reference_type: "sale", reference_id: sale.id, operator_username: username,
+        customer_id: checkout.client_id, customer_name: customer_name,
+        metadata: %{sale_sequence: sale.sequence, discount: discount, discount_type: discount_type(line)}}
+    end)
   end
 
   defp sale_price(product, tenant) do

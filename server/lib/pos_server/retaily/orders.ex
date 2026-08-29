@@ -7,7 +7,7 @@ defmodule PosServer.Retaily.Orders do
   alias PosServer.{InventoryEvents, Repo}
   alias PosServer.Accounts.Scope, as: AccessScope
   alias PosServer.Retaily.OrderRequests.{Create, Receive}
-  alias PosServer.Retaily.{Inventory, InventoryContext, Product, ProductOrder, ProductOrderLine, Provider, Store, User, UserStore}
+  alias PosServer.Retaily.{Inventory, InventoryContext, Product, ProductOrder, ProductOrderLine, ProductTraces, Provider, Store, User, UserStore}
 
   def create_order(scope, attrs) do
     with {:ok, request} <- valid(Create, attrs),
@@ -74,17 +74,18 @@ defmodule PosServer.Retaily.Orders do
                 :ok <- order_open?(order),
                 lines <- locked_lines(order.id, tenant),
                 :ok <- valid_receipt_lines?(receipt.lines, lines),
-                :ok <- receive_lines(lines, receipt, cashier.username, tenant),
+                {:ok, traces} <- receive_lines(lines, receipt, cashier.username, order.from_origin_id, tenant),
                 {:ok, _} <- close_order(order, cashier.username, tenant) do
-             order_response(order.id, tenant)
+             %{order: order_response(order.id, tenant), traces: traces}
            else
              nil -> Repo.rollback(:not_found)
              :error -> Repo.rollback(:forbidden_store)
              {:error, reason} -> Repo.rollback(reason)
            end
          end) do
-        InventoryEvents.broadcast(tenant, order.to_store_id, Enum.map(order.lines, & &1.product_id))
-        {:ok, order}
+        InventoryEvents.broadcast(tenant, order.order.to_store_id, Enum.map(order.order.lines, & &1.product_id))
+        ProductTraces.dispatch(tenant, order.traces)
+        {:ok, order.order}
     else
       :error -> {:error, :forbidden_store}
       {:error, _reason} = error -> error
@@ -97,15 +98,17 @@ defmodule PosServer.Retaily.Orders do
          {:ok, quantity} <- integer(attrs["quantity"]),
          {:ok, cashier, tenant} <- cashier(scope),
          :ok <- cashier_store?(cashier, store_id, tenant),
-         {:ok, inventory} <- Repo.transaction(fn ->
+         {:ok, %{inventory: inventory, trace: trace}} <- Repo.transaction(fn ->
            with %Product{} <- Repo.get(Product, product_id, prefix: tenant),
                 %Inventory{} = inventory <- locked_inventory(product_id, store_id, tenant) do
-             update_inventory!(inventory, quantity, cashier.username, tenant)
+             updated = update_inventory!(inventory, quantity, cashier.username, tenant)
+             %{inventory: updated, trace: trace_attrs(inventory, quantity, "inventory_adjustment", cashier.username, %{reference_type: "inventory"})}
            else
              nil -> Repo.rollback(:not_found)
            end
          end) do
         InventoryEvents.broadcast(tenant, store_id, [product_id])
+        ProductTraces.dispatch(tenant, [trace])
         {:ok, inventory}
     else
       :error -> {:error, :forbidden_store}
@@ -125,8 +128,8 @@ defmodule PosServer.Retaily.Orders do
            with %Store{} <- Repo.get(Store, request.from_origin_id, prefix: tenant),
                 %Store{} <- Repo.get(Store, request.to_store_id, prefix: tenant),
                 :ok <- products_exist?(request.lines, tenant),
-                :ok <- move_lines(request.lines, request.from_origin_id, request.to_store_id, cashier.username, tenant) do
-             %{product_ids: request.lines |> Enum.map(& &1.product_id) |> Enum.uniq()}
+                {:ok, traces} <- move_lines(request.lines, request.from_origin_id, request.to_store_id, cashier.username, tenant) do
+             %{product_ids: request.lines |> Enum.map(& &1.product_id) |> Enum.uniq(), traces: traces}
            else
              nil -> Repo.rollback(:not_found)
              {:error, reason} -> Repo.rollback(reason)
@@ -134,6 +137,7 @@ defmodule PosServer.Retaily.Orders do
          end) do
       InventoryEvents.broadcast(tenant, request.from_origin_id, result.product_ids)
       InventoryEvents.broadcast(tenant, request.to_store_id, result.product_ids)
+      ProductTraces.dispatch(tenant, result.traces)
       {:ok, result}
     else
       true -> {:error, :same_store}
@@ -179,10 +183,10 @@ defmodule PosServer.Retaily.Orders do
     end)
   end
 
-  defp receive_lines(lines, receipt, username, tenant) do
+  defp receive_lines(lines, receipt, username, provider_id, tenant) do
     by_id = Map.new(receipt.lines, &{&1.id, &1})
 
-    Enum.reduce_while(lines, :ok, fn line, :ok ->
+    Enum.reduce_while(lines, {:ok, []}, fn line, {:ok, traces} ->
       supplied = Map.get(by_id, line.id)
       observed = if supplied && !is_nil(supplied.quantity_observed), do: supplied.quantity_observed, else: line.quantity
       memo = if supplied, do: supplied.receiver_memo || receipt.receiver_memo, else: receipt.receiver_memo
@@ -190,7 +194,8 @@ defmodule PosServer.Retaily.Orders do
       with %Inventory{} = inventory <- locked_inventory(line.product_id, line.to_store_id, tenant),
            {:ok, _} <- update_received_line(line, observed, memo, username, tenant) do
         update_inventory!(inventory, observed, username, tenant)
-        {:cont, :ok}
+        attrs = trace_attrs(inventory, observed, "purchase", username, %{reference_type: "product_order", reference_id: line.product_order_id, unit_cost: product_cost(line.product_id, tenant), metadata: %{receiver_memo: memo, provider_name: provider_name(provider_id, tenant)}})
+        {:cont, {:ok, [attrs | traces]}}
       else
         nil -> {:halt, {:error, :inventory_not_found}}
         {:error, reason} -> {:halt, {:error, reason}}
@@ -199,13 +204,17 @@ defmodule PosServer.Retaily.Orders do
   end
 
   defp move_lines(lines, from_store_id, to_store_id, username, tenant) do
-    Enum.reduce_while(lines, :ok, fn line, :ok ->
+    transfer_id = System.unique_integer([:positive])
+    Enum.reduce_while(lines, {:ok, []}, fn line, {:ok, traces} ->
       with %Inventory{} = origin <- locked_inventory(line.product_id, from_store_id, tenant),
            %Inventory{} = destination <- locked_inventory(line.product_id, to_store_id, tenant),
            true <- (origin.quantity || 0) >= line.quantity do
         update_inventory!(origin, -line.quantity, username, tenant)
         update_inventory!(destination, line.quantity, username, tenant)
-        {:cont, :ok}
+        common = %{reference_type: "store_transfer", reference_id: transfer_id, source_store_id: from_store_id, destination_store_id: to_store_id}
+        out = trace_attrs(origin, -line.quantity, "store_transfer_out", username, common)
+        incoming = trace_attrs(destination, line.quantity, "store_transfer_in", username, common)
+        {:cont, {:ok, [incoming, out | traces]}}
       else
         nil -> {:halt, {:error, :not_found}}
         false -> {:halt, {:error, :insufficient_inventory}}
@@ -248,6 +257,15 @@ defmodule PosServer.Retaily.Orders do
       user_updated: username
     })
     |> Repo.update!(prefix: tenant)
+  end
+
+  defp product_cost(product_id, tenant), do: Repo.one(from(product in Product, where: product.id == ^product_id, select: product.cost), prefix: tenant)
+  defp provider_name(id, tenant), do: Repo.one(from(provider in Provider, where: provider.id == ^id, select: provider.name), prefix: tenant)
+
+  defp trace_attrs(inventory, delta, event_type, username, extra) do
+    Map.merge(%{product_id: inventory.product_id, store_id: inventory.store_id, event_type: event_type,
+      quantity_before: inventory.quantity || 0, quantity_change: delta,
+      quantity_after: (inventory.quantity || 0) + delta, operator_username: username}, extra)
   end
 
   defp products_exist?(lines, tenant) do
