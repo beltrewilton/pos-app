@@ -42,7 +42,7 @@ defmodule PosServerWeb.SaleControllerTest do
 
     header = Repo.get!(Sale, sale["id"], prefix: @prefix)
     assert header.amount == Decimal.new("3290.00")
-    assert header.discount == Decimal.new("110.00")
+    assert header.discount == Decimal.new("0.00")
     assert header.delivery_charge == Decimal.new("200.00")
     assert_receive {:inventory_changed, %{type: "inventory_changed", product_ids: [19_463]}}
 
@@ -86,7 +86,7 @@ defmodule PosServerWeb.SaleControllerTest do
 
     sale = Repo.get!(Sale, response["id"], prefix: @prefix)
     assert sale.amount == Decimal.new("1830.00")
-    assert sale.discount == Decimal.new("200.00")
+    assert sale.discount == Decimal.new("0.00")
     assert Repo.aggregate(from(line in SaleLine, where: line.sale_id == ^sale.id), :count, prefix: @prefix) == 2
     assert inventory_quantity(8_679) == before_quantities[8_679] - 1
     assert inventory_quantity(19_383) == before_quantities[19_383] - 1

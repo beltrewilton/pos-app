@@ -182,7 +182,7 @@ export function createPos(options) {
     void badge.offsetWidth;
     badge.classList.add("is-bumping");
   }
-  return { isEmpty: () => cart.length === 0, total, setDelivery: (value) => { delivery = value; render(); }, receipt: () => ({ number: "POS-" + String(Date.now()).slice(-6), items: cart.map(({ id, name, qty, price, sub, tax, discount }) => ({ id, name, qty, price, sub, tax, discount })), order_discount: orderDiscount, order_discount_type: orderDiscountType, delivery, sub: subTotal(), tax: taxTotal(), total: total() }), clear: () => { cart.splice(0); orderDiscount = 0; delivery = 0; render(); }, render };
+  return { isEmpty: () => cart.length === 0, total, setDelivery: (value) => { delivery = value; render(); }, receipt: () => ({ number: "POS-" + String(Date.now()).slice(-6), items: cart.map((item) => ({ id: item.id, name: item.name, qty: item.qty, price: item.price, sub: item.sub, tax: item.tax, discount: lineDiscount(item), discount_type: item.discount ? (item.discountType === "percent" ? "percentage" : "money") : null, discount_input: item.discount })), order_discount: orderDiscountTotal(), order_discount_type: orderDiscount ? (orderDiscountType === "percent" ? "percentage" : "money") : null, order_discount_input: orderDiscount, delivery, sub: subTotal(), tax: taxTotal(), total: total() }), clear: () => { cart.splice(0); orderDiscount = 0; delivery = 0; render(); }, render };
 }
 
 function escapeHtml(value) {

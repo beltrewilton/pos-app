@@ -375,7 +375,7 @@ function purchaseRows(purchase) {
   purchase.items.forEach((item) => {
     const itemRow = document.createElement("tr");
     itemRow.className = "table-row";
-    [item.name || `Product #${item.product_id}`, item.quantity, currency(item.price), discountPercentage(item.discount), currency(item.total)].forEach((value, index) => {
+    [item.name || `Product #${item.product_id}`, item.quantity, currency(item.price), discountDisplay(item.discount, item.discount_type, item.discount_input), currency(item.total)].forEach((value, index) => {
       const itemCell = document.createElement("td");
       itemCell.className = index > 1 ? "table-cell numeric" : "table-cell";
       itemCell.textContent = value;
@@ -500,8 +500,9 @@ function currency(value) {
   return formatCurrency(value);
 }
 
-function discountPercentage(value) {
-  return `${Number(value || 0)}%`;
+function discountDisplay(discount, type, input) {
+  if (!Number(discount || 0)) return "-";
+  return type === "percentage" && input != null ? `${Number(input)}%` : currency(discount);
 }
 
 function renderCurrencyPlaceholders() {
@@ -822,13 +823,13 @@ function invoiceDetailsRow(invoice) {
     const body = document.createElement("tbody");
     detail.lines.forEach((line) => {
       const lineRow = document.createElement("tr"); lineRow.className = "table-row";
-      [line.product?.name || "—", line.quantity, currency(line.amount), currency(line.discount), currency(line.total_amount)].forEach((value, index) => {
+      [line.product?.name || "—", line.quantity, currency(line.amount), discountDisplay(line.discount, line.discount_type, line.discount_input), currency(line.total_amount)].forEach((value, index) => {
         const td = document.createElement("td"); td.className = index ? "table-cell numeric" : "table-cell"; td.textContent = value; lineRow.appendChild(td);
       });
       body.appendChild(lineRow);
     });
     const foot = document.createElement("tfoot");
-    [["Subtotal", detail.sub], ["Tax", detail.tax_amount], ["Discount", detail.discount], ...(Number(detail.delivery_charge || 0) > 0 ? [["Delivery", detail.delivery_charge]] : []), ["Total", detail.amount]].forEach(([label, value]) => {
+    [["Subtotal", detail.sub], ["Tax", detail.tax_amount], ["Discount", discountDisplay(detail.discount, detail.discount_type, detail.discount_input)], ...(Number(detail.delivery_charge || 0) > 0 ? [["Delivery", detail.delivery_charge]] : []), ["Total", detail.amount]].forEach(([label, value]) => {
       const summaryRow = document.createElement("tr");
       summaryRow.className = "table-row invoice-line-summary";
       if (label === "Total") summaryRow.classList.add("invoice-line-summary-total");
@@ -842,7 +843,7 @@ function invoiceDetailsRow(invoice) {
       summaryLabel.textContent = label;
       const summaryAmount = document.createElement("td");
       summaryAmount.className = "table-cell numeric";
-      summaryAmount.textContent = currency(value);
+      summaryAmount.textContent = label === "Discount" ? value : currency(value);
       summaryRow.append(spacer, summaryLabel, summaryAmount);
       foot.appendChild(summaryRow);
     });
@@ -1991,7 +1992,7 @@ document.querySelector("#payment-lines").addEventListener("change", () => { upda
 document.querySelector("#payment-lines").addEventListener("input", updatePaymentCompletion);
 document.querySelector("#payment-lines").addEventListener("focusin", (event) => { if (mobileQuery.matches && event.target.matches("input")) event.target.scrollIntoView({ behavior: "smooth", block: "center" }); });
 document.querySelector("#credit-toggle").addEventListener("click", (event) => { const active = event.currentTarget.getAttribute("aria-pressed") !== "true"; event.currentTarget.setAttribute("aria-pressed", String(active)); event.currentTarget.dataset.variant = active ? "default" : "outline"; document.querySelector("#payment-inputs").hidden = active; document.querySelector("#complete-sale").disabled = false; updatePaymentChoice(); });
-document.querySelector("#complete-sale").addEventListener("click", async () => { const complete = document.querySelector("#complete-sale"); const credit = document.querySelector("#credit-toggle").getAttribute("aria-pressed") === "true"; const payments = [...document.querySelectorAll(".payment-line")].map((line) => ({ type: line.querySelector("select").value, amount: Number(line.querySelector("input").value) || 0 })).filter((line) => line.amount); if (!credit && payments.reduce((sum, line) => sum + line.amount, 0) < pos.total()) return; const receipt = pos.receipt(); complete.disabled = true; try { await createSale({ store_id: storeId, client_id: selectedCustomer.id, sequence_type: document.querySelector("[data-sequence][data-variant=default]").dataset.sequence, status: credit ? "CREDIT" : "CASH", sale_type: receipt.delivery ? "FOR_DELIVER" : "IN_SHOP", delivery_charge: receipt.delivery, lines: receipt.items.map((item) => ({ product_id: Number(item.id), quantity: item.qty, discount: item.discount })), payments: credit ? [] : payments }); invoicesStale = true; await refreshInventory(receipt.items.map((item) => item.id)).catch(console.error); completedReceipt = { ...receipt, language: getLanguage() }; document.querySelector("#receipt-print-status").textContent = ""; renderPrintTargets(); resetCompletedOrder(); closeCheckout(); document.querySelector("#receipt-dialog").showModal(); } catch (error) { checkoutStatus.textContent = error.message; complete.disabled = false; } });
+document.querySelector("#complete-sale").addEventListener("click", async () => { const complete = document.querySelector("#complete-sale"); const credit = document.querySelector("#credit-toggle").getAttribute("aria-pressed") === "true"; const payments = [...document.querySelectorAll(".payment-line")].map((line) => ({ type: line.querySelector("select").value, amount: Number(line.querySelector("input").value) || 0 })).filter((line) => line.amount); if (!credit && payments.reduce((sum, line) => sum + line.amount, 0) < pos.total()) return; const receipt = pos.receipt(); complete.disabled = true; try { await createSale({ store_id: storeId, client_id: selectedCustomer.id, sequence_type: document.querySelector("[data-sequence][data-variant=default]").dataset.sequence, status: credit ? "CREDIT" : "CASH", sale_type: receipt.delivery ? "FOR_DELIVER" : "IN_SHOP", delivery_charge: receipt.delivery, discount: receipt.order_discount, discount_type: receipt.order_discount_type, discount_input: receipt.order_discount_input, lines: receipt.items.map((item) => ({ product_id: Number(item.id), quantity: item.qty, discount: item.discount, discount_type: item.discount_type, discount_input: item.discount_input })), payments: credit ? [] : payments }); invoicesStale = true; await refreshInventory(receipt.items.map((item) => item.id)).catch(console.error); completedReceipt = { ...receipt, language: getLanguage() }; document.querySelector("#receipt-print-status").textContent = ""; renderPrintTargets(); resetCompletedOrder(); closeCheckout(); document.querySelector("#receipt-dialog").showModal(); } catch (error) { checkoutStatus.textContent = error.message; complete.disabled = false; } });
 document.querySelector("#skip-print").addEventListener("click", () => { document.querySelector("#receipt-dialog").close(); completedReceipt = null; });
 document.querySelector("#print-receipt").addEventListener("click", async () => {
   const button = document.querySelector("#print-receipt"), status = document.querySelector("#receipt-print-status");

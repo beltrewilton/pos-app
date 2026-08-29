@@ -21,7 +21,7 @@ defmodule PosServer.Retaily.Sales do
              %Client{} <- Repo.get(Client, checkout.client_id, prefix: tenant),
              {:ok, sequence} <- next_sequence(checkout.sequence_type, tenant),
              {:ok, lines} <- sale_lines(checkout.lines, checkout.store_id, tenant),
-             totals <- totals(lines, checkout.delivery_charge),
+             totals <- totals(lines, checkout),
              :ok <- valid_payments?(checkout.payments, totals.amount),
              {:ok, sale} <- insert_sale(checkout, cashier.username, sequence, totals, tenant),
              {:ok, _} <- insert_lines(lines, sale.id, tenant),
@@ -198,13 +198,14 @@ defmodule PosServer.Retaily.Sales do
             # Normalize the active catalog price before it becomes the
             # immutable Decimal sale snapshot.
             unit_price = price |> Decimal.from_float() |> Decimal.round(2)
-            extended = unit_price |> Decimal.mult(line.quantity) |> Decimal.sub(line.discount)
+            discount = line_discount(line, unit_price)
+            extended = unit_price |> Decimal.mult(line.quantity) |> Decimal.sub(discount)
 
             if Decimal.negative?(extended) do
               {:halt, {:error, :discount_exceeds_line}}
             else
               Repo.update!(Changeset.change(inventory, prev_quantity: inventory.quantity, quantity: inventory.quantity - line.quantity), prefix: tenant)
-              {:cont, {:ok, [%{line: line, price: unit_price, total: extended} | result]}}
+              {:cont, {:ok, [%{line: line, price: unit_price, discount: discount, total: extended} | result]}}
             end
         end
       end)
@@ -213,7 +214,7 @@ defmodule PosServer.Retaily.Sales do
 
   defp insert_sale(checkout, login, sequence, totals, tenant) do
     %Sale{}
-    |> Sale.changeset(%{amount: totals.amount, sub: totals.sub, discount: totals.discount, tax_amount: totals.tax, delivery_charge: checkout.delivery_charge, sequence: sequence, sequence_type: checkout.sequence_type, status: checkout.status, sale_type: checkout.sale_type, login: login, client_id: checkout.client_id, store_id: checkout.store_id, additional_info: checkout.additional_info})
+    |> Sale.changeset(%{amount: totals.amount, sub: totals.sub, discount: totals.discount, discount_type: totals.discount_type, discount_input: totals.discount_input, tax_amount: totals.tax, delivery_charge: checkout.delivery_charge, sequence: sequence, sequence_type: checkout.sequence_type, status: checkout.status, sale_type: checkout.sale_type, login: login, client_id: checkout.client_id, store_id: checkout.store_id, additional_info: checkout.additional_info})
     |> Repo.insert(prefix: tenant)
   end
 
@@ -233,8 +234,8 @@ defmodule PosServer.Retaily.Sales do
   end
 
   defp insert_lines(lines, sale_id, tenant) do
-    Enum.reduce_while(lines, {:ok, []}, fn %{line: line, price: price, total: total}, {:ok, result} ->
-      attrs = %{amount: price, tax_amount: @zero, discount: line.discount, quantity: line.quantity, total_amount: total, sale_id: sale_id, product_id: line.product_id}
+    Enum.reduce_while(lines, {:ok, []}, fn %{line: line, price: price, discount: discount, total: total}, {:ok, result} ->
+      attrs = %{amount: price, tax_amount: @zero, discount: discount, discount_type: discount_type(line), discount_input: line.discount_input, quantity: line.quantity, total_amount: total, sale_id: sale_id, product_id: line.product_id}
       case %SaleLine{} |> SaleLine.changeset(attrs) |> Repo.insert(prefix: tenant) do
         {:ok, inserted} -> {:cont, {:ok, [inserted | result]}}
         {:error, changeset} -> {:halt, {:error, changeset}}
@@ -263,12 +264,36 @@ defmodule PosServer.Retaily.Sales do
     end
   end
 
-  defp totals(lines, delivery) do
+  defp totals(lines, checkout) do
     merchandise = Enum.reduce(lines, @zero, &Decimal.add(&1.total, &2))
-    discount = Enum.reduce(lines, @zero, &Decimal.add(&1.line.discount, &2))
-    sub = Decimal.div(merchandise, Decimal.add(Decimal.new(1), @tax_rate)) |> Decimal.round(2)
-    tax = Decimal.sub(merchandise, sub)
-    %{amount: Decimal.add(merchandise, delivery), sub: sub, tax: tax, discount: discount}
+    discount = sale_discount(checkout, merchandise)
+    taxable = Decimal.sub(merchandise, discount)
+    sub = Decimal.div(taxable, Decimal.add(Decimal.new(1), @tax_rate)) |> Decimal.round(2)
+    tax = Decimal.sub(taxable, sub)
+    %{amount: Decimal.add(taxable, checkout.delivery_charge), sub: sub, tax: tax, discount: discount, discount_type: discount_type(checkout), discount_input: checkout.discount_input}
+  end
+
+  defp line_discount(line, unit_price) do
+    gross = Decimal.mult(unit_price, line.quantity)
+
+    case discount_type(line) do
+      "percentage" -> gross |> Decimal.mult(line.discount_input) |> Decimal.div(100) |> Decimal.round(2)
+      _ -> line.discount
+    end
+  end
+
+  defp sale_discount(checkout, merchandise) do
+    discount =
+      case discount_type(checkout) do
+        "percentage" -> merchandise |> Decimal.mult(checkout.discount_input) |> Decimal.div(100) |> Decimal.round(2)
+        _ -> checkout.discount
+      end
+
+    if Decimal.compare(discount, merchandise) == :gt, do: merchandise, else: discount
+  end
+
+  defp discount_type(%{discount: discount, discount_type: type}) do
+    if Decimal.positive?(discount), do: type || "money", else: nil
   end
 
   defp locked_sale(id, tenant), do: Repo.one(from(sale in Sale, where: sale.id == ^id, lock: "FOR UPDATE"), prefix: tenant)
@@ -314,6 +339,8 @@ defmodule PosServer.Retaily.Sales do
       amount: sale.amount,
       sub: sale.sub,
       discount: sale.discount,
+      discount_type: sale.discount_type,
+      discount_input: sale.discount_input,
       tax_amount: sale.tax_amount,
       delivery_charge: sale.delivery_charge,
       sequence: sale.sequence,
@@ -355,6 +382,8 @@ defmodule PosServer.Retaily.Sales do
       quantity: line.quantity,
       price: line.amount,
       discount: line.discount,
+      discount_type: line.discount_type,
+      discount_input: line.discount_input,
       total: line.total_amount
     }
   end
@@ -369,6 +398,8 @@ defmodule PosServer.Retaily.Sales do
       amount: line.amount,
       tax_amount: line.tax_amount,
       discount: line.discount,
+      discount_type: line.discount_type,
+      discount_input: line.discount_input,
       quantity: line.quantity,
       total_amount: line.total_amount,
       product_id: line.product_id,

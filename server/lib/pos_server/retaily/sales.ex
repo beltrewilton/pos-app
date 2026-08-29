@@ -32,6 +32,8 @@ defmodule PosServer.Retaily.Sale do
     field :amount, :decimal
     field :sub, :decimal
     field :discount, :decimal
+    field :discount_type, :string
+    field :discount_input, :decimal
     field :tax_amount, :decimal
     field :delivery_charge, :decimal
     field :sequence, :string
@@ -58,6 +60,8 @@ defmodule PosServer.Retaily.Sale do
         :amount,
         :sub,
         :discount,
+        :discount_type,
+        :discount_input,
         :tax_amount,
         :delivery_charge,
         :sequence,
@@ -71,6 +75,8 @@ defmodule PosServer.Retaily.Sale do
         :additional_info
       ])
       |> validate_required([:amount, :sub, :discount, :tax_amount, :sequence, :sequence_type, :status, :sale_type, :login, :client_id, :store_id])
+      |> validate_inclusion(:discount_type, ["money", "percentage"])
+      |> check_constraint(:discount_type, name: :sale_discount_type_valid)
     end
   end
 end
@@ -84,6 +90,8 @@ defmodule PosServer.Retaily.SaleLine do
     field :amount, :decimal
     field :tax_amount, :decimal
     field :discount, :decimal
+    field :discount_type, :string
+    field :discount_input, :decimal
     # Retaily's existing PostgreSQL migration stores sale quantities as float.
     field :quantity, :float
     field :total_amount, :decimal
@@ -93,8 +101,10 @@ defmodule PosServer.Retaily.SaleLine do
 
     def changeset(line, attrs) do
       line
-      |> cast(attrs, [:amount, :tax_amount, :discount, :quantity, :total_amount, :sale_id, :product_id])
+      |> cast(attrs, [:amount, :tax_amount, :discount, :discount_type, :discount_input, :quantity, :total_amount, :sale_id, :product_id])
       |> validate_required([:amount, :tax_amount, :discount, :quantity, :total_amount, :sale_id, :product_id])
+      |> validate_inclusion(:discount_type, ["money", "percentage"])
+      |> check_constraint(:discount_type, name: :sale_line_discount_type_valid)
     end
   end
 end

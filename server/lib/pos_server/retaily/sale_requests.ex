@@ -8,15 +8,29 @@ defmodule PosServer.Retaily.SaleRequests.Line do
     field :product_id, :integer
     field :quantity, :integer
     field :discount, :decimal, default: Decimal.new(0)
+    field :discount_type, :string, default: "money"
+    field :discount_input, :decimal
   end
 
   def changeset(line, attrs) do
     line
-    |> cast(attrs, [:product_id, :quantity, :discount])
+    |> cast(attrs, [:product_id, :quantity, :discount, :discount_type, :discount_input])
     |> validate_required([:product_id, :quantity, :discount])
     |> validate_number(:product_id, greater_than: 0)
     |> validate_number(:quantity, greater_than: 0)
     |> validate_number(:discount, greater_than_or_equal_to: 0)
+    |> validate_inclusion(:discount_type, ["money", "percentage"])
+    |> validate_percentage_input()
+  end
+
+  defp validate_percentage_input(changeset) do
+    if get_field(changeset, :discount_type) == "percentage" do
+      changeset
+      |> validate_required(:discount_input)
+      |> validate_number(:discount_input, greater_than_or_equal_to: 0, less_than_or_equal_to: 100)
+    else
+      changeset
+    end
   end
 end
 
@@ -55,6 +69,9 @@ defmodule PosServer.Retaily.SaleRequests.Checkout do
     field :status, :string
     field :sale_type, :string
     field :delivery_charge, :decimal, default: Decimal.new(0)
+    field :discount, :decimal, default: Decimal.new(0)
+    field :discount_type, :string
+    field :discount_input, :decimal
     field :additional_info, :string, default: ""
     embeds_many :lines, Line
     embeds_many :payments, Payment
@@ -62,17 +79,30 @@ defmodule PosServer.Retaily.SaleRequests.Checkout do
 
   def changeset(checkout, attrs) do
     checkout
-    |> cast(attrs, [:store_id, :client_id, :sequence_type, :status, :sale_type, :delivery_charge, :additional_info])
+    |> cast(attrs, [:store_id, :client_id, :sequence_type, :status, :sale_type, :delivery_charge, :discount, :discount_type, :discount_input, :additional_info])
     |> cast_embed(:lines, required: true)
     |> cast_embed(:payments)
     |> validate_required([:store_id, :client_id, :sequence_type, :status, :sale_type, :delivery_charge])
     |> validate_number(:store_id, greater_than: 0)
     |> validate_number(:client_id, greater_than: 0)
     |> validate_number(:delivery_charge, greater_than_or_equal_to: 0)
+    |> validate_number(:discount, greater_than_or_equal_to: 0)
+    |> validate_inclusion(:discount_type, ["money", "percentage"])
+    |> validate_percentage_input()
     |> validate_inclusion(:sequence_type, ["CF", "VF", "DV"])
     |> validate_inclusion(:status, ["CASH", "CREDIT"])
     |> validate_inclusion(:sale_type, ["IN_SHOP", "FOR_DELIVER"])
     |> validate_credit_payments()
+  end
+
+  defp validate_percentage_input(changeset) do
+    if get_field(changeset, :discount_type) == "percentage" do
+      changeset
+      |> validate_required(:discount_input)
+      |> validate_number(:discount_input, greater_than_or_equal_to: 0, less_than_or_equal_to: 100)
+    else
+      changeset
+    end
   end
 
   defp validate_credit_payments(changeset) do
