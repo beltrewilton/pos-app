@@ -123,6 +123,7 @@ let printerAvailabilityTimer = null;
 let invoiceCursor = null;
 let invoiceHasMore = true;
 let invoiceLoading = false;
+let invoiceLoadError = false;
 let invoices = [];
 let invoiceSearchTimer;
 let invoicePendingCancellation = null;
@@ -155,6 +156,7 @@ let orderCreateMode = "purchase";
 let editingInventoryProductId = null;
 let expandedInventoryProductId = null;
 let expandedStoreQuantities = [];
+let loadingStoreQuantitiesProductId = null;
 let inventorySort = { key: "last_update", direction: "desc" };
 let inventoryFilter = "";
 let pendingProductSelection = null;
@@ -398,19 +400,49 @@ function purchaseRows(purchase) {
 
 async function openCustomerPurchases() {
   if (!selectedCustomer) return;
-  customerPurchasesTitle.textContent = `${selectedCustomer.name} — recent purchases`;
-  customerPurchasesBody.replaceChildren();
+  const customer = selectedCustomer;
+  const dialog = document.querySelector("#customer-purchases-dialog");
+  const requestId = crypto.randomUUID();
+  dialog.dataset.purchaseRequestId = requestId;
+  if (!dialog.open) dialog.showModal();
+  customerPurchasesTitle.textContent = `${customer.name} — recent purchases`;
+  customerPurchasesBody.replaceChildren(...purchaseHistorySkeletonRows());
   customerPurchasesStatus.hidden = false;
   customerPurchasesStatus.textContent = "Loading purchases…";
 
   try {
-    const { entries } = await customerPurchases(selectedCustomer.id);
+    const { entries } = await customerPurchases(customer.id);
+    if (dialog.dataset.purchaseRequestId !== requestId) return;
     customerPurchasesBody.replaceChildren(...entries.flatMap(purchaseRows));
     customerPurchasesStatus.textContent = entries.length ? "" : "No purchases found for this customer.";
   } catch (error) {
     console.error(error);
+    if (dialog.dataset.purchaseRequestId !== requestId) return;
+    customerPurchasesBody.replaceChildren();
     customerPurchasesStatus.textContent = "Purchases could not be loaded. Check the server connection.";
   }
+}
+
+function skeletonBlock(className = "", width = "100%") {
+  const block = document.createElement("span");
+  block.className = `skeleton ${className}`.trim();
+  block.style.width = width;
+  block.setAttribute("aria-hidden", "true");
+  return block;
+}
+
+function purchaseHistorySkeletonRows() {
+  return Array.from({ length: 4 }, () => {
+    const row = document.createElement("tr");
+    row.className = "table-row skeleton-table-row";
+    ["72%", "64%", "56%", "58%", "46%"].forEach((width, index) => {
+      const cell = document.createElement("td");
+      cell.className = `table-cell${index === 4 ? " numeric" : ""}`;
+      cell.appendChild(skeletonBlock("skeleton-line", width));
+      row.appendChild(cell);
+    });
+    return row;
+  });
 }
 
 // A completed sale starts a completely new order. Keep this in one place so no
@@ -722,8 +754,10 @@ function invoiceDetailsRow(invoice) {
   card.className = "card invoice-details-card";
   if (!detail) {
     const content = document.createElement("div");
-    content.className = "card-content muted";
-    content.textContent = "Loading invoice details…";
+    content.className = "card-content invoice-details-skeleton";
+    content.setAttribute("role", "status");
+    content.setAttribute("aria-label", "Loading invoice details");
+    ["38%", "72%", "100%", "88%", "64%"].forEach((width) => content.appendChild(skeletonBlock("skeleton-line", width)));
     card.appendChild(content);
   } else {
     const header = document.createElement("div");
@@ -892,8 +926,62 @@ function invoiceDetailsRow(invoice) {
 }
 
 function renderInvoices() {
+  if (invoiceLoading && !invoices.length) {
+    invoiceTableBody.replaceChildren(...invoiceSkeletonRows());
+    return;
+  }
   invoiceTableBody.replaceChildren(...invoices.flatMap((invoice) => expandedInvoiceId === invoice.id ? [invoiceRow(invoice), invoiceDetailsRow(invoice)] : [invoiceRow(invoice)]));
-  if (!invoices.length && !invoiceLoading) invoiceReportStatus.textContent = "No invoices found.";
+  if (!invoices.length && !invoiceLoading && !invoiceLoadError) invoiceReportStatus.textContent = "No invoices found.";
+}
+
+function invoiceSkeletonRows() {
+  return Array.from({ length: 6 }, () => {
+    const row = document.createElement("tr");
+    row.className = "table-row skeleton-table-row";
+    ["58%", "70%", "62%", "54%", "66%", "60%", "68%", "50%"].forEach((width, index) => {
+      const cell = document.createElement("td");
+      cell.className = `table-cell${[4, 5].includes(index) ? " numeric" : ""}`;
+      cell.appendChild(skeletonBlock("skeleton-line", width));
+      row.appendChild(cell);
+    });
+    return row;
+  });
+}
+
+function screenLoadingSkeleton() {
+  const skeleton = document.createElement("div");
+  skeleton.className = "screen-loading-skeleton";
+  skeleton.setAttribute("role", "status");
+  skeleton.setAttribute("aria-label", "Loading screen content");
+  const header = document.createElement("div");
+  header.className = "screen-loading-header";
+  header.append(skeletonBlock("skeleton-title", "12rem"), skeletonBlock("skeleton-control", "min(42%, 28rem)"), skeletonBlock("skeleton-control", "9rem"));
+  const cards = document.createElement("div");
+  cards.className = "screen-loading-cards";
+  ["2fr", "1fr", "1fr"].forEach((span) => {
+    const card = document.createElement("div");
+    card.className = "screen-loading-card";
+    card.style.gridColumn = `span ${span === "2fr" ? 2 : 1}`;
+    card.append(skeletonBlock("skeleton-line", "44%"), skeletonBlock("skeleton-line skeleton-value", "62%"), skeletonBlock("skeleton-line", "76%"));
+    cards.appendChild(card);
+  });
+  const table = document.createElement("div");
+  table.className = "screen-loading-table";
+  Array.from({ length: 7 }, () => {
+    const row = document.createElement("div");
+    row.className = "screen-loading-table-row";
+    ["72%", "56%", "64%", "52%", "58%", "48%", "50%", "60%", "56%", "52%"].forEach((width) => row.appendChild(skeletonBlock("skeleton-line", width)));
+    table.appendChild(row);
+  });
+  skeleton.append(header, cards, table);
+  return skeleton;
+}
+
+function setScreenLoading(screen, loading) {
+  screen.classList.toggle("is-screen-loading", loading);
+  const current = screen.querySelector(":scope > .screen-loading-skeleton");
+  if (loading && !current) screen.appendChild(screenLoadingSkeleton());
+  if (!loading) current?.remove();
 }
 
 function invoiceScrollContainer() {
@@ -933,6 +1021,9 @@ async function loadInvoices({ reset = false } = {}) {
   if (invoiceLoading || (!reset && !invoiceHasMore)) return;
   if (reset) { invoiceCursor = null; invoiceHasMore = true; invoices = []; expandedInvoiceId = null; }
   invoiceLoading = true;
+  invoiceLoadError = false;
+  if (reset) setScreenLoading(invoiceReport, true);
+  renderInvoices();
   invoiceReportStatus.textContent = invoices.length ? "Loading more invoices…" : "Loading invoices…";
   try {
     const page = await salesReport(storeId, invoiceCursor, invoiceSearch.value.trim(), invoiceDateFrom.value, invoiceDateTo.value, invoiceStatusFilter);
@@ -946,8 +1037,9 @@ async function loadInvoices({ reset = false } = {}) {
     invoiceReportStatus.textContent = invoiceHasMore ? "Scroll for more invoices" : `${invoices.length} invoices loaded`;
   } catch (error) {
     console.error(error);
+    invoiceLoadError = true;
     invoiceReportStatus.textContent = "Invoices could not be loaded. Check the server connection.";
-  } finally { invoiceLoading = false; }
+  } finally { invoiceLoading = false; renderInvoices(); if (reset) setScreenLoading(invoiceReport, false); }
 }
 
 function openInvoiceReport() {
@@ -1050,8 +1142,9 @@ function renderInventory() {
       cell.dataset.label = labels[index];
       if (index === 0) { const button = document.createElement("button"); button.className = "btn"; button.type = "button"; button.dataset.variant = "link"; button.dataset.editProduct = entry.product_id; button.textContent = value; cell.appendChild(button); }
       else if (index === 5) {
-        const isExpanded = expandedInventoryProductId === entry.product_id;
-        cell.innerHTML = `<button class="btn inventory-total-quantity" type="button" data-variant="link" data-total-quantity="${entry.product_id}" title="Show Quantity per Store" aria-expanded="${String(isExpanded)}"><span class="inventory-total-quantity-indicator" aria-hidden="true">${isExpanded ? "▾" : "▸"}</span>${value}</button>`;
+        const isLoading = loadingStoreQuantitiesProductId === entry.product_id;
+        const isExpanded = expandedInventoryProductId === entry.product_id && !isLoading;
+        cell.innerHTML = `<button class="btn inventory-total-quantity" type="button" data-variant="link" data-total-quantity="${entry.product_id}" title="Show Quantity per Store" aria-expanded="${String(isExpanded)}"${isLoading ? ' aria-busy="true" aria-label="Loading quantity per store"' : ""}><span class="inventory-total-quantity-indicator" aria-hidden="true">${isExpanded ? "▾" : "▸"}</span>${isLoading ? '<span class="inventory-quantity-spinner" aria-hidden="true"></span>' : value}</button>`;
       }
       else if (index === 6) {
         if (editingInventoryProductId === entry.product_id) cell.innerHTML = `<div class="inventory-inline-editor"><label class="sr-only" for="inventory-quantity-${entry.product_id}">Current quantity</label><input id="inventory-quantity-${entry.product_id}" class="input" type="number" inputmode="numeric" value="${entry.quantity ?? 0}" aria-label="Current quantity for ${entry.product_name}"><button class="btn" type="button" data-variant="default" data-size="sm" data-save-inventory="${entry.product_id}">Update</button><button class="btn" type="button" data-variant="ghost" data-size="sm" data-cancel-inventory>Cancel</button></div>`;
@@ -1060,6 +1153,7 @@ function renderInventory() {
       row.appendChild(cell);
     });
     if (expandedInventoryProductId !== entry.product_id) return [row];
+    if (loadingStoreQuantitiesProductId === entry.product_id) return [row];
     const storeRows = expandedStoreQuantities.map((storeEntry) => {
       const storeRow = document.createElement("tr");
       storeRow.className = "table-row inventory-store-row";
@@ -1152,7 +1246,9 @@ function renderInventoryWithoutMoving() {
   catalogPanel.scrollTop = scrollTop;
 }
 async function loadInventory(focusProductId = null) {
+  setScreenLoading(inventoryScreen, true);
   inventoryStatus.textContent = "Loading inventory…";
+  inventoryTableBody.replaceChildren(...inventorySkeletonRows());
   const storeId = document.querySelector("#inventory-store").value;
   try {
     const inventoryUrl = new URL(`${API_BASE_URL}/inventory`);
@@ -1169,8 +1265,25 @@ async function loadInventory(focusProductId = null) {
     requestAnimationFrame(() => focusInventoryRow(focusProductId));
   } catch (error) {
     console.error(error);
+    renderInventory();
     inventoryStatus.textContent = "Inventory could not be loaded.";
+  } finally {
+    setScreenLoading(inventoryScreen, false);
   }
+}
+
+function inventorySkeletonRows() {
+  return Array.from({ length: 7 }, () => {
+    const row = document.createElement("tr");
+    row.className = "table-row skeleton-table-row";
+    ["72%", "56%", "64%", "52%", "58%", "48%", "50%", "60%", "56%", "52%"].forEach((width, index) => {
+      const cell = document.createElement("td");
+      cell.className = "table-cell";
+      cell.appendChild(skeletonBlock("skeleton-line", width));
+      row.appendChild(cell);
+    });
+    return row;
+  });
 }
 function orderIsClosed(order) { return ["received", "closed"].includes(order.status); }
 function requestedLineCost(line) { return Number(line.product_cost || 0) * Number(line.quantity || 0); }
@@ -1411,15 +1524,35 @@ function productCard(product) {
 }
 
 function renderProducts() {
+  if (loading && !products.length) {
+    productGrid.replaceChildren(...productSkeletonCards());
+    return;
+  }
   const query = productSearch.value.trim().toLocaleLowerCase();
   const visible = query ? products.filter((p) => `${p.name || ""} ${p.code || ""}`.toLocaleLowerCase().includes(query)) : products;
   productGrid.replaceChildren(...visible.map(productCard));
   if (!visible.length && !loading) productStatus.textContent = query ? t("product.emptyMatch") : t("product.none");
 }
 
+function productSkeletonCards() {
+  return Array.from({ length: 8 }, () => {
+    const card = document.createElement("article");
+    card.className = "card product product-skeleton-card";
+    const image = document.createElement("div");
+    image.className = "skeleton product-skeleton-image";
+    image.setAttribute("aria-hidden", "true");
+    const content = document.createElement("div");
+    content.className = "card-content product-content";
+    content.append(skeletonBlock("skeleton-line", "72%"), skeletonBlock("skeleton-line", "42%"), skeletonBlock("skeleton-line", "58%"));
+    card.append(image, content);
+    return card;
+  });
+}
+
 async function loadProducts() {
   if (!storeId || loading || !hasMore) return;
   loading = true;
+  renderProducts();
   productStatus.textContent = products.length ? t("product.loadingMore") : t("products.loading");
   try {
     const page = await activeProducts(storeId, cursor);
@@ -1602,13 +1735,24 @@ inventoryTableBody.addEventListener("click", async (event) => {
   const totalQuantity = event.target.closest("[data-total-quantity]");
   if (totalQuantity) {
     const productId = Number(totalQuantity.dataset.totalQuantity);
-    if (expandedInventoryProductId === productId) { expandedInventoryProductId = null; expandedStoreQuantities = []; renderInventoryWithoutMoving(); return; }
-    totalQuantity.disabled = true;
+    if (expandedInventoryProductId === productId) { expandedInventoryProductId = null; expandedStoreQuantities = []; loadingStoreQuantitiesProductId = null; renderInventoryWithoutMoving(); return; }
+    expandedInventoryProductId = productId;
+    expandedStoreQuantities = [];
+    loadingStoreQuantitiesProductId = productId;
+    renderInventoryWithoutMoving();
     try {
       expandedStoreQuantities = (await inventoryStoreQuantities(storeId, productId)).entries;
-      expandedInventoryProductId = productId;
+      if (expandedInventoryProductId !== productId) return;
+      loadingStoreQuantitiesProductId = null;
       renderInventoryWithoutMoving();
-    } catch (error) { inventoryStatus.textContent = error.message; totalQuantity.disabled = false; }
+    } catch (error) {
+      if (expandedInventoryProductId !== productId) return;
+      loadingStoreQuantitiesProductId = null;
+      expandedInventoryProductId = null;
+      expandedStoreQuantities = [];
+      renderInventoryWithoutMoving();
+      inventoryStatus.textContent = error.message;
+    }
     return;
   }
   const update = event.target.closest("[data-adjust-product]");
