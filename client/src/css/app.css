@@ -1756,6 +1756,15 @@ button {
 .invoice-table-container {
   overflow: visible;
 }
+.customer-table-container {
+  overflow: visible;
+}
+.customer-table > thead > .table-row > .table-head {
+  position: sticky;
+  top: var(--customers-fixed-height, 0px);
+  z-index: 2;
+  background: var(--muted);
+}
 .invoice-table > thead > .table-row > .table-head {
   position: sticky;
   top: var(--invoice-fixed-height, 0px);

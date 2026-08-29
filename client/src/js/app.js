@@ -20,6 +20,7 @@ const productStatus = document.querySelector("#products-status");
 const productSearch = document.querySelector("#product-search");
 const productSentinel = document.querySelector("#products-sentinel");
 const customersScreen = document.querySelector("#customers-screen");
+const customersFixed = customersScreen.querySelector(".invoice-report-fixed");
 const customersTableBody = document.querySelector("#customers-table-body");
 const customersStatus = document.querySelector("#customers-status");
 const customerDetailPanel = document.querySelector("#customer-detail");
@@ -333,6 +334,11 @@ function updateInvoiceStickyOffset() {
 }
 
 new ResizeObserver(updateInvoiceStickyOffset).observe(invoiceReportFixed);
+function updateCustomersStickyOffset() {
+  customersScreen.style.setProperty("--customers-fixed-height", `${customersFixed.offsetHeight}px`);
+}
+
+new ResizeObserver(updateCustomersStickyOffset).observe(customersFixed);
 document.querySelectorAll(".operations-fixed").forEach((fixed) => new ResizeObserver(() => fixed.closest(".operations-screen").style.setProperty("--operations-fixed-height", `${fixed.offsetHeight}px`)).observe(fixed));
 
 function updateCustomerPicker() {
@@ -571,6 +577,7 @@ function openCustomers(returnTo = "pos") {
   checkoutFlow.hidden = true;
   catalogPanel.dataset.view = "customers";
   customersScreen.hidden = false;
+  updateCustomersStickyOffset();
   customersBackButton.hidden = standalone;
   appShell.classList.toggle("invoice-view", standalone);
   if (standalone) selectSidebar("customers-nav");
@@ -2583,7 +2590,7 @@ function userCheckboxes(items, selected, name, label) {
 function renderUsers() {
   editingUser = null;
   userScreen.replaceChildren();
-  const header = document.createElement("header"); header.className = "topbar users-header"; header.innerHTML = `<div><h1 id="users-title" class="h3" tabindex="-1">${t("user.users")}</h1></div>`;
+  const header = document.createElement("header"); header.className = "topbar users-header"; header.innerHTML = `<div class="brand-lockup"><span class="brand-mark" aria-hidden="true">E</span><div><p class="eyebrow">${t("user.users")}</p><h1 id="users-title" class="h3" tabindex="-1">${t("user.users")}</h1></div></div>`;
   const actions = document.createElement("div"); actions.className = "users-header-actions";
   const filter = document.createElement("input"); filter.className = "input users-search"; filter.type = "search"; filter.placeholder = "Search users"; filter.setAttribute("aria-label", "Search users"); filter.value = userFilter; filter.addEventListener("input", () => { userFilter = filter.value.trim().toLowerCase(); renderUsers(); }); actions.appendChild(filter);
   if (allowed("user.setting")) { const add = document.createElement("button"); add.className = "btn"; add.type = "button"; add.dataset.variant = "default"; add.textContent = t("user.create"); add.addEventListener("click", () => renderUserForm()); actions.appendChild(add); }
