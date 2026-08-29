@@ -863,7 +863,8 @@ button {
 .operations-sort::after { display: inline-block; width: .8rem; margin-left: 4px; color: var(--muted-foreground); content: "↕"; }
 .inventory-row-action { min-width: 0; }
 .inventory-inline-editor { display: grid; grid-template-columns: minmax(4rem, 86px) auto auto; align-items: center; gap: 6px; }
-.inventory-total-quantity { min-width: 0; padding: 0; font-weight: 700; }
+.inventory-total-quantity { display: inline-flex; align-items: center; gap: .25rem; min-width: 0; padding: 0; font-weight: 700; }
+.inventory-total-quantity-indicator { width: .75rem; text-align: center; }
 .inventory-store-row { background: color-mix(in oklch, var(--muted) 62%, var(--background)); }
 .inventory-store-row .table-cell { padding-top: .45rem; padding-bottom: .45rem; }
 .inventory-store-name { font-weight: 650; }

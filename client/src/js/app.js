@@ -1049,7 +1049,10 @@ function renderInventory() {
       const cell = document.createElement("td"); cell.className = "table-cell";
       cell.dataset.label = labels[index];
       if (index === 0) { const button = document.createElement("button"); button.className = "btn"; button.type = "button"; button.dataset.variant = "link"; button.dataset.editProduct = entry.product_id; button.textContent = value; cell.appendChild(button); }
-      else if (index === 5) cell.innerHTML = `<button class="btn inventory-total-quantity" type="button" data-variant="link" data-total-quantity="${entry.product_id}" title="Show Quantity per Store" aria-expanded="${String(expandedInventoryProductId === entry.product_id)}">${value}</button>`;
+      else if (index === 5) {
+        const isExpanded = expandedInventoryProductId === entry.product_id;
+        cell.innerHTML = `<button class="btn inventory-total-quantity" type="button" data-variant="link" data-total-quantity="${entry.product_id}" title="Show Quantity per Store" aria-expanded="${String(isExpanded)}"><span class="inventory-total-quantity-indicator" aria-hidden="true">${isExpanded ? "▾" : "▸"}</span>${value}</button>`;
+      }
       else if (index === 6) {
         if (editingInventoryProductId === entry.product_id) cell.innerHTML = `<div class="inventory-inline-editor"><label class="sr-only" for="inventory-quantity-${entry.product_id}">Current quantity</label><input id="inventory-quantity-${entry.product_id}" class="input" type="number" inputmode="numeric" value="${entry.quantity ?? 0}" aria-label="Current quantity for ${entry.product_name}"><button class="btn" type="button" data-variant="default" data-size="sm" data-save-inventory="${entry.product_id}">Update</button><button class="btn" type="button" data-variant="ghost" data-size="sm" data-cancel-inventory>Cancel</button></div>`;
         else cell.innerHTML = `<div class="inventory-inline-editor"><span>${value}</span><button class="btn" type="button" data-variant="outline" data-size="sm" data-adjust-product="${entry.product_id}">Update</button></div>`;
