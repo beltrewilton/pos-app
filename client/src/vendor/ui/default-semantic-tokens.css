@@ -35,6 +35,9 @@
   --destructive:             oklch(0.5770 0.2450 27.3250);
   --destructive-foreground:  oklch(1 0 0);
 
+  --success:                 oklch(0.5270 0.1540 150);
+  --success-foreground:      oklch(0.9850 0 0);
+
   /* -- Utility tokens ------------------------------------------- */
   --border:                  oklch(0.9220 0 0);
   --input:                   oklch(0.9220 0 0);
@@ -115,6 +118,9 @@
 
   --destructive:             oklch(0.7040 0.1910 22.2160);
   --destructive-foreground:  oklch(0.9850 0 0);
+
+  --success:                 oklch(0.6270 0.1540 150);
+  --success-foreground:      oklch(0.1450 0 0);
 
   --border:                  oklch(0.2750 0 0);
   --input:                   oklch(0.3250 0 0);

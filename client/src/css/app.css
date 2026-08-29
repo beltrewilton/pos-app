@@ -2271,16 +2271,26 @@ dialog#customer-purchases-dialog .dialog-content {
 }
 .sequence-options {
   display: inline-flex;
-  gap: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
 }
-.sequence-options .btn {
+.sequence-option-buttons {
+  display: inline-flex;
+}
+.sequence-option-buttons .btn {
   border-radius: 0;
 }
-.sequence-options .btn:first-child {
+.sequence-option-buttons .btn:first-child {
   border-radius: var(--radius-md) 0 0 var(--radius-md);
 }
-.sequence-options .btn:last-child {
+.sequence-option-buttons .btn:last-child {
   border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+.sequence-option-description {
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+  white-space: nowrap;
 }
 .delivery-options {
   display: grid;

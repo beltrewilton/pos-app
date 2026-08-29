@@ -11,6 +11,7 @@ const printButton = document.querySelector("#print-test");
 const printStatus = document.querySelector("#print-status");
 const checkoutFlow = document.querySelector("#checkout-flow");
 const checkoutStatus = document.querySelector("#checkout-status");
+document.querySelector("#complete-sale").dataset.variant = "success";
 const catalogPanel = document.querySelector(".catalog-panel");
 const appShell = document.querySelector("#app-shell");
 const startCheckoutButton = document.querySelector("#start-checkout");
@@ -154,10 +155,9 @@ const ordersSummary = document.querySelector("#orders-summary");
 let inventoryEntries = [], purchaseOrders = [], purchaseOrderSources = [], purchaseOrderStatusCounts = {}, selectedOrder = null;
 let orderCreateMode = "purchase";
 let editingInventoryProductId = null;
-let expandedInventoryProductId = null;
+let expandedInventoryDetail = null;
 let expandedStoreQuantities = [];
 let loadingStoreQuantitiesProductId = null;
-let expandedTraceProductId = null;
 let expandedProductTraces = [];
 let loadingTraceProductId = null;
 let inventorySort = { key: "last_update", direction: "desc" };
@@ -188,6 +188,16 @@ function populateStoreOptions() {
 
 function selectedStore() { return availableStores.find((store) => Number(store.id) === Number(storeId)); }
 
+function updateStoreTitles() {
+  const storeName = selectedStore()?.name;
+  const titleKeys = { "pos-title": "pos.title", "invoice-report-title": "ui.invoiceReport" };
+  document.querySelectorAll("#pos-title, #invoice-report-title, #inventory-title, #orders-title, #purchase-order-title, #company-settings-title, #checkout-title").forEach((element) => {
+    const title = titleKeys[element.id] ? t(titleKeys[element.id]) : element.dataset.storeTitleBase;
+    if (!element.dataset.storeTitleBase) element.dataset.storeTitleBase = title || element.textContent.trim();
+    element.textContent = storeName ? `${title || element.dataset.storeTitleBase} — ${storeName}` : (title || element.dataset.storeTitleBase);
+  });
+}
+
 function updateSessionStore() {
   const current = session();
   if (!current || !storeId) return;
@@ -196,8 +206,7 @@ function updateSessionStore() {
 
 function updateSessionStoreDisplay() {
   const { login } = currentUserIdentity();
-  const store = selectedStore();
-  sessionStoreStatus.textContent = store ? `${login}@${store.name}` : login;
+  sessionStoreStatus.textContent = login;
 }
 
 async function selectStore(nextStoreId) {
@@ -208,6 +217,7 @@ async function selectStore(nextStoreId) {
   updateSessionStore();
   populateStoreOptions();
   updateSessionStoreDisplay();
+  updateStoreTitles();
   products = [];
   cursor = null;
   hasMore = true;
@@ -215,9 +225,8 @@ async function selectStore(nextStoreId) {
   purchaseOrders = [];
   selectedOrder = null;
   editingInventoryProductId = null;
-  expandedInventoryProductId = null;
+  expandedInventoryDetail = null;
   expandedStoreQuantities = [];
-  expandedTraceProductId = null;
   expandedProductTraces = [];
   loadingTraceProductId = null;
   pos.clear();
@@ -235,8 +244,10 @@ async function initializeStores() {
   populateStoreOptions();
   if (!storeId) throw new Error("Select a store to continue.");
   updateSessionStoreDisplay();
+  updateStoreTitles();
   subscribeToInventory();
   startPrintRelay();
+  companySettings().then((data) => { companySettingsData = data; renderSequenceOptions(); }).catch(() => {});
   loadProducts();
 }
 
@@ -326,7 +337,7 @@ function updateCustomerPicker() {
   orderTitle.title = selectedCustomer?.name || "";
   orderTitle.setAttribute("aria-label", selectedCustomer ? t("customer.change") : t("customer.pick"));
   clearCustomerButton.hidden = !selectedCustomer;
-  customerPurchasesButton.disabled = !selectedCustomer;
+  customerPurchasesButton.disabled = false;
 }
 
 function purchaseRows(purchase) {
@@ -485,9 +496,16 @@ function resetCompletedOrder() {
   document.querySelectorAll("[data-sequence]").forEach((button) => {
     button.dataset.variant = button.dataset.sequence === "CF" ? "default" : "secondary";
   });
+  updateSequenceDescription();
 
   checkoutStatus.textContent = "";
+  productSearch.value = "";
+  productSearchClear.hidden = true;
+  customerSearch.value = "";
+  clearTimeout(customerSearchTimer);
+  if (!customersScreen.hidden) loadCustomers();
   pos.clear();
+  renderProducts();
 }
 
 function customerRow(customer) {
@@ -703,16 +721,7 @@ function invoiceRow(invoice) {
   const date = document.createElement("td");
   date.className = "table-cell";
   date.dataset.label = labels[2];
-  if (invoice.date_create) {
-    const value = new Date(invoice.date_create.replace(" ", "T"));
-    const dateText = document.createElement("span");
-    dateText.className = "invoice-date";
-    dateText.textContent = value.toLocaleDateString("en-GB");
-    const timeText = document.createElement("span");
-    timeText.className = "invoice-time";
-    timeText.textContent = value.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
-    date.append(dateText, timeText);
-  } else date.textContent = "—";
+  appendDateTime(date, invoice.date_create);
   row.appendChild(date);
   const status = document.createElement("td");
   status.className = "table-cell";
@@ -1071,7 +1080,24 @@ function closeInvoiceReport() {
   selectSidebar("pos-nav");
 }
 
-function formatOperationDate(value) { return value ? new Date(String(value).replace(" ", "T")).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—"; }
+function dateTimeParts(value) {
+  if (!value) return null;
+  const date = new Date(String(value).replace(" ", "T"));
+  if (Number.isNaN(date.getTime())) return null;
+  return { date: date.toLocaleDateString("en-GB"), time: date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }) };
+}
+function appendDateTime(cell, value) {
+  const parts = dateTimeParts(value);
+  if (!parts) { cell.textContent = "—"; return; }
+  const date = document.createElement("span"); date.className = "invoice-date"; date.textContent = parts.date;
+  const time = document.createElement("span"); time.className = "invoice-time"; time.textContent = parts.time;
+  cell.append(date, time);
+}
+function dateTimeMarkup(value) {
+  const parts = dateTimeParts(value);
+  return parts ? `<span class="invoice-date">${parts.date}</span><span class="invoice-time">${parts.time}</span>` : "—";
+}
+function formatOperationDate(value) { return dateTimeMarkup(value); }
 function closeOperations() { inventoryScreen.hidden = true; ordersScreen.hidden = true; purchaseOrderScreen.hidden = true; companySettingsScreen.hidden = true; }
 function openInventory() { openPos(); closeOperations(); catalogPanel.dataset.view = "inventory"; appShell.classList.add("invoice-view"); inventoryScreen.hidden = false; selectSidebar("inventory-nav"); loadInventory(); requestAnimationFrame(() => document.querySelector("#inventory-title").focus()); }
 function openOrders() { openPos(); closeOperations(); catalogPanel.dataset.view = "orders"; appShell.classList.add("invoice-view"); ordersScreen.hidden = false; selectSidebar("orders-nav"); loadOrders(); requestAnimationFrame(() => document.querySelector("#orders-title").focus()); }
@@ -1130,8 +1156,27 @@ function renderCompanySettings() {
 }
 async function loadCompanySettings() {
   companySettingsStatus.textContent = "Loading company settings…";
-  try { companySettingsData = await companySettings(); renderCompanySettings(); companySettingsStatus.textContent = ""; }
+  try { companySettingsData = await companySettings(); renderCompanySettings(); renderSequenceOptions(); companySettingsStatus.textContent = ""; }
   catch (error) { console.error(error); companySettingsStatus.textContent = error.message || "Company settings could not be loaded."; }
+}
+function renderSequenceOptions() {
+  const container = document.querySelector(".sequence-options");
+  const selectedCode = container.querySelector('[data-sequence][data-variant="default"]')?.dataset.sequence || "CF";
+  const sequences = (companySettingsData.sequence_sets || []).filter((sequence) => ["CF", "VF", "DV"].includes(sequence.code));
+  if (!sequences.length) return;
+  const buttons = document.createElement("div"); buttons.className = "sequence-option-buttons";
+  sequences.forEach((sequence) => {
+    const button = document.createElement("button"); button.className = "btn"; button.type = "button"; button.dataset.sequence = sequence.code; button.dataset.sequenceDescription = sequence.name || sequence.code; button.dataset.variant = sequence.code === selectedCode ? "default" : "secondary"; button.textContent = sequence.code;
+    buttons.appendChild(button);
+  });
+  const description = document.createElement("span"); description.className = "sequence-option-description";
+  container.replaceChildren(buttons, description);
+  updateSequenceDescription();
+}
+function updateSequenceDescription() {
+  const selected = document.querySelector('[data-sequence][data-variant="default"]');
+  const description = document.querySelector(".sequence-option-description");
+  if (description) description.textContent = selected?.dataset.sequenceDescription || selected?.dataset.sequence || "";
 }
 function openCompanySettings() { openPos(); closeOperations(); catalogPanel.dataset.view = "company-settings"; appShell.classList.add("invoice-view"); companySettingsScreen.hidden = false; selectSidebar("company-settings-nav"); loadCompanySettings(); requestAnimationFrame(() => document.querySelector("#company-settings-title").focus()); }
 function sortOperationEntries(entries, sort) { const factor = sort.direction === "asc" ? 1 : -1; return [...entries].sort((a, b) => { const left = a[sort.key] ?? "", right = b[sort.key] ?? ""; return (typeof left === "number" && typeof right === "number" ? left - right : String(left).localeCompare(String(right), undefined, { numeric: true, sensitivity: "base" })) * factor; }); }
@@ -1143,26 +1188,27 @@ function renderInventory() {
     row.className = "table-row";
     row.dataset.inventoryProductId = entry.product_id;
     const labels = ["Product", "SKU", "Store", "Cost", "Price", "Total quantity", "Current quantity", "Previous quantity", "Last updated", "Updated by"];
-    [entry.product_name || `Product #${entry.product_id}`, entry.product_code || "—", entry.store_name || "Current store", currency(entry.product_cost), entry.product_price == null ? "—" : currency(entry.product_price), entry.total_quantity ?? entry.quantity ?? 0, entry.quantity ?? 0, entry.prev_quantity ?? "—", formatOperationDate(entry.last_update), entry.user_updated || "—"].forEach((value, index) => {
+    [entry.product_name || `Product #${entry.product_id}`, entry.product_code || "—", entry.store_name || "Current store", currency(entry.product_cost), entry.product_price == null ? "—" : currency(entry.product_price), entry.total_quantity ?? entry.quantity ?? 0, entry.quantity ?? 0, entry.prev_quantity ?? "—", entry.last_update, entry.user_updated || "—"].forEach((value, index) => {
       const cell = document.createElement("td"); cell.className = "table-cell";
       cell.dataset.label = labels[index];
       if (index === 0) { const button = document.createElement("button"); button.className = "btn"; button.type = "button"; button.dataset.variant = "link"; button.dataset.editProduct = entry.product_id; button.textContent = value; cell.appendChild(button); }
       else if (index === 1) {
         const isLoading = loadingTraceProductId === entry.product_id;
-        const isExpanded = expandedTraceProductId === entry.product_id && !isLoading;
+        const isExpanded = expandedInventoryDetail?.productId === entry.product_id && expandedInventoryDetail.type === "trace" && !isLoading;
         cell.innerHTML = `<button class="btn inventory-sku-trace" type="button" data-variant="link" data-product-traces="${entry.product_id}" aria-expanded="${String(isExpanded)}" title="Show product history"${isLoading ? ' aria-busy="true"' : ""}>${isLoading ? '<span class="inventory-quantity-spinner" aria-hidden="true"></span>' : value}</button>`;
       } else if (index === 5) {
         const isLoading = loadingStoreQuantitiesProductId === entry.product_id;
-        const isExpanded = expandedInventoryProductId === entry.product_id && !isLoading;
+        const isExpanded = expandedInventoryDetail?.productId === entry.product_id && expandedInventoryDetail.type === "quantity" && !isLoading;
         cell.innerHTML = `<button class="btn inventory-total-quantity" type="button" data-variant="link" data-total-quantity="${entry.product_id}" title="Show Quantity per Store" aria-expanded="${String(isExpanded)}"${isLoading ? ' aria-busy="true" aria-label="Loading quantity per store"' : ""}><span class="inventory-total-quantity-indicator" aria-hidden="true">${isExpanded ? "▾" : "▸"}</span>${isLoading ? '<span class="inventory-quantity-spinner" aria-hidden="true"></span>' : value}</button>`;
       }
+      else if (index === 8) appendDateTime(cell, entry.last_update);
       else if (index === 6) {
         if (editingInventoryProductId === entry.product_id) cell.innerHTML = `<div class="inventory-inline-editor"><label class="sr-only" for="inventory-quantity-${entry.product_id}">Current quantity</label><input id="inventory-quantity-${entry.product_id}" class="input" type="number" inputmode="numeric" value="${entry.quantity ?? 0}" aria-label="Current quantity for ${entry.product_name}"><button class="btn" type="button" data-variant="default" data-size="sm" data-save-inventory="${entry.product_id}">Update</button><button class="btn" type="button" data-variant="ghost" data-size="sm" data-cancel-inventory>Cancel</button></div>`;
         else cell.innerHTML = `<div class="inventory-inline-editor"><span>${value}</span><button class="btn" type="button" data-variant="outline" data-size="sm" data-adjust-product="${entry.product_id}">Update</button></div>`;
       } else cell.textContent = value;
       row.appendChild(cell);
     });
-    if (expandedTraceProductId === entry.product_id) {
+    if (expandedInventoryDetail?.productId === entry.product_id && expandedInventoryDetail.type === "trace") {
       if (loadingTraceProductId === entry.product_id) return [row];
       const traceRow = document.createElement("tr");
       traceRow.className = "table-row inventory-traces-row";
@@ -1171,7 +1217,7 @@ function renderInventory() {
       traceRow.appendChild(traceCell);
       return [row, traceRow];
     }
-    if (expandedInventoryProductId !== entry.product_id) return [row];
+    if (expandedInventoryDetail?.productId !== entry.product_id || expandedInventoryDetail.type !== "quantity") return [row];
     if (loadingStoreQuantitiesProductId === entry.product_id) return [row];
     const storeRows = expandedStoreQuantities.map((storeEntry) => {
       const storeRow = document.createElement("tr");
@@ -1181,7 +1227,7 @@ function renderInventory() {
       const storeCell = document.createElement("td"); storeCell.className = "table-cell inventory-store-name"; storeCell.colSpan = 2; storeCell.dataset.label = "Store"; storeCell.textContent = storeEntry.store_name; storeRow.appendChild(storeCell);
       [""].forEach((value) => { const cell = document.createElement("td"); cell.className = "table-cell"; cell.dataset.label = labels[5]; cell.textContent = value; storeRow.appendChild(cell); });
       const quantityCell = document.createElement("td"); quantityCell.className = "table-cell"; quantityCell.dataset.label = labels[6]; quantityCell.innerHTML = `<div class="inventory-inline-editor"><label class="sr-only" for="inventory-store-quantity-${entry.product_id}-${storeEntry.store_id}">Quantity for ${storeEntry.store_name}</label><input id="inventory-store-quantity-${entry.product_id}-${storeEntry.store_id}" class="input" type="number" inputmode="numeric" value="${storeEntry.quantity ?? 0}" aria-label="Quantity for ${storeEntry.store_name}"><button class="btn" type="button" data-variant="default" data-size="sm" data-save-store-inventory="${entry.product_id}" data-store-id="${storeEntry.store_id}">Update</button></div>`; storeRow.appendChild(quantityCell);
-      [storeEntry.prev_quantity ?? "—", formatOperationDate(storeEntry.last_update), storeEntry.user_updated || "—"].forEach((value, offset) => { const cell = document.createElement("td"); cell.className = "table-cell"; cell.dataset.label = labels[offset + 7]; cell.textContent = value; storeRow.appendChild(cell); });
+      [storeEntry.prev_quantity ?? "—", storeEntry.last_update, storeEntry.user_updated || "—"].forEach((value, offset) => { const cell = document.createElement("td"); cell.className = "table-cell"; cell.dataset.label = labels[offset + 7]; if (offset === 1) appendDateTime(cell, value); else cell.textContent = value; storeRow.appendChild(cell); });
       return storeRow;
     });
     return [row, ...storeRows];
@@ -1196,7 +1242,7 @@ function traceHistoryMarkup(traces) {
     const sign = Number(trace.quantity_change) > 0 ? "+" : "";
     const provider = trace.metadata?.provider_name || trace.metadata?.["provider_name"];
     const context = [trace.customer_name ? `Customer: ${trace.customer_name}` : "", provider ? `Provider: ${provider}` : "", trace.destination_store_name ? `To: ${trace.destination_store_name}` : "", trace.source_store_name && trace.event_type === "store_transfer_in" ? `From: ${trace.source_store_name}` : "", trace.reference_type ? `${trace.reference_type.replaceAll("_", " ")} #${trace.reference_id}` : ""].filter(Boolean).join(" · ") || "—";
-    return `<tr class="table-row"><td class="table-cell">${formatOperationDate(trace.inserted_at)}</td><td class="table-cell">${title[trace.event_type] || trace.event_type}</td><td class="table-cell">${trace.store_name || "—"}</td><td class="table-cell numeric">${sign}${trace.quantity_change}</td><td class="table-cell numeric">${trace.quantity_before} → ${trace.quantity_after}</td><td class="table-cell">${trace.operator_username || "—"}</td><td class="table-cell">${context}</td></tr>`;
+    return `<tr class="table-row"><td class="table-cell">${dateTimeMarkup(trace.inserted_at)}</td><td class="table-cell">${title[trace.event_type] || trace.event_type}</td><td class="table-cell">${trace.store_name || "—"}</td><td class="table-cell numeric">${sign}${trace.quantity_change}</td><td class="table-cell numeric">${trace.quantity_before} → ${trace.quantity_after}</td><td class="table-cell">${trace.operator_username || "—"}</td><td class="table-cell">${context}</td></tr>`;
   }).join("")}</tbody></table></div>`;
 }
 function percentage(value) { return `${(Number(value || 0) * 100).toFixed(1)}%`; }
@@ -1322,10 +1368,11 @@ function orderCost(order) { return order.lines.reduce((total, line) => total + l
 function orderCostDifference(order) { return order.lines.reduce((total, line) => total + lineCostDifference(line, order), 0); }
 function hasCountingDiscrepancy(order) { return orderIsClosed(order) && order.lines.some((line) => Number(line.quantity_observed ?? line.quantity) !== Number(line.quantity)); }
 function renderOrderStatusSummary() { ordersSummary.replaceChildren(...Object.entries(purchaseOrderStatusCounts).map(([status, count]) => { const card = document.createElement("article"); card.className = "card inventory-summary-card"; const button = document.createElement("button"); button.className = "btn inventory-kpi"; button.type = "button"; button.dataset.orderStatus = status; button.dataset.variant = purchaseOrderStatusFilter === status ? "secondary" : "ghost"; button.setAttribute("aria-pressed", String(purchaseOrderStatusFilter === status)); button.setAttribute("aria-label", `${purchaseOrderStatusFilter === status ? "Clear" : "Filter"} ${status} purchase orders`); button.innerHTML = `<div class="card-header"><p class="card-title">${status}</p></div><div class="card-content"><p class="inventory-kpi-value numeric">${count}</p><p class="inventory-kpi-detail">Purchase orders</p></div>`; button.addEventListener("click", () => { purchaseOrderStatusFilter = purchaseOrderStatusFilter === status ? "" : status; loadOrders(); }); card.appendChild(button); return card; })); }
-function renderOrders() { const entries = sortOperationEntries(purchaseOrders, purchaseOrderSort); const labels = ["Order", "Source", "Destination", "Order cost", "Cost difference", "Status", "Date", "Created by"]; ordersTableBody.replaceChildren(...entries.map((order) => { const closed = orderIsClosed(order); const discrepancy = hasCountingDiscrepancy(order); const row = document.createElement("tr"); row.className = `table-row purchase-order-row purchase-order-${closed ? "received" : "open"}`; const values = [`#${order.id}`, order.from_origin_name || "External source", order.to_store_name || "—", currency(orderCost(order)), currency(orderCostDifference(order)), closed ? "Closed" : "Open", formatOperationDate(order.date_opened), order.user_requester || "—"]; values.forEach((value, index) => { const cell = document.createElement("td"); cell.className = `table-cell${[3, 4].includes(index) ? " numeric" : ""}`; cell.dataset.label = labels[index]; cell.textContent = value; if (index === 5 && discrepancy) { const warning = document.createElement("span"); warning.className = "counting-warning"; warning.setAttribute("role", "img"); warning.setAttribute("aria-label", "Counting discrepancy"); warning.title = "Observed quantities differ from requested quantities"; warning.textContent = "⚠"; cell.append(" ", warning); } row.appendChild(cell); }); const action = document.createElement("td"); action.className = "table-cell"; action.dataset.label = "Actions"; action.innerHTML = `<button class="btn" type="button" data-variant="outline" data-size="sm" data-order-detail="${order.id}">View</button>`; row.appendChild(action); return row; })); ordersStatus.textContent = entries.length ? `${entries.length} orders` : "No purchase orders found."; }
+function renderOrders() { const entries = sortOperationEntries(purchaseOrders, purchaseOrderSort); const labels = ["Order", "Source", "Destination", "Order cost", "Cost difference", "Status", "Date", "Created by"]; ordersTableBody.replaceChildren(...entries.map((order) => { const closed = orderIsClosed(order); const discrepancy = hasCountingDiscrepancy(order); const row = document.createElement("tr"); row.className = `table-row purchase-order-row purchase-order-${closed ? "received" : "open"}`; const values = [`#${order.id}`, order.from_origin_name || "External source", order.to_store_name || "—", currency(orderCost(order)), currency(orderCostDifference(order)), closed ? "Closed" : "Open", order.date_opened, order.user_requester || "—"]; values.forEach((value, index) => { const cell = document.createElement("td"); cell.className = `table-cell${[3, 4].includes(index) ? " numeric" : ""}`; cell.dataset.label = labels[index]; if (index === 6) appendDateTime(cell, value); else cell.textContent = value; if (index === 5 && discrepancy) { const warning = document.createElement("span"); warning.className = "counting-warning"; warning.setAttribute("role", "img"); warning.setAttribute("aria-label", "Counting discrepancy"); warning.title = "Observed quantities differ from requested quantities"; warning.textContent = "⚠"; cell.append(" ", warning); } row.appendChild(cell); }); const action = document.createElement("td"); action.className = "table-cell"; action.dataset.label = "Actions"; action.innerHTML = `<button class="btn" type="button" data-variant="outline" data-size="sm" data-order-detail="${order.id}">View</button>`; row.appendChild(action); return row; })); ordersStatus.textContent = entries.length ? `${entries.length} orders` : "No purchase orders found."; }
 async function loadOrders() { ordersStatus.textContent = "Loading purchase orders…"; try { const [orders, sources] = await Promise.all([productOrders(storeId, purchaseOrderStatusFilter), purchaseSources(storeId)]); purchaseOrders = orders.entries.map((order) => ({ ...order, last_updated: order.date_closed || order.date_opened })); purchaseOrderStatusCounts = orders.status_counts || {}; purchaseOrderSources = sources.entries; renderOrderStatusSummary(); renderOrders(); } catch { ordersStatus.textContent = "Purchase orders could not be loaded."; } }
 function showOrderDetail(order) {
-  document.querySelector("#purchase-order-title").textContent = "Purchase order";
+  document.querySelector("#purchase-order-title").dataset.storeTitleBase = "Purchase order";
+  updateStoreTitles();
   selectedOrder = order;
   ordersScreen.hidden = true;
   purchaseOrderScreen.hidden = false;
@@ -1480,6 +1527,7 @@ function openPos(event) {
   ordersScreen.hidden = true;
   purchaseOrderScreen.hidden = true;
   companySettingsScreen.hidden = true;
+  positionCustomerPicker("customer");
   checkoutFlow.hidden = true;
   startCheckoutButton.hidden = false;
   delete catalogPanel.dataset.view;
@@ -1678,11 +1726,12 @@ productSearch.addEventListener("search", () => { productSearchClear.hidden = !pr
 productSearch.addEventListener("keydown", (event) => { if (event.key === "Enter") renderProducts(); });
 productSearchClear.addEventListener("click", () => { productSearch.value = ""; productSearchClear.hidden = true; renderProducts(); productSearch.focus(); });
 orderTitle.addEventListener("click", () => {
+  if (!checkoutFlow.hidden && checkoutStage === "payment") return;
   const returnTo = mobileQuery.matches && orderPanel.classList.contains("is-mobile-open") ? "cart" : "pos";
   if (returnTo === "cart") setMobileCart(false);
   openCustomers(returnTo);
 });
-clearCustomerButton.addEventListener("click", () => { selectedCustomer = null; updateCustomerPicker(); });
+clearCustomerButton.addEventListener("click", () => { if (!checkoutFlow.hidden && checkoutStage === "payment") return; selectedCustomer = null; updateCustomerPicker(); });
 customerPurchasesButton.addEventListener("click", openCustomerPurchases);
 document.querySelector("#customers-back").addEventListener("click", closeCustomers);
 customerSearch.addEventListener("input", () => { clearTimeout(customerSearchTimer); customerSearchTimer = setTimeout(loadCustomers, 220); });
@@ -1764,22 +1813,24 @@ inventoryTableBody.addEventListener("click", async (event) => {
   const totalQuantity = event.target.closest("[data-total-quantity]");
   if (totalQuantity) {
     const productId = Number(totalQuantity.dataset.totalQuantity);
-    if (expandedInventoryProductId === productId) { expandedInventoryProductId = null; expandedStoreQuantities = []; loadingStoreQuantitiesProductId = null; renderInventoryWithoutMoving(); return; }
-    expandedInventoryProductId = productId;
+    if (expandedInventoryDetail?.productId === productId && expandedInventoryDetail.type === "quantity") { expandedInventoryDetail = null; expandedStoreQuantities = []; loadingStoreQuantitiesProductId = null; renderInventoryWithoutMoving(); return; }
+    expandedInventoryDetail = { productId, type: "quantity" };
     expandedStoreQuantities = [];
+    expandedProductTraces = [];
+    loadingTraceProductId = null;
     loadingStoreQuantitiesProductId = productId;
     renderInventoryWithoutMoving();
     try {
       await new Promise(requestAnimationFrame);
-      if (expandedInventoryProductId !== productId || loadingStoreQuantitiesProductId !== productId) return;
+      if (expandedInventoryDetail?.productId !== productId || expandedInventoryDetail.type !== "quantity" || loadingStoreQuantitiesProductId !== productId) return;
       expandedStoreQuantities = (await inventoryStoreQuantities(storeId, productId)).entries;
-      if (expandedInventoryProductId !== productId) return;
+      if (expandedInventoryDetail?.productId !== productId || expandedInventoryDetail.type !== "quantity") return;
       loadingStoreQuantitiesProductId = null;
       renderInventoryWithoutMoving();
     } catch (error) {
-      if (expandedInventoryProductId !== productId) return;
+      if (expandedInventoryDetail?.productId !== productId || expandedInventoryDetail.type !== "quantity") return;
       loadingStoreQuantitiesProductId = null;
-      expandedInventoryProductId = null;
+      expandedInventoryDetail = null;
       expandedStoreQuantities = [];
       renderInventoryWithoutMoving();
       inventoryStatus.textContent = error.message;
@@ -1789,17 +1840,17 @@ inventoryTableBody.addEventListener("click", async (event) => {
   const traceTrigger = event.target.closest("[data-product-traces]");
   if (traceTrigger) {
     const productId = Number(traceTrigger.dataset.productTraces);
-    if (expandedTraceProductId === productId) { expandedTraceProductId = null; expandedProductTraces = []; loadingTraceProductId = null; renderInventoryWithoutMoving(); return; }
-    expandedTraceProductId = productId; expandedProductTraces = []; loadingTraceProductId = productId; renderInventoryWithoutMoving();
+    if (expandedInventoryDetail?.productId === productId && expandedInventoryDetail.type === "trace") { expandedInventoryDetail = null; expandedProductTraces = []; loadingTraceProductId = null; renderInventoryWithoutMoving(); return; }
+    expandedInventoryDetail = { productId, type: "trace" }; expandedProductTraces = []; expandedStoreQuantities = []; loadingStoreQuantitiesProductId = null; loadingTraceProductId = productId; renderInventoryWithoutMoving();
     try {
       await new Promise(requestAnimationFrame);
-      if (expandedTraceProductId !== productId || loadingTraceProductId !== productId) return;
+      if (expandedInventoryDetail?.productId !== productId || expandedInventoryDetail.type !== "trace" || loadingTraceProductId !== productId) return;
       expandedProductTraces = (await productTraces(storeId, productId)).entries;
-      if (expandedTraceProductId !== productId) return;
+      if (expandedInventoryDetail?.productId !== productId || expandedInventoryDetail.type !== "trace") return;
       loadingTraceProductId = null; renderInventoryWithoutMoving();
     } catch (error) {
-      if (expandedTraceProductId !== productId) return;
-      loadingTraceProductId = null; expandedTraceProductId = null; expandedProductTraces = []; renderInventoryWithoutMoving(); inventoryStatus.textContent = error.message;
+      if (expandedInventoryDetail?.productId !== productId || expandedInventoryDetail.type !== "trace") return;
+      loadingTraceProductId = null; expandedInventoryDetail = null; expandedProductTraces = []; renderInventoryWithoutMoving(); inventoryStatus.textContent = error.message;
     }
     return;
   }
@@ -1837,10 +1888,12 @@ inventoryTableBody.addEventListener("click", async (event) => {
   if (!Number.isInteger(quantity) || !entry) { input.focus(); return; }
   save.disabled = true;
   try {
-    await adjustInventory({ product_id: productId, store_id: storeId, quantity: quantity - Number(entry.quantity || 0) });
+    const updated = await adjustInventory({ product_id: productId, store_id: storeId, quantity: quantity - Number(entry.quantity || 0) });
+    inventoryEntries = inventoryEntries.map((item) => Number(item.product_id) === productId ? { ...item, total_quantity: Number(item.total_quantity ?? item.quantity ?? 0) + (Number(updated.quantity) - Number(item.quantity || 0)), quantity: updated.quantity, prev_quantity: updated.prev_quantity, last_update: updated.last_update, user_updated: updated.user_updated } : item);
+    products = products.map((item) => Number(item.id) === productId ? { ...item, inventory_quantity: updated.quantity } : item);
     editingInventoryProductId = null;
-    await loadInventory(productId);
-    refreshInventory([productId]).catch(console.error);
+    renderProducts();
+    renderInventoryWithoutMoving();
     window.toast?.success({ title: "Inventory updated", description: "The product quantity was refreshed." });
   } catch (error) {
     save.disabled = false;
@@ -1954,7 +2007,7 @@ document.querySelector("#product-form").addEventListener("submit", async (event)
     finishProductCreation();
   } catch (error) { status.textContent = createdProduct ? `Product created. ${error.message}` : error.message; form.querySelector("button[type='submit']").disabled = false; }
 });
-document.querySelector("#inventory-form").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const productId = document.querySelector("#inventory-product").value; const quantity = Number(document.querySelector("#inventory-quantity").value); if (!Number.isInteger(quantity)) return; const status = document.querySelector("#inventory-form-status"); status.textContent = "Saving…"; try { await adjustInventory({ product_id: productId, store_id: document.querySelector("#inventory-form-store").value, quantity }); document.querySelector("#inventory-dialog").close(); await loadInventory(productId); refreshInventory([productId]).catch(console.error); window.toast?.success({ title: "Inventory updated", description: "The product quantity was refreshed." }); } catch (error) { status.textContent = error.message; } });
+document.querySelector("#inventory-form").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const productId = Number(document.querySelector("#inventory-product").value); const targetStoreId = Number(document.querySelector("#inventory-form-store").value); const quantity = Number(document.querySelector("#inventory-quantity").value); if (!Number.isInteger(quantity)) return; const status = document.querySelector("#inventory-form-status"); status.textContent = "Saving…"; try { const updated = await adjustInventory({ product_id: productId, store_id: targetStoreId, quantity }); const entry = inventoryEntries.find((item) => Number(item.product_id) === productId); const previous = targetStoreId === Number(storeId) ? Number(entry?.quantity || 0) : Number(expandedStoreQuantities.find((item) => Number(item.store_id) === targetStoreId)?.quantity || 0); const delta = Number(updated.quantity) - previous; inventoryEntries = inventoryEntries.map((item) => Number(item.product_id) === productId ? { ...item, total_quantity: Number(item.total_quantity ?? item.quantity ?? 0) + delta, ...(targetStoreId === Number(storeId) ? { quantity: updated.quantity, prev_quantity: updated.prev_quantity, last_update: updated.last_update, user_updated: updated.user_updated } : {}) } : item); expandedStoreQuantities = expandedStoreQuantities.map((item) => Number(item.store_id) === targetStoreId ? { ...item, ...updated } : item); if (targetStoreId === Number(storeId)) { products = products.map((item) => Number(item.id) === productId ? { ...item, inventory_quantity: updated.quantity } : item); renderProducts(); } document.querySelector("#inventory-dialog").close(); renderInventoryWithoutMoving(); window.toast?.success({ title: "Inventory updated", description: "The product quantity was refreshed." }); } catch (error) { status.textContent = error.message; } });
 document.querySelector("#create-order").addEventListener("click", openPurchaseOrderCreate);
 document.querySelector("#move-products").addEventListener("click", () => openPurchaseOrderCreate("move"));
 document.querySelector("#purchase-order-back").addEventListener("click", () => { purchaseOrderScreen.hidden = true; ordersScreen.hidden = false; requestAnimationFrame(() => document.querySelector("#orders-title").focus()); });
@@ -2153,12 +2206,40 @@ function showCheckoutStage(stage) {
     if (active) element.setAttribute("aria-current", "step");
     else element.removeAttribute("aria-current");
   });
+  positionCustomerPicker(stage);
   const title = checkoutFlow.querySelector(`[data-stage="${stage}"] h2`)?.textContent;
-  document.querySelector("#checkout-title").textContent = title || "Checkout";
+  const checkoutTitle = document.querySelector("#checkout-title");
+  checkoutTitle.dataset.storeTitleBase = title || "Checkout";
+  updateStoreTitles();
   document.querySelector("#checkout-total").textContent = currency(pos.total());
   if (stage === "payment") updatePaymentCompletion();
   checkoutStatus.textContent = "";
   requestAnimationFrame(() => checkoutFlow.querySelector(`[data-stage="${stage}"] h2`)?.focus?.());
+}
+
+function positionCustomerPicker(stage) {
+  const picker = document.querySelector("#customer-picker");
+  const customerStage = checkoutFlow.querySelector('[data-stage="customer"] .checkout-stage-copy');
+  const details = document.querySelector("#customer-details");
+  const paymentReadOnly = stage === "payment";
+  orderTitle.disabled = paymentReadOnly;
+  clearCustomerButton.disabled = paymentReadOnly;
+  if (stage === "payment") {
+    let slot = checkoutFlow.querySelector("#payment-customer-picker");
+    if (!slot) {
+      slot = document.createElement("div");
+      slot.id = "payment-customer-picker";
+      slot.className = "form-group payment-customer-picker";
+      checkoutFlow.querySelector('[data-stage="payment"] .checkout-stage-copy').prepend(slot);
+    }
+    picker.disabled = true;
+    picker.setAttribute("aria-disabled", "true");
+    slot.appendChild(picker);
+    return;
+  }
+  picker.disabled = false;
+  picker.removeAttribute("aria-disabled");
+  customerStage.insertBefore(picker, details);
 }
 
 async function openCheckout() {
@@ -2181,6 +2262,7 @@ async function openCheckout() {
 }
 
 function closeCheckout() {
+  positionCustomerPicker("customer");
   checkoutFlow.hidden = true;
   delete catalogPanel.dataset.view;
   startCheckoutButton.hidden = false;
@@ -2281,9 +2363,9 @@ checkoutFlow.addEventListener("click", (event) => {
   if (next) showCheckoutStage(next.dataset.checkoutNext);
   if (back) back.dataset.checkoutBack === "pos" ? closeCheckout() : showCheckoutStage(back.dataset.checkoutBack);
   const sequence = event.target.closest("[data-sequence]");
-  if (sequence) document.querySelectorAll("[data-sequence]").forEach((button) => { button.dataset.variant = button === sequence ? "default" : "secondary"; });
+  if (sequence) { document.querySelectorAll("[data-sequence]").forEach((button) => { button.dataset.variant = button === sequence ? "default" : "secondary"; }); updateSequenceDescription(); }
 });
-document.querySelector("#customer-picker").addEventListener("click", () => openCustomers("checkout"));
+document.querySelector("#customer-picker").addEventListener("click", () => { if (checkoutStage !== "payment") openCustomers("checkout"); });
 document.querySelector("#customer-continue").addEventListener("click", () => showCheckoutStage("payment"));
 document.querySelector("#delivery-toggle").addEventListener("click", (event) => { const active = event.currentTarget.getAttribute("aria-pressed") !== "true"; event.currentTarget.setAttribute("aria-pressed", String(active)); event.currentTarget.dataset.variant = active ? "default" : "outline"; const target = document.querySelector("#delivery-options"); target.hidden = !active; if (active) target.replaceChildren(...[100,150,200,250,300,400,500,600].map((amount) => { const button = document.createElement("button"); button.className = "btn"; button.dataset.variant = "secondary"; button.dataset.delivery = amount; button.textContent = currency(amount); return button; })); else { pos.setDelivery(0); document.querySelector("#delivery-summary").hidden = true; } updatePaymentCompletion(); });
 document.querySelector("#delivery-options").addEventListener("click", (event) => { const button = event.target.closest("[data-delivery]"); if (!button) return; pos.setDelivery(Number(button.dataset.delivery)); document.querySelector("#delivery-summary").hidden = false; document.querySelectorAll("[data-delivery]").forEach((item) => item.dataset.variant = item === button ? "default" : "secondary"); updatePaymentCompletion(); });
@@ -2310,6 +2392,7 @@ renderCurrencyPlaceholders();
 translateDocument();
 onLanguageChange(() => {
   languageSwitcher.sync();
+  updateStoreTitles();
   pos.render();
   renderCurrencyPlaceholders();
   renderProducts();
