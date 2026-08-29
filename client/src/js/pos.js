@@ -1,6 +1,7 @@
 export function createPos(options) {
   const { cartElement, totalTrigger, totalElement, totalBeforeDiscountElement, subtotalElement, discountElement, taxElement, itemCountElement, itemCountBadges = [], emptyElement, clearButton, chargeButton, checkoutButton, productGrid, discountDialog, discountForm, discountTypeButtons, discountInput, discountInputLabel, discountHelp, discountProductImage, discountProductName, discountPreviewAmount, discountPreviewDiscount, discountPreviewTotal, clearDialog, clearConfirmButton, t, formatCurrency } = options;
   const cart = [];
+  const saleChangeListeners = new Set();
   let discountTarget = null;
   let discountType = "amount";
   let orderDiscount = 0;
@@ -55,6 +56,7 @@ export function createPos(options) {
       if (bumpCartBadge && itemCount > 0) animateCartBadge(badge);
     });
     if (chargeButton) chargeButton.textContent = t("charge", { amount: money(total()) });
+    saleChangeListeners.forEach((listener) => listener());
   }
 
   function addProduct({ id, name, price, sub, tax, imageSrc }) {
@@ -182,7 +184,7 @@ export function createPos(options) {
     void badge.offsetWidth;
     badge.classList.add("is-bumping");
   }
-  return { isEmpty: () => cart.length === 0, total, setDelivery: (value) => { delivery = value; render(); }, receipt: () => ({ number: "POS-" + String(Date.now()).slice(-6), items: cart.map((item) => ({ id: item.id, name: item.name, qty: item.qty, price: item.price, sub: item.sub, tax: item.tax, discount: lineDiscount(item), discount_type: item.discount ? (item.discountType === "percent" ? "percentage" : "money") : null, discount_input: item.discount })), order_discount: orderDiscountTotal(), order_discount_type: orderDiscount ? (orderDiscountType === "percent" ? "percentage" : "money") : null, order_discount_input: orderDiscount, delivery, sub: subTotal(), tax: taxTotal(), total: total() }), clear: () => { cart.splice(0); orderDiscount = 0; delivery = 0; render(); }, render };
+  return { isEmpty: () => cart.length === 0, total, subscribe: (listener) => { saleChangeListeners.add(listener); return () => saleChangeListeners.delete(listener); }, setDelivery: (value) => { delivery = value; render(); }, receipt: () => ({ number: "POS-" + String(Date.now()).slice(-6), items: cart.map((item) => ({ id: item.id, name: item.name, qty: item.qty, price: item.price, sub: item.sub, tax: item.tax, discount: lineDiscount(item), discount_type: item.discount ? (item.discountType === "percent" ? "percentage" : "money") : null, discount_input: item.discount })), order_discount: orderDiscountTotal(), order_discount_type: orderDiscount ? (orderDiscountType === "percent" ? "percentage" : "money") : null, order_discount_input: orderDiscount, delivery, sub: subTotal(), tax: taxTotal(), total: total() }), clear: () => { cart.splice(0); orderDiscount = 0; delivery = 0; render(); }, render };
 }
 
 function escapeHtml(value) {

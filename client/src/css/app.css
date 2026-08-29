@@ -1260,7 +1260,7 @@ button {
 .invoice-payment-amount {
   position: relative;
 }
-.invoice-payment-amount::before {
+.invoice-payment-amount:not(.invoice-payment-amount-formatted)::before {
   position: absolute;
   z-index: 1;
   left: 0.62rem;

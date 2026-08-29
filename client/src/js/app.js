@@ -594,6 +594,7 @@ function invoicePaymentForm(invoice) {
   const createAmount = ({ id, value, readonly = false, label }) => {
     const amountWrap = document.createElement("div");
     amountWrap.className = "invoice-payment-amount";
+    if (readonly) amountWrap.classList.add("invoice-payment-amount-formatted");
     const amountLabel = document.createElement("label");
     amountLabel.className = "label sr-only";
     amountLabel.htmlFor = id;
@@ -861,23 +862,25 @@ function renderInvoices() {
   if (!invoices.length && !invoiceLoading) invoiceReportStatus.textContent = "No invoices found.";
 }
 
+function invoiceScrollContainer() {
+  const overflowY = getComputedStyle(catalogPanel).overflowY;
+  return ["auto", "scroll"].includes(overflowY) ? catalogPanel : document.scrollingElement;
+}
+
 function renderInvoicesPreservingScroll(invoiceId) {
+  expandedInvoiceId = invoiceId;
   const currentTrigger = invoiceTableBody.querySelector(`[data-invoice-detail="${invoiceId}"]`);
-  const currentDetails = currentTrigger?.closest("tr")?.nextElementSibling;
-  const scrollTop = catalogPanel.scrollTop;
-  const offset = currentDetails ? currentDetails.getBoundingClientRect().top - catalogPanel.getBoundingClientRect().top : null;
+  const currentRow = currentTrigger?.closest("tr");
+  const scrollContainer = invoiceScrollContainer();
+  const offset = currentRow?.getBoundingClientRect().top;
 
   renderInvoices();
 
   requestAnimationFrame(() => {
     const refreshedTrigger = invoiceTableBody.querySelector(`[data-invoice-detail="${invoiceId}"]`);
-    const refreshedDetails = refreshedTrigger?.closest("tr")?.nextElementSibling;
-    if (offset !== null && refreshedDetails) {
-      const refreshedOffset = refreshedDetails.getBoundingClientRect().top - catalogPanel.getBoundingClientRect().top;
-      catalogPanel.scrollTop = scrollTop + refreshedOffset - offset;
-    } else {
-      catalogPanel.scrollTop = scrollTop;
-    }
+    const refreshedRow = refreshedTrigger?.closest("tr");
+    if (offset !== undefined && refreshedRow) scrollContainer.scrollTop += refreshedRow.getBoundingClientRect().top - offset;
+    else refreshedTrigger?.scrollIntoView({ block: "nearest" });
   });
 }
 
@@ -1845,11 +1848,12 @@ invoiceTableBody.addEventListener("submit", async (event) => {
   submit.disabled = true;
   try {
     const sale = await addSalePayment(invoice.id, { amount, type: paymentRow.dataset.paymentType });
-    Object.assign(invoice, sale);
-    invoiceDetails.set(invoice.id, sale);
-    renderInvoicesPreservingScroll(invoice.id);
+    const refreshedInvoice = { ...invoice, ...sale };
+    invoices = invoices.map((entry) => entry.id === invoice.id ? refreshedInvoice : entry);
+    invoiceDetails.set(invoice.id, refreshedInvoice);
+    renderInvoicesPreservingScroll(refreshedInvoice.id);
     invoiceReportStatus.textContent = "Payment recorded.";
-    window.toast?.success({ title: "Payment recorded", description: `${currency(amount)} applied to invoice ${invoice.sequence || invoice.id}.` });
+    window.toast?.success({ title: "Payment recorded", description: `${currency(amount)} applied to invoice ${refreshedInvoice.sequence || refreshedInvoice.id}.` });
   } catch (error) {
     console.error(error);
     invoiceReportStatus.textContent = error.message;
@@ -1923,6 +1927,7 @@ function showCheckoutStage(stage) {
   const title = checkoutFlow.querySelector(`[data-stage="${stage}"] h2`)?.textContent;
   document.querySelector("#checkout-title").textContent = title || "Checkout";
   document.querySelector("#checkout-total").textContent = currency(pos.total());
+  if (stage === "payment") updatePaymentCompletion();
   checkoutStatus.textContent = "";
   requestAnimationFrame(() => checkoutFlow.querySelector(`[data-stage="${stage}"] h2`)?.focus?.());
 }
@@ -1954,20 +1959,24 @@ function closeCheckout() {
 }
 
 function updatePaymentCompletion() {
+  const saleTotal = pos.total();
   const paymentLines = [...document.querySelectorAll(".payment-line")];
   const paid = paymentLines.reduce((sum, line) => sum + (Number(line.querySelector("input").value) || 0), 0);
-  const remaining = Math.max(0, pos.total() - paid);
-  const nonCashPaid = paymentLines.reduce((sum, line) => line.querySelector("select").value === "CASH" ? sum : sum + (Number(line.querySelector("input").value) || 0), 0);
-  const cashPaid = paid - nonCashPaid;
-  const change = Math.max(0, cashPaid - Math.max(0, pos.total() - nonCashPaid));
-  document.querySelector("#checkout-total").textContent = currency(pos.total());
+  const remaining = Math.max(0, saleTotal - paid);
+  const change = Math.max(0, paid - saleTotal);
+  document.querySelector("#checkout-total").textContent = currency(saleTotal);
   document.querySelector("#payment-balance").textContent = `${t("checkout.remaining")}: ${currency(remaining)}`;
   const changeLabel = document.querySelector("#payment-change");
   changeLabel.hidden = change === 0;
   changeLabel.textContent = change ? `${t("checkout.change")}: ${currency(change)}` : "";
   const onCredit = document.querySelector("#credit-toggle").getAttribute("aria-pressed") === "true";
-  document.querySelector("#complete-sale").disabled = !onCredit && paid < pos.total();
+  document.querySelector("#complete-sale").disabled = pos.isEmpty() || (!onCredit && paid < saleTotal);
 }
+
+pos.subscribe(() => {
+  const paymentStage = checkoutFlow.querySelector('[data-stage="payment"]');
+  if (!checkoutFlow.hidden && !paymentStage.hidden) updatePaymentCompletion();
+});
 
 function updatePaymentChoice() {
   const credit = document.querySelector("#credit-toggle").getAttribute("aria-pressed") === "true";
@@ -1994,8 +2003,8 @@ document.querySelector("#payment-lines").addEventListener("click", (event) => { 
 document.querySelector("#payment-lines").addEventListener("change", () => { updatePaymentChoice(); updatePaymentCompletion(); });
 document.querySelector("#payment-lines").addEventListener("input", updatePaymentCompletion);
 document.querySelector("#payment-lines").addEventListener("focusin", (event) => { if (mobileQuery.matches && event.target.matches("input")) event.target.scrollIntoView({ behavior: "smooth", block: "center" }); });
-document.querySelector("#credit-toggle").addEventListener("click", (event) => { const active = event.currentTarget.getAttribute("aria-pressed") !== "true"; event.currentTarget.setAttribute("aria-pressed", String(active)); event.currentTarget.dataset.variant = active ? "default" : "outline"; document.querySelector("#payment-inputs").hidden = active; document.querySelector("#complete-sale").disabled = false; updatePaymentChoice(); });
-document.querySelector("#complete-sale").addEventListener("click", async () => { const complete = document.querySelector("#complete-sale"); const credit = document.querySelector("#credit-toggle").getAttribute("aria-pressed") === "true"; const payments = [...document.querySelectorAll(".payment-line")].map((line) => ({ type: line.querySelector("select").value, amount: Number(line.querySelector("input").value) || 0 })).filter((line) => line.amount); if (!credit && payments.reduce((sum, line) => sum + line.amount, 0) < pos.total()) return; const receipt = pos.receipt(); complete.disabled = true; try { await createSale({ store_id: storeId, client_id: selectedCustomer.id, sequence_type: document.querySelector("[data-sequence][data-variant=default]").dataset.sequence, status: credit ? "CREDIT" : "CASH", sale_type: receipt.delivery ? "FOR_DELIVER" : "IN_SHOP", delivery_charge: receipt.delivery, discount: receipt.order_discount, discount_type: receipt.order_discount_type, discount_input: receipt.order_discount_input, lines: receipt.items.map((item) => ({ product_id: Number(item.id), quantity: item.qty, discount: item.discount, discount_type: item.discount_type, discount_input: item.discount_input })), payments: credit ? [] : payments }); invoicesStale = true; await refreshInventory(receipt.items.map((item) => item.id)).catch(console.error); completedReceipt = { ...receipt, language: getLanguage() }; document.querySelector("#receipt-print-status").textContent = ""; renderPrintTargets(); resetCompletedOrder(); closeCheckout(); document.querySelector("#receipt-dialog").showModal(); } catch (error) { checkoutStatus.textContent = error.message; complete.disabled = false; } });
+document.querySelector("#credit-toggle").addEventListener("click", (event) => { const active = event.currentTarget.getAttribute("aria-pressed") !== "true"; event.currentTarget.setAttribute("aria-pressed", String(active)); event.currentTarget.dataset.variant = active ? "default" : "outline"; document.querySelector("#payment-inputs").hidden = active; updatePaymentChoice(); updatePaymentCompletion(); });
+document.querySelector("#complete-sale").addEventListener("click", async () => { const complete = document.querySelector("#complete-sale"); const credit = document.querySelector("#credit-toggle").getAttribute("aria-pressed") === "true"; const payments = [...document.querySelectorAll(".payment-line")].map((line) => ({ type: line.querySelector("select").value, amount: Number(line.querySelector("input").value) || 0 })).filter((line) => line.amount); if (pos.isEmpty() || (!credit && payments.reduce((sum, line) => sum + line.amount, 0) < pos.total())) { updatePaymentCompletion(); return; } const receipt = pos.receipt(); complete.disabled = true; try { await createSale({ store_id: storeId, client_id: selectedCustomer.id, sequence_type: document.querySelector("[data-sequence][data-variant=default]").dataset.sequence, status: credit ? "CREDIT" : "CASH", sale_type: receipt.delivery ? "FOR_DELIVER" : "IN_SHOP", delivery_charge: receipt.delivery, discount: receipt.order_discount, discount_type: receipt.order_discount_type, discount_input: receipt.order_discount_input, lines: receipt.items.map((item) => ({ product_id: Number(item.id), quantity: item.qty, discount: item.discount, discount_type: item.discount_type, discount_input: item.discount_input })), payments: credit ? [] : payments }); invoicesStale = true; await refreshInventory(receipt.items.map((item) => item.id)).catch(console.error); completedReceipt = { ...receipt, language: getLanguage() }; document.querySelector("#receipt-print-status").textContent = ""; renderPrintTargets(); resetCompletedOrder(); closeCheckout(); document.querySelector("#receipt-dialog").showModal(); } catch (error) { checkoutStatus.textContent = error.message; complete.disabled = false; } });
 document.querySelector("#skip-print").addEventListener("click", () => { document.querySelector("#receipt-dialog").close(); completedReceipt = null; });
 document.querySelector("#print-receipt").addEventListener("click", async () => {
   const button = document.querySelector("#print-receipt"), status = document.querySelector("#receipt-print-status");
