@@ -3,6 +3,7 @@ defmodule PosServer.Accounts do
 
   alias PosServer.Accounts.{Company, User, UserCompany, UserToken}
   alias PosServer.Repo
+  alias PosServer.Retaily.Store
 
   def list_users do
     from(user in User, order_by: [asc: user.name, asc: user.email])
@@ -93,7 +94,10 @@ defmodule PosServer.Accounts do
                       repo.insert(company_changeset, prefix: Triplex.to_prefix(created_tenant)),
                     {:ok, _user_company} <-
                       create_user_company(repo, created_tenant, user_id, company.id) do
-                 created_tenant
+                 case create_default_store(repo, created_tenant, company.id) do
+                   {:ok, _store} -> created_tenant
+                   {:error, reason} -> repo.rollback(reason)
+                 end
                else
                  {:error, reason} -> repo.rollback(reason)
                end
@@ -108,6 +112,12 @@ defmodule PosServer.Accounts do
   defp create_user_company(repo, tenant, user_id, company_id) do
     %UserCompany{}
     |> UserCompany.changeset(%{user_id: user_id, company_id: company_id})
+    |> repo.insert(prefix: Triplex.to_prefix(tenant))
+  end
+
+  defp create_default_store(repo, tenant, company_id) do
+    %Store{}
+    |> Store.changeset(%{name: "Main Store", company_id: to_string(company_id)})
     |> repo.insert(prefix: Triplex.to_prefix(tenant))
   end
 end

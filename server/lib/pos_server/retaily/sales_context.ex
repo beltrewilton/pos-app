@@ -266,8 +266,10 @@ defmodule PosServer.Retaily.Sales do
 
   defp totals(lines, checkout) do
     merchandise = Enum.reduce(lines, @zero, &Decimal.add(&1.total, &2))
-    discount = sale_discount(checkout, merchandise)
-    taxable = Decimal.sub(merchandise, discount)
+    global_discount = sale_discount(checkout, merchandise)
+    line_discount = Enum.reduce(lines, @zero, &Decimal.add(&1.discount, &2))
+    discount = Decimal.add(line_discount, global_discount)
+    taxable = Decimal.sub(merchandise, global_discount)
     sub = Decimal.div(taxable, Decimal.add(Decimal.new(1), @tax_rate)) |> Decimal.round(2)
     tax = Decimal.sub(taxable, sub)
     %{amount: Decimal.add(taxable, checkout.delivery_charge), sub: sub, tax: tax, discount: discount, discount_type: discount_type(checkout), discount_input: checkout.discount_input}
@@ -341,6 +343,7 @@ defmodule PosServer.Retaily.Sales do
       discount: sale.discount,
       discount_type: sale.discount_type,
       discount_input: sale.discount_input,
+      global_discount: global_discount(sale),
       tax_amount: sale.tax_amount,
       delivery_charge: sale.delivery_charge,
       sequence: sale.sequence,
@@ -405,6 +408,11 @@ defmodule PosServer.Retaily.Sales do
       product_id: line.product_id,
       product: %{id: line.product.id, name: line.product.name, price: line.amount, code: line.product.code, active: line.product.active}
     }
+  end
+
+  defp global_discount(sale) do
+    line_discount = Enum.reduce(sale.sale_lines, @zero, &Decimal.add(&1.discount, &2))
+    Decimal.sub(sale.discount, line_discount)
   end
 
   defp serialize_payment(payment) do

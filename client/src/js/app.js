@@ -815,7 +815,7 @@ function invoiceDetailsRow(invoice) {
     const head = document.createElement("thead");
     const headRow = document.createElement("tr");
     headRow.className = "table-row invoice-line-columns";
-    ["Product", "Quantity", "Unit price", "Discount", "Total"].forEach((label) => {
+    ["Product", "Quantity", "Unit price", "Discount", "", "Total"].forEach((label) => {
       const th = document.createElement("th");
       th.className = "table-head"; th.scope = "col"; th.textContent = label; headRow.appendChild(th);
     });
@@ -823,13 +823,13 @@ function invoiceDetailsRow(invoice) {
     const body = document.createElement("tbody");
     detail.lines.forEach((line) => {
       const lineRow = document.createElement("tr"); lineRow.className = "table-row";
-      [line.product?.name || "—", line.quantity, currency(line.amount), discountDisplay(line.discount, line.discount_type, line.discount_input), currency(line.total_amount)].forEach((value, index) => {
+      [line.product?.name || "—", line.quantity, currency(line.amount), discountDisplay(line.discount, line.discount_type, line.discount_input), "", currency(line.total_amount)].forEach((value, index) => {
         const td = document.createElement("td"); td.className = index ? "table-cell numeric" : "table-cell"; td.textContent = value; lineRow.appendChild(td);
       });
       body.appendChild(lineRow);
     });
     const foot = document.createElement("tfoot");
-    [["Subtotal", detail.sub], ["Tax", detail.tax_amount], ["Discount", discountDisplay(detail.discount, detail.discount_type, detail.discount_input)], ...(Number(detail.delivery_charge || 0) > 0 ? [["Delivery", detail.delivery_charge]] : []), ["Total", detail.amount]].forEach(([label, value]) => {
+    [["Subtotal", detail.sub], ["Tax", detail.tax_amount], ...(Number(detail.delivery_charge || 0) > 0 ? [["Delivery", detail.delivery_charge]] : []), ["Total", detail.amount]].forEach(([label, value], index) => {
       const summaryRow = document.createElement("tr");
       summaryRow.className = "table-row invoice-line-summary";
       if (label === "Total") summaryRow.classList.add("invoice-line-summary-total");
@@ -837,14 +837,17 @@ function invoiceDetailsRow(invoice) {
       spacer.className = "table-cell";
       spacer.colSpan = 3;
       spacer.setAttribute("aria-hidden", "true");
+      const saleDiscount = document.createElement("td");
+      saleDiscount.className = "table-cell numeric invoice-line-summary-discount";
+      saleDiscount.textContent = index === 0 && Number(detail.discount || 0) ? currency(detail.discount) : "-";
       const summaryLabel = document.createElement("th");
       summaryLabel.className = "table-cell";
       summaryLabel.scope = "row";
       summaryLabel.textContent = label;
       const summaryAmount = document.createElement("td");
       summaryAmount.className = "table-cell numeric";
-      summaryAmount.textContent = label === "Discount" ? value : currency(value);
-      summaryRow.append(spacer, summaryLabel, summaryAmount);
+      summaryAmount.textContent = currency(value);
+      summaryRow.append(spacer, saleDiscount, summaryLabel, summaryAmount);
       foot.appendChild(summaryRow);
     });
     table.append(caption, head, body, foot); tableWrap.append(lineItemsTitle, table); content.append(paymentTableWrap, tableWrap); card.append(header, content);
@@ -2196,6 +2199,6 @@ document.addEventListener("click", (event) => {
   const permission = { "sales-report-nav": "sales.view", "inventory-nav": "inventory.view", "orders-nav": "inventory.view", "company-settings-nav": "company.settings", "create-product": "product.add", "create-order": "inventory.movement.request", "move-products": "inventory.movement.request" }[protectedControl.id];
   if (!allowed(permission)) { event.preventDefault(); event.stopImmediatePropagation(); showUnauthorized(); }
 }, true);
-loginForm.addEventListener("submit", async (event) => { event.preventDefault(); loginError.hidden = true; if (pendingLogin) { completeStoreSelection(); return; } if (!loginForm.reportValidity()) return; const submit = document.querySelector("#login-submit"); submit.disabled = true; try { await requestStoreSelection(await login(loginForm.elements.identifier.value.trim(), loginForm.elements.password.value)); } catch (error) { loginErrorMessage.textContent = t("auth.invalidCredentials"); loginError.hidden = false; } finally { submit.disabled = false; } });
+loginForm.addEventListener("submit", async (event) => { event.preventDefault(); loginError.hidden = true; if (pendingLogin) { completeStoreSelection(); return; } if (!loginForm.reportValidity()) return; const submit = document.querySelector("#login-submit"); submit.disabled = true; try { await requestStoreSelection(await login(loginForm.elements.identifier.value.trim(), loginForm.elements.password.value)); } catch (error) { loginErrorMessage.textContent = error.code === "SERVER_UNAVAILABLE" ? t("auth.serverUnavailable") : error.status === 401 ? t("auth.invalidCredentials") : t("auth.unableToSignIn"); loginError.hidden = false; } finally { submit.disabled = false; } });
 onLanguageChange(() => { if (!userScreen.hidden) editingUser ? renderUserForm(editingUser) : renderUsers(); });
 if (session()?.token && session()?.store_id) { showApplication(); handleRoute(); } else if (session()?.token) { showLogin(); requestStoreSelection(session()); } else showLogin();

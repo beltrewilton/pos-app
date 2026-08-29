@@ -34,8 +34,20 @@ async function apiFetch(url, options = {}) {
 }
 
 export async function login(identifier, password) {
-  const response = await fetch(`${API_BASE_URL}/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ identifier, password }) });
-  if (!response.ok) throw new Error("The username/email or password is incorrect.");
+  let response;
+  try {
+    response = await fetch(`${API_BASE_URL}/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ identifier, password }) });
+  } catch (cause) {
+    const error = new Error("Could not connect to the server.");
+    error.code = "SERVER_UNAVAILABLE";
+    error.cause = cause;
+    throw error;
+  }
+  if (!response.ok) {
+    const error = new Error(response.status === 401 ? "The username/email or password is incorrect." : "Unable to sign in.");
+    error.status = response.status;
+    throw error;
+  }
   return response.json();
 }
 

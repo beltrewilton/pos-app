@@ -2304,7 +2304,8 @@ button {
   .invoice-detail-lines tbody .table-cell:nth-child(2)::before { content: "Quantity"; }
   .invoice-detail-lines tbody .table-cell:nth-child(3)::before { content: "Unit price"; }
   .invoice-detail-lines tbody .table-cell:nth-child(4)::before { content: "Discount"; }
-  .invoice-detail-lines tbody .table-cell:nth-child(5)::before { content: "Total"; }
+  .invoice-detail-lines tbody .table-cell:nth-child(5) { display: none; }
+  .invoice-detail-lines tbody .table-cell:nth-child(6)::before { content: "Total"; }
   .invoice-detail-lines tfoot { display: block; margin-top: 8px; }
   .invoice-line-summary { display: flex !important; justify-content: flex-end; padding: 4px 0; }
   .invoice-line-summary .table-cell:first-child { display: none; }

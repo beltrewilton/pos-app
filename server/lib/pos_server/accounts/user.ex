@@ -26,7 +26,7 @@ defmodule PosServer.Accounts.User do
     |> validate_format(:tenant, ~r/^[a-z][a-z0-9_]{2,62}$/,
       message: "must be a lowercase tenant identifier (letters, numbers, and underscores)"
     )
-    |> validate_length(:password, min: 12, max: 72)
+    |> validate_length(:password, min: 6, max: 72)
     |> unique_constraint(:email)
     |> hash_password()
   end
