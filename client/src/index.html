@@ -184,7 +184,7 @@
           <div class="table-container customer-table-container">
             <table class="table customer-table">
               <caption class="table-caption">Customer accounts and purchase activity.</caption>
-              <thead><tr class="table-row"><th class="table-head" scope="col">Name</th><th class="table-head" scope="col">Document ID</th><th class="table-head" scope="col">Phone</th><th class="table-head" scope="col">Email</th><th class="table-head" scope="col">Wholesale</th><th class="table-head" scope="col">Pending balance</th><th class="table-head" scope="col">Last purchase</th><th class="table-head" scope="col"><span class="sr-only">View customer</span></th></tr></thead>
+              <thead><tr class="table-row"><th class="table-head" scope="col">Name</th><th class="table-head" scope="col">Document ID</th><th class="table-head" scope="col">Phone</th><th class="table-head" scope="col" data-customer-management-column>Email</th><th class="table-head" scope="col" data-customer-management-column>Wholesale</th><th class="table-head" scope="col" data-customer-management-column>Pending balance</th><th class="table-head" scope="col" data-customer-management-column>Last purchase</th><th class="table-head" scope="col"><span id="customers-action-heading" class="sr-only">Customer action</span></th></tr></thead>
               <tbody id="customers-table-body"></tbody>
             </table>
           </div>
@@ -285,7 +285,7 @@
         <header class="order-header">
           <div>
             <p class="eyebrow" data-i18n="order.current">Current sale</p>
-            <div class="customer-picker-wrap"><button id="customer-purchases" class="btn" type="button" data-variant="ghost" data-size="icon-xs" aria-label="View customer purchases" aria-haspopup="dialog" data-dialog-trigger="customer-purchases-dialog" disabled><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16v-4"/><path d="M12 16V8"/><path d="M17 16v-7"/></svg></button><button id="order-title" class="customer-picker" type="button" data-i18n="customer.pick">Pick a customer …</button><button id="clear-customer" class="btn" type="button" data-variant="ghost" data-size="icon-xs" data-i18n-aria-label="customer.clear" aria-label="Clear customer" hidden>×</button></div>
+            <div class="customer-picker-wrap"><button id="customer-purchases" class="btn" type="button" data-variant="ghost" data-size="icon-xs" aria-label="View customer purchases" aria-haspopup="dialog" data-dialog-trigger="customer-purchases-dialog"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16v-4"/><path d="M12 16V8"/><path d="M17 16v-7"/></svg></button><button id="order-title" class="customer-picker" type="button" data-i18n="customer.pick">Pick a customer …</button><button id="clear-customer" class="btn" type="button" data-variant="ghost" data-size="icon-xs" data-i18n-aria-label="customer.clear" aria-label="Clear customer" hidden>×</button></div>
           </div>
           <button id="mobile-cart-close" class="btn mobile-cart-close" type="button" data-variant="ghost" data-size="icon" aria-label="Close sale">
             ×

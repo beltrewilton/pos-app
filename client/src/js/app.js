@@ -77,7 +77,7 @@ inventoryHeaderRow.lastElementChild.remove();
 const totalQuantityHeader = document.createElement("th");
 totalQuantityHeader.className = "table-head";
 totalQuantityHeader.scope = "col";
-totalQuantityHeader.textContent = "Total quantity";
+totalQuantityHeader.textContent = t("ui.totalQuantity");
 inventoryHeaderRow.children[5].before(totalQuantityHeader);
 const pos = createPos({
   cartElement: document.querySelector("#cart"),
@@ -246,7 +246,7 @@ async function initializeStores() {
   const selectedStoreId = session()?.store_id;
   storeId = entries.find((store) => Number(store.id) === Number(selectedStoreId))?.id || null;
   populateStoreOptions();
-  if (!storeId) throw new Error("Select a store to continue.");
+  if (!storeId) throw new Error(t("ui.selectStoreContinue"));
   updateSessionStoreDisplay();
   updateStoreTitles();
   subscribeToInventory();
@@ -277,7 +277,7 @@ document.querySelectorAll(".topbar").forEach((topbar) => {
   trigger.type = "button";
   trigger.dataset.variant = "ghost";
   trigger.dataset.size = "icon";
-  trigger.setAttribute("aria-label", "Open navigation");
+  trigger.setAttribute("aria-label", t("ui.openNavigation"));
   trigger.setAttribute("aria-controls", "mobile-navigation");
   trigger.setAttribute("aria-expanded", "false");
   trigger.innerHTML = navigationIcon();
@@ -434,18 +434,18 @@ async function openCustomerPurchases() {
   customerPurchasesTitle.textContent = `${customer.name} — recent purchases`;
   customerPurchasesBody.replaceChildren(...purchaseHistorySkeletonRows());
   customerPurchasesStatus.hidden = false;
-  customerPurchasesStatus.textContent = "Loading purchases…";
+  customerPurchasesStatus.textContent = t("ui.loadingPurchases");
 
   try {
     const { entries } = await customerPurchases(customer.id);
     if (dialog.dataset.purchaseRequestId !== requestId) return;
     customerPurchasesBody.replaceChildren(...entries.flatMap(purchaseRows));
-    customerPurchasesStatus.textContent = entries.length ? "" : "No purchases found for this customer.";
+    customerPurchasesStatus.textContent = entries.length ? "" : t("ui.noPurchases");
   } catch (error) {
     console.error(error);
     if (dialog.dataset.purchaseRequestId !== requestId) return;
     customerPurchasesBody.replaceChildren();
-    customerPurchasesStatus.textContent = "Purchases could not be loaded. Check the server connection.";
+    customerPurchasesStatus.textContent = t("ui.purchasesLoadError");
   }
 }
 
@@ -517,15 +517,17 @@ function resetCompletedOrder() {
   renderProducts();
 }
 
-function customerRow(customer) {
+function customerRow(customer, returnTo) {
   const row = document.createElement("tr");
   row.className = "table-row";
   const values = [["Name", customer.name || "—"], ["Document ID", customer.document_id || "—"], ["Phone", customer.celphone || "—"], ["Email", customer.email || "—"], ["Wholesale", Number(customer.wholesaler) === 1 ? "Yes" : "No"], ["Pending balance", currency(Math.max(Number(customer.pending_balance || 0), 0))], ["Last purchase", customer.last_purchase_date ? new Date(customer.last_purchase_date.replace(" ", "T")).toLocaleDateString() : "—"]];
-  values.forEach(([label, value]) => { const cell = document.createElement("td"); cell.className = "table-cell"; cell.dataset.label = label; cell.textContent = value; row.appendChild(cell); });
+  const visibleValues = returnTo === "standalone" ? values : values.slice(0, 3);
+  visibleValues.forEach(([label, value]) => { const cell = document.createElement("td"); cell.className = "table-cell"; cell.dataset.label = label; cell.textContent = value; row.appendChild(cell); });
   const action = document.createElement("td"); action.className = "table-cell customer-action";
   const actionButton = document.createElement("button"); actionButton.className = "btn"; actionButton.type = "button"; actionButton.dataset.variant = "outline"; actionButton.dataset.size = "sm"; actionButton.dataset.customerId = customer.id;
-  const standalone = customerReturn === "standalone";
-  actionButton.textContent = standalone ? "View" : t("customer.choose"); actionButton.setAttribute("aria-label", `${standalone ? "View" : t("customer.choose")}: ${customer.name || ""}`); action.appendChild(actionButton); row.appendChild(action);
+  const standalone = returnTo === "standalone";
+  const actionLabel = standalone ? t("ui.view") : t("customer.choose");
+  actionButton.textContent = actionLabel; actionButton.setAttribute("aria-label", `${actionLabel}: ${customer.name || ""}`); action.appendChild(actionButton); row.appendChild(action);
   return row;
 }
 
@@ -536,37 +538,46 @@ async function openCustomerDetail(id) {
   customerDetailScreen.hidden = false;
   catalogPanel.dataset.view = "customer-detail";
   catalogPanel.scrollTop = 0;
-  customerDetailPanel.innerHTML = '<div class="card-content invoice-details-skeleton" role="status" aria-label="Loading customer details"><span class="skeleton skeleton-line" style="width:40%"></span><span class="skeleton skeleton-line" style="width:75%"></span></div>';
+  customerDetailPanel.innerHTML = `<div class="card-content invoice-details-skeleton" role="status" aria-label="${t("ui.loadingDetails")}"><span class="skeleton skeleton-line" style="width:40%"></span><span class="skeleton skeleton-line" style="width:75%"></span></div>`;
   document.querySelector("#customer-detail-title").focus();
   try {
     const detail = await customerDetail(id), customer = detail.customer, summary = detail.summary;
-    const purchases = detail.purchases.map((purchase) => `<tr class="table-row"><td class="table-cell">${purchase.sequence || `#${purchase.id}`}</td><td class="table-cell">${customerDate(purchase.date_create)}</td><td class="table-cell numeric">${currency(purchase.amount)}</td><td class="table-cell numeric">${currency(purchase.total_paid)}</td><td class="table-cell numeric">${currency(Math.max(Number(purchase.due_balance || 0), 0))}</td><td class="table-cell">${purchase.invoice_status || "—"}</td><td class="table-cell">${purchase.salesperson || "—"}</td><td class="table-cell">${purchase.store_id || "—"}</td><td class="table-cell"><button class="btn" type="button" data-variant="ghost" data-customer-invoice>View</button></td></tr>`).join("") || '<tr class="table-row"><td class="table-cell muted" colspan="9">No purchases found for this customer.</td></tr>';
-    customerDetailPanel.innerHTML = `<div class="card-header"><div><p class="eyebrow">Customer account</p><h3 class="card-title">${customer.name || "Customer"}</h3><p class="card-description">${customer.document_id || "No document ID"} · ${customer.celphone || "No phone"}</p></div></div><div class="card-content"><p class="card-description">${customer.address || "No address"} · ${customer.email || "No email"} · ${Number(customer.wholesaler) === 1 ? "Wholesaler" : "Retail"} · Created ${customerDate(customer.date_create)}</p><section class="invoice-summary"><article class="card"><div class="card-header"><p class="card-title">Pending balance</p></div><div class="card-content"><p class="invoice-kpi-value numeric">${currency(summary.pending_balance)}</p></div></article><article class="card"><div class="card-header"><p class="card-title">Total invoiced</p></div><div class="card-content"><p class="invoice-kpi-value numeric">${currency(summary.total_invoiced)}</p></div></article><article class="card"><div class="card-header"><p class="card-title">Total paid</p></div><div class="card-content"><p class="invoice-kpi-value numeric">${currency(summary.total_paid)}</p></div></article><article class="card"><div class="card-header"><p class="card-title">Outstanding balance</p></div><div class="card-content"><p class="invoice-kpi-value numeric">${currency(summary.pending_balance)}</p></div></article><article class="card"><div class="card-header"><p class="card-title">Purchases</p></div><div class="card-content"><p class="invoice-kpi-value numeric">${summary.purchase_count}</p></div></article><article class="card"><div class="card-header"><p class="card-title">Last purchase</p></div><div class="card-content"><p class="card-description">${customerDate(summary.last_purchase_date)}</p></div></article></section><div class="table-container"><p class="invoice-table-section-title">Purchase history</p><table class="table"><thead><tr class="table-row"><th class="table-head">Invoice</th><th class="table-head">Date</th><th class="table-head">Total</th><th class="table-head">Paid</th><th class="table-head">Balance</th><th class="table-head">Status</th><th class="table-head">Sales person</th><th class="table-head">Store</th><th class="table-head">Action</th></tr></thead><tbody>${purchases}</tbody></table></div></div>`;
+    const purchases = detail.purchases.map((purchase) => `<tr class="table-row"><td class="table-cell">${purchase.sequence || `#${purchase.id}`}</td><td class="table-cell">${customerDate(purchase.date_create)}</td><td class="table-cell numeric">${currency(purchase.amount)}</td><td class="table-cell numeric">${currency(purchase.total_paid)}</td><td class="table-cell numeric">${currency(Math.max(Number(purchase.due_balance || 0), 0))}</td><td class="table-cell">${purchase.invoice_status || "—"}</td><td class="table-cell">${purchase.salesperson || "—"}</td><td class="table-cell">${purchase.store_id || "—"}</td><td class="table-cell"><button class="btn" type="button" data-variant="ghost" data-customer-invoice>${t("ui.view")}</button></td></tr>`).join("") || `<tr class="table-row"><td class="table-cell muted" colspan="9">${t("ui.noPurchases")}</td></tr>`;
+    customerDetailPanel.innerHTML = `<div class="card-header"><div><p class="eyebrow">${t("ui.customerAccount")}</p><h3 class="card-title">${customer.name || t("detail.customerFallback")}</h3><p class="card-description">${customer.document_id || t("detail.noDocument")} · ${customer.celphone || t("detail.noPhone")}</p></div></div><div class="card-content"><p class="card-description">${customer.address || t("detail.noAddress")} · ${customer.email || t("detail.noEmail")} · ${Number(customer.wholesaler) === 1 ? t("ui.wholesale") : t("ui.retail")} · ${t("ui.created", { date: customerDate(customer.date_create) })}</p><section class="invoice-summary"><article class="card"><div class="card-header"><p class="card-title">${t("ui.pendingBalance")}</p></div><div class="card-content"><p class="invoice-kpi-value numeric">${currency(summary.pending_balance)}</p></div></article><article class="card"><div class="card-header"><p class="card-title">${t("ui.totalInvoiced")}</p></div><div class="card-content"><p class="invoice-kpi-value numeric">${currency(summary.total_invoiced)}</p></div></article><article class="card"><div class="card-header"><p class="card-title">${t("ui.totalPaid")}</p></div><div class="card-content"><p class="invoice-kpi-value numeric">${currency(summary.total_paid)}</p></div></article><article class="card"><div class="card-header"><p class="card-title">${t("ui.outstandingBalance")}</p></div><div class="card-content"><p class="invoice-kpi-value numeric">${currency(summary.pending_balance)}</p></div></article><article class="card"><div class="card-header"><p class="card-title">${t("ui.purchases")}</p></div><div class="card-content"><p class="invoice-kpi-value numeric">${summary.purchase_count}</p></div></article><article class="card"><div class="card-header"><p class="card-title">${t("ui.lastPurchase")}</p></div><div class="card-content"><p class="card-description">${customerDate(summary.last_purchase_date)}</p></div></article></section><div class="table-container"><p class="invoice-table-section-title">${t("ui.purchaseHistory")}</p><table class="table"><thead><tr class="table-row"><th class="table-head">${t("ui.invoice")}</th><th class="table-head">${t("ui.date")}</th><th class="table-head">${t("ui.total")}</th><th class="table-head">${t("ui.paid")}</th><th class="table-head">${t("ui.balance")}</th><th class="table-head">${t("ui.status")}</th><th class="table-head">${t("ui.salesPerson")}</th><th class="table-head">${t("ui.store")}</th><th class="table-head">${t("ui.action")}</th></tr></thead><tbody>${purchases}</tbody></table></div></div>`;
     customerDetailPanel.querySelectorAll("[data-customer-invoice]").forEach((button) => button.addEventListener("click", () => { invoiceSearch.value = customer.name || ""; openInvoiceReport(); loadInvoices({ reset: true }); }));
   } catch (error) { customerDetailPanel.textContent = error.message; }
 }
 
 async function loadCustomers() {
+  const request = ++customerListRequest;
+  const returnTo = customerReturn;
+  const standalone = returnTo === "standalone";
+  customersScreen.toggleAttribute("data-customer-picker", !standalone);
+  document.querySelectorAll("[data-customer-management-column]").forEach((column) => { column.hidden = !standalone; });
+  document.querySelector("#customers-action-heading").textContent = standalone ? t("ui.view") : t("customer.choose");
   customersStatus.textContent = t("customer.loading");
   customersTableBody.replaceChildren();
   try {
     const page = await customers(customerSearch.value.trim());
-    customersTableBody.replaceChildren(...page.entries.map(customerRow));
+    if (request !== customerListRequest) return;
+    customersTableBody.replaceChildren(...page.entries.map((customer) => customerRow(customer, returnTo)));
     if (!page.entries.length) customersStatus.textContent = t("customer.empty");
     else customersStatus.textContent = "";
     customersTableBody.querySelectorAll("[data-customer-id]").forEach((button) => {
       button.addEventListener("click", () => {
         const customer = page.entries.find((entry) => String(entry.id) === button.dataset.customerId);
-        if (customerReturn === "standalone") openCustomerDetail(button.dataset.customerId); else selectCustomer(customer);
+        if (returnTo === "standalone") openCustomerDetail(button.dataset.customerId); else selectCustomer(customer);
       });
     });
   } catch (error) {
+    if (request !== customerListRequest) return;
     console.error(error); customersStatus.textContent = t("customer.error");
   }
 }
 
 let customerReturn = "pos";
 let customerListScrollTop = 0;
+let customerListRequest = 0;
 function openCustomers(returnTo = "pos") {
   closeUsersPage();
   customerReturn = returnTo;
@@ -636,7 +647,7 @@ function rangeLabel(from, to) {
 
 function renderCalendar() {
   document.querySelector("#calendar-month-label").textContent = calendarMonth.toLocaleDateString(undefined, { month: "long", year: "numeric" });
-  document.querySelector("#invoice-date-range-description").textContent = calendarRange.from && !calendarRange.to ? "Choose an end date to complete the range." : "Choose a start date, then an end date.";
+  document.querySelector("#invoice-date-range-description").textContent = calendarRange.from && !calendarRange.to ? t("ui.chooseEndDate") : t("ui.chooseDateRange");
   invoiceCalendarGrid.replaceChildren();
   const firstWeekday = calendarMonth.getDay();
   const daysInMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0).getDate();
@@ -727,8 +738,8 @@ function invoicePaymentForm(invoice) {
   const primary = document.createElement("div");
   primary.className = "invoice-payment-row";
   primary.append(
-    createAmount({ id: `invoice-payment-${invoice.id}`, value: "0", label: `Payment amount for ${invoice.sequence || invoice.id}` }),
-    createMethodSelector(primary, "Payment method"),
+    createAmount({ id: `invoice-payment-${invoice.id}`, value: "0", label: t("ui.paymentAmount", { invoice: invoice.sequence || invoice.id }) }),
+    createMethodSelector(primary, t("checkout.paymentMethod")),
   );
   const pay = document.createElement("button");
   pay.className = "btn"; pay.type = "submit"; pay.dataset.variant = "outline"; pay.textContent = t("ui.apply");
@@ -736,11 +747,11 @@ function invoicePaymentForm(invoice) {
   const payoff = document.createElement("div");
   payoff.className = "invoice-payment-row invoice-payment-payoff";
   payoff.append(
-    createAmount({ id: `invoice-payoff-${invoice.id}`, value: currency(invoice.due_balance), readonly: true, label: `Outstanding balance for ${invoice.sequence || invoice.id}` }),
-    createMethodSelector(payoff, "Payoff payment method"),
+    createAmount({ id: `invoice-payoff-${invoice.id}`, value: currency(invoice.due_balance), readonly: true, label: t("ui.outstandingFor", { invoice: invoice.sequence || invoice.id }) }),
+    createMethodSelector(payoff, t("checkout.paymentMethod")),
   );
   const payOff = document.createElement("button");
-  payOff.className = "btn"; payOff.type = "submit"; payOff.formNoValidate = true; payOff.dataset.variant = "default"; payOff.textContent = "Pay off";
+  payOff.className = "btn"; payOff.type = "submit"; payOff.formNoValidate = true; payOff.dataset.variant = "default"; payOff.textContent = t("ui.payOff");
   payoff.appendChild(payOff);
   payment.append(primary, payoff);
   return payment;
@@ -824,7 +835,7 @@ function invoiceDetailsRow(invoice) {
     const content = document.createElement("div");
     content.className = "card-content invoice-details-skeleton";
     content.setAttribute("role", "status");
-    content.setAttribute("aria-label", "Loading invoice details");
+    content.setAttribute("aria-label", t("invoice.loadingDetails"));
     ["38%", "72%", "100%", "88%", "64%"].forEach((width) => content.appendChild(skeletonBlock("skeleton-line", width)));
     card.appendChild(content);
   } else {
@@ -835,7 +846,7 @@ function invoiceDetailsRow(invoice) {
     title.textContent = detail.sequence || `Invoice #${detail.id}`;
     const description = document.createElement("p");
     description.className = "card-description";
-    description.textContent = `${detail.client?.name || "Walk-in customer"} · ${detail.sale_type || "Sale"} · ${detail.login || "—"}`;
+    description.textContent = `${detail.client?.name || t("ui.walkInCustomer")} · ${detail.sale_type || t("ui.sales")} · ${detail.login || "—"}`;
     const headerCopy = document.createElement("div");
     headerCopy.append(title, description);
     header.appendChild(headerCopy);
@@ -852,16 +863,16 @@ function invoiceDetailsRow(invoice) {
     paymentTableWrap.className = "table-container invoice-payment-history";
     const paymentTitle = document.createElement("p");
     paymentTitle.className = "invoice-table-section-title";
-    paymentTitle.textContent = "Payments";
+    paymentTitle.textContent = t("invoice.payments");
     const paymentTable = document.createElement("table");
     paymentTable.className = "table";
     const paymentCaption = document.createElement("caption");
     paymentCaption.className = "sr-only";
-    paymentCaption.textContent = "Recorded payments";
+    paymentCaption.textContent = t("invoice.recordedPayments");
     const paymentHead = document.createElement("thead");
     const paymentColumns = document.createElement("tr");
     paymentColumns.className = "table-row invoice-payment-columns";
-    ["Payment", "Date", "User", "Method", "Amount", "Status"].forEach((label) => {
+    [t("invoice.payment"), t("ui.date"), t("invoice.user"), t("invoice.method"), t("checkout.amount"), t("ui.status")].forEach((label) => {
       const th = document.createElement("th");
       th.className = "table-head";
       th.scope = "col";
@@ -876,14 +887,14 @@ function invoiceDetailsRow(invoice) {
       const emptyCell = document.createElement("td");
       emptyCell.className = "table-cell muted";
       emptyCell.colSpan = 6;
-      emptyCell.textContent = "No payments recorded.";
+      emptyCell.textContent = t("invoice.noPayments");
       emptyRow.appendChild(emptyCell);
       paymentBody.appendChild(emptyRow);
     }
     detail.payments.forEach((payment) => {
       const paymentRow = document.createElement("tr");
       paymentRow.className = "table-row";
-      const values = ["Payment", payment.date_create ? new Date(payment.date_create.replace(" ", "T")).toLocaleDateString() : "—", payment.login || detail.login || "—", payment.type === "CC" ? "Credit Card" : "Cash", currency(payment.amount), detail.invoice_status === "close" ? "Complete" : "Partial"];
+      const values = [t("invoice.payment"), payment.date_create ? new Date(payment.date_create.replace(" ", "T")).toLocaleDateString() : "—", payment.login || detail.login || "—", payment.type === "CC" ? t("checkout.card") : t("checkout.cash"), currency(payment.amount), detail.invoice_status === "close" ? t("invoice.complete") : t("invoice.partial")];
       values.forEach((value, index) => {
         const paymentCell = document.createElement("td");
         paymentCell.className = index === 4 ? "table-cell numeric" : "table-cell";
@@ -895,7 +906,7 @@ function invoiceDetailsRow(invoice) {
     if (Number(detail.change_amount || 0) > 0) {
       const changeRow = document.createElement("tr");
       changeRow.className = "table-row invoice-change-row";
-      const values = ["Change", "—", "—", "—", currency(-Number(detail.change_amount)), "Complete"];
+      const values = [t("checkout.change"), "—", "—", "—", currency(-Number(detail.change_amount)), t("invoice.complete")];
       values.forEach((value, index) => {
         const changeCell = document.createElement("td");
         changeCell.className = index === 4 ? "table-cell numeric" : "table-cell";
@@ -910,16 +921,16 @@ function invoiceDetailsRow(invoice) {
     tableWrap.className = "table-container";
     const lineItemsTitle = document.createElement("p");
     lineItemsTitle.className = "invoice-table-section-title";
-    lineItemsTitle.textContent = "Invoice line items";
+    lineItemsTitle.textContent = t("invoice.lineItems");
     const table = document.createElement("table");
     table.className = "table invoice-detail-lines";
     const caption = document.createElement("caption");
     caption.className = "sr-only";
-    caption.textContent = "Invoice line items";
+    caption.textContent = t("invoice.lineItems");
     const head = document.createElement("thead");
     const headRow = document.createElement("tr");
     headRow.className = "table-row invoice-line-columns";
-    ["Product", "Quantity", "Unit price", "Discount", "", "Total"].forEach((label) => {
+    [t("ui.product"), t("total.items"), t("invoice.unitPrice"), t("total.discount"), "", t("ui.total")].forEach((label) => {
       const th = document.createElement("th");
       th.className = "table-head"; th.scope = "col"; th.textContent = label; headRow.appendChild(th);
     });
@@ -933,10 +944,10 @@ function invoiceDetailsRow(invoice) {
       body.appendChild(lineRow);
     });
     const foot = document.createElement("tfoot");
-    [["Subtotal", detail.sub], ["Tax", detail.tax_amount], ...(Number(detail.delivery_charge || 0) > 0 ? [["Delivery", detail.delivery_charge]] : []), ["Total", detail.amount]].forEach(([label, value], index) => {
+    [[t("total.subtotal"), detail.sub], [t("total.tax"), detail.tax_amount], ...(Number(detail.delivery_charge || 0) > 0 ? [[t("checkout.delivery"), detail.delivery_charge]] : []), [t("ui.total"), detail.amount]].forEach(([label, value], index) => {
       const summaryRow = document.createElement("tr");
       summaryRow.className = "table-row invoice-line-summary";
-      if (label === "Total") summaryRow.classList.add("invoice-line-summary-total");
+      if (label === t("ui.total")) summaryRow.classList.add("invoice-line-summary-total");
       const spacer = document.createElement("td");
       spacer.className = "table-cell";
       spacer.colSpan = 3;
@@ -999,7 +1010,7 @@ function renderInvoices() {
     return;
   }
   invoiceTableBody.replaceChildren(...invoices.flatMap((invoice) => expandedInvoiceId === invoice.id ? [invoiceRow(invoice), invoiceDetailsRow(invoice)] : [invoiceRow(invoice)]));
-  if (!invoices.length && !invoiceLoading && !invoiceLoadError) invoiceReportStatus.textContent = "No invoices found.";
+  if (!invoices.length && !invoiceLoading && !invoiceLoadError) invoiceReportStatus.textContent = t("ui.noInvoices");
 }
 
 function invoiceSkeletonRows() {
@@ -1092,7 +1103,7 @@ async function loadInvoices({ reset = false } = {}) {
   invoiceLoadError = false;
   if (reset) setScreenLoading(invoiceReport, true);
   renderInvoices();
-  invoiceReportStatus.textContent = invoices.length ? "Loading more invoices…" : "Loading invoices…";
+  invoiceReportStatus.textContent = invoices.length ? t("ui.loadingMoreInvoices") : t("ui.loadingInvoices");
   try {
     const page = await salesReport(storeId, invoiceCursor, invoiceSearch.value.trim(), invoiceDateFrom.value, invoiceDateTo.value, invoiceStatusFilter);
     invoices = invoices.concat(page.entries);
@@ -1102,11 +1113,11 @@ async function loadInvoices({ reset = false } = {}) {
     updateInvoiceSummary(page.summary);
     renderInvoices();
     if (reset) invoicesStale = false;
-    invoiceReportStatus.textContent = invoiceHasMore ? "Scroll for more invoices" : `${invoices.length} invoices loaded`;
+    invoiceReportStatus.textContent = invoiceHasMore ? t("product.scroll") : t("ui.invoicesLoaded", { count: invoices.length });
   } catch (error) {
     console.error(error);
     invoiceLoadError = true;
-    invoiceReportStatus.textContent = "Invoices could not be loaded. Check the server connection.";
+    invoiceReportStatus.textContent = t("ui.invoicesLoadError");
   } finally { invoiceLoading = false; renderInvoices(); if (reset) setScreenLoading(invoiceReport, false); }
 }
 
@@ -1209,7 +1220,7 @@ function renderCompanySettings() {
   if (!(companySettingsData.sequence_sets || []).length && editingCompanySetting?.kind !== "sequence") { const message = document.createElement("p"); message.className = "field-description company-settings-empty"; message.textContent = "No sequences configured. Add CF, VF, and DV to complete sales."; sequenceSetsContent.appendChild(message); }
 }
 async function loadCompanySettings() {
-  companySettingsStatus.textContent = "Loading company settings…";
+  companySettingsStatus.textContent = t("ui.loadingCompanySettings");
   try { companySettingsData = await companySettings(); renderCompanySettings(); renderSequenceOptions(); companySettingsStatus.textContent = ""; }
   catch (error) { console.error(error); companySettingsStatus.textContent = error.message || "Company settings could not be loaded."; }
 }
@@ -1249,7 +1260,7 @@ function renderInventory() {
       else if (index === 1) {
         const isLoading = loadingTraceProductId === entry.product_id;
         const isExpanded = expandedInventoryDetail?.productId === entry.product_id && expandedInventoryDetail.type === "trace" && !isLoading;
-        cell.innerHTML = `<button class="btn inventory-sku-trace" type="button" data-variant="link" data-product-traces="${entry.product_id}" aria-expanded="${String(isExpanded)}" title="Show product history"${isLoading ? ' aria-busy="true"' : ""}>${isLoading ? '<span class="inventory-quantity-spinner" aria-hidden="true"></span>' : value}</button>`;
+        cell.innerHTML = `<button class="btn inventory-sku-trace" type="button" data-variant="link" data-product-traces="${entry.product_id}" aria-expanded="${String(isExpanded)}" title="${t("ui.showProductHistory")}"${isLoading ? ' aria-busy="true"' : ""}>${isLoading ? '<span class="inventory-quantity-spinner" aria-hidden="true"></span>' : value}</button>`;
       } else if (index === 5) {
         const isLoading = loadingStoreQuantitiesProductId === entry.product_id;
         const isExpanded = expandedInventoryDetail?.productId === entry.product_id && expandedInventoryDetail.type === "quantity" && !isLoading;
@@ -1292,7 +1303,7 @@ function renderInventory() {
 function traceHistoryMarkup(traces) {
   if (!traces.length) return '<p class="field-description">No trace history yet.</p>';
   const title = { sale: "Sale", inventory_adjustment: "Adjustment", purchase: "Purchase", store_transfer_out: "Transfer out", store_transfer_in: "Transfer in" };
-  return `<div class="inventory-trace-wrap"><table class="table inventory-trace-table"><thead><tr class="table-row"><th class="table-head">Date / time</th><th class="table-head">Event</th><th class="table-head">Store</th><th class="table-head">Change</th><th class="table-head">Before → after</th><th class="table-head">Operator</th><th class="table-head">Context</th></tr></thead><tbody>${traces.map((trace) => {
+  return `<div class="inventory-trace-wrap"><table class="table inventory-trace-table"><thead><tr class="table-row"><th class="table-head">${t("ui.date")}</th><th class="table-head">${t("ui.action")}</th><th class="table-head">${t("ui.store")}</th><th class="table-head">${t("checkout.change")}</th><th class="table-head">${t("ui.previousQuantity")} → ${t("ui.currentQuantity")}</th><th class="table-head">${t("ui.updatedBy")}</th><th class="table-head">${t("ui.customer")}</th></tr></thead><tbody>${traces.map((trace) => {
     const sign = Number(trace.quantity_change) > 0 ? "+" : "";
     const provider = trace.metadata?.provider_name || trace.metadata?.["provider_name"];
     const context = [trace.customer_name ? `Customer: ${trace.customer_name}` : "", provider ? `Provider: ${provider}` : "", trace.destination_store_name ? `To: ${trace.destination_store_name}` : "", trace.source_store_name && trace.event_type === "store_transfer_in" ? `From: ${trace.source_store_name}` : "", trace.reference_type ? `${trace.reference_type.replaceAll("_", " ")} #${trace.reference_id}` : ""].filter(Boolean).join(" · ") || "—";
@@ -1311,7 +1322,7 @@ function inventoryMetric(title, value, description, tone = "", filter = "") {
     body.dataset.inventoryFilter = filter;
     body.dataset.variant = inventoryFilter === filter ? "secondary" : "ghost";
     body.setAttribute("aria-pressed", String(inventoryFilter === filter));
-    body.setAttribute("aria-label", `Filter inventory by ${title.toLowerCase()}`);
+    body.setAttribute("aria-label", t("inventory.filter", { title: title.toLowerCase() }));
   }
   const header = document.createElement("div"); header.className = "card-header";
   const label = document.createElement("p"); label.className = "card-title"; label.textContent = title;
@@ -1325,11 +1336,11 @@ function inventoryValuationMetric(summary) {
   const card = document.createElement("article");
   card.className = "card inventory-summary-card inventory-summary-valuation";
   const header = document.createElement("div"); header.className = "card-header";
-  const label = document.createElement("p"); label.className = "card-title"; label.textContent = "Inventory valuation";
+  const label = document.createElement("p"); label.className = "card-title"; label.textContent = t("inventory.valuation");
   const content = document.createElement("div"); content.className = "card-content inventory-valuation-content";
   const company = document.createElement("div"); company.className = "inventory-valuation-company";
   const total = document.createElement("p"); total.className = "inventory-kpi-value numeric"; total.textContent = currency(summary.company_inventory_valuation);
-  const caption = document.createElement("p"); caption.className = "inventory-valuation-caption numeric"; caption.textContent = "Company total";
+  const caption = document.createElement("p"); caption.className = "inventory-valuation-caption numeric"; caption.textContent = t("inventory.companyTotal");
   const breakdown = document.createElement("div"); breakdown.className = "inventory-valuation-breakdown";
   (Array.isArray(summary.inventory_valuation_by_store) ? summary.inventory_valuation_by_store : []).forEach((store) => {
     const item = document.createElement("div"); item.className = "inventory-valuation-store";
@@ -1343,22 +1354,22 @@ function inventoryValuationMetric(summary) {
 function renderInventorySummary(summary) {
   if (!summary) return;
   const bestProducts = compactList(summary.best_products, (item) => `${item.product_name}: ${currency(item.net_revenue)}`);
-  const slowestProducts = compactList(summary.slowest_products, (item) => `${item.product_name}: ${Number(item.net_units).toFixed(0)} units`);
-  const salesMix = compactList(summary.sales_mix, (item) => `${item.sale_type || "Sale"}/${item.login || "—"}: ${currency(item.net_sales)}`);
+  const slowestProducts = compactList(summary.slowest_products, (item) => `${item.product_name}: ${t("inventory.units", { count: Number(item.net_units).toFixed(0) })}`, t("inventory.noActivity"));
+  const salesMix = compactList(summary.sales_mix, (item) => `${item.sale_type || t("ui.sales")}/${item.login || "—"}: ${currency(item.net_sales)}`, t("inventory.noActivity"));
   const paymentMix = compactList(summary.payment_method_mix, (item) => `${item.type}: ${currency(item.amount)}`);
   const cards = [
     inventoryValuationMetric(summary),
-    inventoryMetric("Negative-stock exposure", `${Number(summary.negative_stock_sku_count || 0)} SKUs`, `${Number(summary.negative_stock_units || 0)} units · ${currency(summary.negative_stock_value)}`, "inventory-summary-negative inventory-summary-compact", "negative"),
-    inventoryMetric("Uncosted inventory", `${Number(summary.uncosted_inventory_sku_count || 0)} SKUs`, `${Number(summary.uncosted_inventory_units || 0)} positive units with missing/zero cost`, "inventory-summary-warning inventory-summary-compact", "uncosted"),
-    inventoryMetric("Stockout rate", percentage(summary.zero_stock_rate), `${Number(summary.zero_stock_sku_count || 0)} of ${Number(summary.inventoried_sku_count || 0)} inventoried SKUs`, "inventory-summary-warning"),
-    inventoryMetric("Net sales · 30 days", currency(summary.net_sales), `${Number(summary.sale_transaction_count || 0)} completed sale transactions`),
-    inventoryMetric("Sales mix · 30 days", currency(summary.net_sales), salesMix),
-    inventoryMetric("Average order", currency(summary.average_order_value), `${Number(summary.units_per_order || 0).toFixed(1)} net units per sale`),
-    inventoryMetric("Best products · 30 days", bestProducts, `Slowest: ${slowestProducts}`),
-    inventoryMetric("Discount rate · 30 days", percentage(summary.discount_rate), `${currency(summary.net_discount)} net discounts`),
-    inventoryMetric("Payment-method mix · 30 days", paymentMix, "Recorded payments on non-return sales"),
-    inventoryMetric("Customer retention · 30 days", `${Number(summary.returning_customer_count || 0)} returning`, `${Number(summary.purchasing_customer_count || 0)} buyers · ${Number(summary.average_purchase_frequency || 0).toFixed(1)} purchases/customer · ${currency(summary.average_customer_value)} avg value`),
-    inventoryMetric("Purchase / transfer flow", `${Number(summary.open_purchase_order_count || 0)} purchase · ${Number(summary.open_transfer_count || 0)} transfer open`, `${Number(summary.closed_purchase_order_count || 0)} purchase / ${Number(summary.closed_transfer_count || 0)} transfer closed · ${percentage(summary.receiving_completion_rate)} received · ${Number(summary.average_closed_order_hours || 0).toFixed(1)}h avg`)
+    inventoryMetric(t("inventory.negativeStock"), t("inventory.skus", { count: Number(summary.negative_stock_sku_count || 0) }), `${t("inventory.units", { count: Number(summary.negative_stock_units || 0) })} · ${currency(summary.negative_stock_value)}`, "inventory-summary-negative inventory-summary-compact", "negative"),
+    inventoryMetric(t("inventory.uncosted"), t("inventory.skus", { count: Number(summary.uncosted_inventory_sku_count || 0) }), `${t("inventory.units", { count: Number(summary.uncosted_inventory_units || 0) })} · ${t("ui.cost")}`, "inventory-summary-warning inventory-summary-compact", "uncosted"),
+    inventoryMetric(t("inventory.stockout"), percentage(summary.zero_stock_rate), `${Number(summary.zero_stock_sku_count || 0)} / ${t("inventory.skus", { count: Number(summary.inventoried_sku_count || 0) })}`, "inventory-summary-warning"),
+    inventoryMetric(t("inventory.netSales"), currency(summary.net_sales), `${Number(summary.sale_transaction_count || 0)} ${t("ui.sales").toLowerCase()}`),
+    inventoryMetric(t("inventory.salesMix"), currency(summary.net_sales), salesMix),
+    inventoryMetric(t("inventory.averageOrder"), currency(summary.average_order_value), `${Number(summary.units_per_order || 0).toFixed(1)} ${t("inventory.units", { count: "" }).trim()}`),
+    inventoryMetric(t("inventory.bestProducts"), bestProducts, slowestProducts),
+    inventoryMetric(t("inventory.discountRate"), percentage(summary.discount_rate), `${currency(summary.net_discount)} ${t("total.discount").toLowerCase()}`),
+    inventoryMetric(t("inventory.paymentMix"), paymentMix, t("invoice.recordedPayments")),
+    inventoryMetric(t("inventory.retention"), `${Number(summary.returning_customer_count || 0)} ${t("ui.customers").toLowerCase()}`, `${Number(summary.purchasing_customer_count || 0)} ${t("ui.customers").toLowerCase()} · ${currency(summary.average_customer_value)}`),
+    inventoryMetric(t("inventory.flow"), `${Number(summary.open_purchase_order_count || 0)} ${t("ui.purchaseOrders").toLowerCase()}`, `${Number(summary.closed_purchase_order_count || 0)} ${t("order.closed").toLowerCase()} · ${percentage(summary.receiving_completion_rate)}`)
   ];
   inventorySummaryGrid.replaceChildren(...cards);
 }
@@ -1376,7 +1387,7 @@ function renderInventoryWithoutMoving() {
 }
 async function loadInventory(focusProductId = null) {
   setScreenLoading(inventoryScreen, true);
-  inventoryStatus.textContent = "Loading inventory…";
+  inventoryStatus.textContent = t("ui.loadingInventory");
   inventoryTableBody.replaceChildren(...inventorySkeletonRows());
   const storeId = document.querySelector("#inventory-store").value;
   try {
@@ -1395,7 +1406,7 @@ async function loadInventory(focusProductId = null) {
   } catch (error) {
     console.error(error);
     renderInventory();
-    inventoryStatus.textContent = "Inventory could not be loaded.";
+    inventoryStatus.textContent = t("inventory.loadError");
   } finally {
     setScreenLoading(inventoryScreen, false);
   }
@@ -1421,9 +1432,9 @@ function lineCostDifference(line, order) { return orderIsClosed(order) ? lineCos
 function orderCost(order) { return order.lines.reduce((total, line) => total + lineCost(line, order), 0); }
 function orderCostDifference(order) { return order.lines.reduce((total, line) => total + lineCostDifference(line, order), 0); }
 function hasCountingDiscrepancy(order) { return orderIsClosed(order) && order.lines.some((line) => Number(line.quantity_observed ?? line.quantity) !== Number(line.quantity)); }
-function renderOrderStatusSummary() { ordersSummary.replaceChildren(...Object.entries(purchaseOrderStatusCounts).map(([status, count]) => { const card = document.createElement("article"); card.className = "card inventory-summary-card"; const button = document.createElement("button"); button.className = "btn inventory-kpi"; button.type = "button"; button.dataset.orderStatus = status; button.dataset.variant = purchaseOrderStatusFilter === status ? "secondary" : "ghost"; button.setAttribute("aria-pressed", String(purchaseOrderStatusFilter === status)); button.setAttribute("aria-label", `${purchaseOrderStatusFilter === status ? "Clear" : "Filter"} ${status} purchase orders`); button.innerHTML = `<div class="card-header"><p class="card-title">${status}</p></div><div class="card-content"><p class="inventory-kpi-value numeric">${count}</p><p class="inventory-kpi-detail">Purchase orders</p></div>`; button.addEventListener("click", () => { purchaseOrderStatusFilter = purchaseOrderStatusFilter === status ? "" : status; loadOrders(); }); card.appendChild(button); return card; })); }
-function renderOrders() { const entries = sortOperationEntries(purchaseOrders, purchaseOrderSort); const labels = ["Order", "Source", "Destination", "Order cost", "Cost difference", "Status", "Date", "Created by"]; ordersTableBody.replaceChildren(...entries.map((order) => { const closed = orderIsClosed(order); const discrepancy = hasCountingDiscrepancy(order); const row = document.createElement("tr"); row.className = `table-row purchase-order-row purchase-order-${closed ? "received" : "open"}`; const values = [`#${order.id}`, order.from_origin_name || "External source", order.to_store_name || "—", currency(orderCost(order)), currency(orderCostDifference(order)), closed ? "Closed" : "Open", order.date_opened, order.user_requester || "—"]; values.forEach((value, index) => { const cell = document.createElement("td"); cell.className = `table-cell${[3, 4].includes(index) ? " numeric" : ""}`; cell.dataset.label = labels[index]; if (index === 6) appendDateTime(cell, value); else cell.textContent = value; if (index === 5 && discrepancy) { const warning = document.createElement("span"); warning.className = "counting-warning"; warning.setAttribute("role", "img"); warning.setAttribute("aria-label", "Counting discrepancy"); warning.title = "Observed quantities differ from requested quantities"; warning.textContent = "⚠"; cell.append(" ", warning); } row.appendChild(cell); }); const action = document.createElement("td"); action.className = "table-cell"; action.dataset.label = "Actions"; action.innerHTML = `<button class="btn" type="button" data-variant="outline" data-size="sm" data-order-detail="${order.id}">View</button>`; row.appendChild(action); return row; })); ordersStatus.textContent = entries.length ? `${entries.length} orders` : "No purchase orders found."; }
-async function loadOrders() { ordersStatus.textContent = "Loading purchase orders…"; try { const [orders, sources] = await Promise.all([productOrders(storeId, purchaseOrderStatusFilter), purchaseSources(storeId)]); purchaseOrders = orders.entries.map((order) => ({ ...order, last_updated: order.date_closed || order.date_opened })); purchaseOrderStatusCounts = orders.status_counts || {}; purchaseOrderSources = sources.entries; renderOrderStatusSummary(); renderOrders(); } catch { ordersStatus.textContent = "Purchase orders could not be loaded."; } }
+function renderOrderStatusSummary() { ordersSummary.replaceChildren(...Object.entries(purchaseOrderStatusCounts).map(([status, count]) => { const card = document.createElement("article"); card.className = "card inventory-summary-card"; const button = document.createElement("button"); button.className = "btn inventory-kpi"; button.type = "button"; button.dataset.orderStatus = status; button.dataset.variant = purchaseOrderStatusFilter === status ? "secondary" : "ghost"; button.setAttribute("aria-pressed", String(purchaseOrderStatusFilter === status)); button.setAttribute("aria-label", `${purchaseOrderStatusFilter === status ? t("ui.clear") : t("ui.apply")} ${status} ${t("ui.purchaseOrders").toLowerCase()}`); button.innerHTML = `<div class="card-header"><p class="card-title">${status}</p></div><div class="card-content"><p class="inventory-kpi-value numeric">${count}</p><p class="inventory-kpi-detail">${t("ui.purchaseOrders")}</p></div>`; button.addEventListener("click", () => { purchaseOrderStatusFilter = purchaseOrderStatusFilter === status ? "" : status; loadOrders(); }); card.appendChild(button); return card; })); }
+function renderOrders() { const entries = sortOperationEntries(purchaseOrders, purchaseOrderSort); const labels = [t("ui.purchaseOrder"), t("ui.source"), t("ui.destinationStore"), t("ui.orderCost"), t("ui.costDifference"), t("ui.status"), t("ui.date"), t("ui.createdBy")]; ordersTableBody.replaceChildren(...entries.map((order) => { const closed = orderIsClosed(order); const discrepancy = hasCountingDiscrepancy(order); const row = document.createElement("tr"); row.className = `table-row purchase-order-row purchase-order-${closed ? "received" : "open"}`; const values = [`#${order.id}`, order.from_origin_name || "—", order.to_store_name || "—", currency(orderCost(order)), currency(orderCostDifference(order)), closed ? t("order.closed") : t("order.open"), order.date_opened, order.user_requester || "—"]; values.forEach((value, index) => { const cell = document.createElement("td"); cell.className = `table-cell${[3, 4].includes(index) ? " numeric" : ""}`; cell.dataset.label = labels[index]; if (index === 6) appendDateTime(cell, value); else cell.textContent = value; if (index === 5 && discrepancy) { const warning = document.createElement("span"); warning.className = "counting-warning"; warning.setAttribute("role", "img"); warning.setAttribute("aria-label", t("inventory.countingDiscrepancy")); warning.title = t("inventory.observedDiffers"); warning.textContent = "⚠"; cell.append(" ", warning); } row.appendChild(cell); }); const action = document.createElement("td"); action.className = "table-cell"; action.dataset.label = t("ui.actions"); action.innerHTML = `<button class="btn" type="button" data-variant="outline" data-size="sm" data-order-detail="${order.id}">${t("ui.view")}</button>`; row.appendChild(action); return row; })); ordersStatus.textContent = entries.length ? `${entries.length} ${t("ui.purchaseOrders").toLowerCase()}` : t("ui.purchaseOrdersLoadError"); }
+async function loadOrders() { ordersStatus.textContent = t("ui.loadingPurchaseOrders"); try { const [orders, sources] = await Promise.all([productOrders(storeId, purchaseOrderStatusFilter), purchaseSources(storeId)]); purchaseOrders = orders.entries.map((order) => ({ ...order, last_updated: order.date_closed || order.date_opened })); purchaseOrderStatusCounts = orders.status_counts || {}; purchaseOrderSources = sources.entries; renderOrderStatusSummary(); renderOrders(); } catch { ordersStatus.textContent = t("ui.purchaseOrdersLoadError"); } }
 function showOrderDetail(order) {
   document.querySelector("#purchase-order-title").dataset.storeTitleBase = "Purchase order";
   updateStoreTitles();
@@ -1434,18 +1445,18 @@ function showOrderDetail(order) {
   const isOpen = order.status === "opened";
   const discrepancy = hasCountingDiscrepancy(order);
   const detail = document.querySelector("#order-detail");
-  detail.innerHTML = `<div class="card-header"><div><p class="eyebrow">Order #${order.id}</p><h3 class="card-title">${["received", "closed"].includes(order.status) ? "Closed" : "Open"}${discrepancy ? ' <span class="counting-warning" role="img" aria-label="Counting discrepancy" title="Observed quantities differ from requested quantities">⚠</span>' : ""}</h3><p class="field-description">${order.from_origin_name || "External source"} → ${order.to_store_name || "—"} · Created by ${order.user_requester || "—"} · ${formatOperationDate(order.date_opened)}</p></div><div class="purchase-order-actions"><button class="btn" type="button" data-variant="outline" data-size="sm" data-order-navigation="previous" ${position <= 0 ? "disabled" : ""}>Previous</button><button class="btn" type="button" data-variant="outline" data-size="sm" data-order-navigation="next" ${position === purchaseOrders.length - 1 ? "disabled" : ""}>Next</button>${isOpen ? '<button id="count-order" class="btn" type="button" data-variant="default">Start Counting</button>' : ""}</div></div><div class="card-content"><div class="table-container purchase-order-lines-scroll"><table class="table purchase-order-lines-table"><caption class="table-caption">Products in this purchase order.</caption><thead><tr class="table-row"><th class="table-head">Product</th><th class="table-head">SKU</th><th class="table-head">Current quantity</th><th class="table-head">Requested</th><th class="table-head">Observed</th><th class="table-head">Item cost</th><th class="table-head">Cost difference</th><th class="table-head">Status</th></tr></thead><tbody>${order.lines.map((line) => `<tr class="table-row"><td class="table-cell"><button class="btn" type="button" data-variant="link" data-order-product-edit="${line.product_id}">${line.product_name}</button></td><td class="table-cell">${line.product_code || "—"}</td><td class="table-cell numeric">${line.current_quantity ?? 0}</td><td class="table-cell numeric">${line.quantity}</td><td class="table-cell observed-cell"><input class="input numeric observed-input" type="number" inputmode="numeric" min="0" value="${line.quantity_observed ?? line.quantity}" aria-label="Observed quantity for ${line.product_name}" data-observed-input data-line-id="${line.id}" disabled></td><td class="table-cell numeric">${currency(lineCost(line, order))}</td><td class="table-cell numeric">${currency(lineCostDifference(line, order))}</td><td class="table-cell">${line.status}</td></tr>`).join("")}</tbody><tfoot><tr class="purchase-order-total-row"><td colspan="5"></td><td class="numeric purchase-order-total-amount">${currency(orderCost(order))}</td><td class="numeric purchase-order-difference-amount">${currency(orderCostDifference(order))}</td><td></td></tr></tfoot></table></div></div>`;
+  detail.innerHTML = `<div class="card-header"><div><p class="eyebrow">${t("order.number", { id: order.id })}</p><h3 class="card-title">${["received", "closed"].includes(order.status) ? t("order.closed") : t("order.open")}${discrepancy ? ` <span class="counting-warning" role="img" aria-label="${t("inventory.countingDiscrepancy")}" title="${t("inventory.observedDiffers")}">⚠</span>` : ""}</h3><p class="field-description">${order.from_origin_name || t("order.externalSource")} → ${order.to_store_name || "—"} · ${t("order.createdBy")} ${order.user_requester || "—"} · ${formatOperationDate(order.date_opened)}</p></div><div class="purchase-order-actions"><button class="btn" type="button" data-variant="outline" data-size="sm" data-order-navigation="previous" ${position <= 0 ? "disabled" : ""}>${t("order.previous")}</button><button class="btn" type="button" data-variant="outline" data-size="sm" data-order-navigation="next" ${position === purchaseOrders.length - 1 ? "disabled" : ""}>${t("order.next")}</button>${isOpen ? `<button id="count-order" class="btn" type="button" data-variant="default">${t("order.startCounting")}</button>` : ""}</div></div><div class="card-content"><div class="table-container purchase-order-lines-scroll"><table class="table purchase-order-lines-table"><caption class="table-caption">${t("order.products")}</caption><thead><tr class="table-row"><th class="table-head">${t("ui.product")}</th><th class="table-head">${t("ui.sku")}</th><th class="table-head">${t("ui.currentQuantity")}</th><th class="table-head">${t("order.requested")}</th><th class="table-head">${t("order.observed")}</th><th class="table-head">${t("order.itemCost")}</th><th class="table-head">${t("ui.costDifference")}</th><th class="table-head">${t("ui.status")}</th></tr></thead><tbody>${order.lines.map((line) => `<tr class="table-row"><td class="table-cell"><button class="btn" type="button" data-variant="link" data-order-product-edit="${line.product_id}">${line.product_name}</button></td><td class="table-cell">${line.product_code || "—"}</td><td class="table-cell numeric">${line.current_quantity ?? 0}</td><td class="table-cell numeric">${line.quantity}</td><td class="table-cell observed-cell"><input class="input numeric observed-input" type="number" inputmode="numeric" min="0" value="${line.quantity_observed ?? line.quantity}" aria-label="${t("order.observedQuantity", { name: line.product_name })}" data-observed-input data-line-id="${line.id}" disabled></td><td class="table-cell numeric">${currency(lineCost(line, order))}</td><td class="table-cell numeric">${currency(lineCostDifference(line, order))}</td><td class="table-cell">${line.status}</td></tr>`).join("")}</tbody><tfoot><tr class="purchase-order-total-row"><td colspan="5"></td><td class="numeric purchase-order-total-amount">${currency(orderCost(order))}</td><td class="numeric purchase-order-difference-amount">${currency(orderCostDifference(order))}</td><td></td></tr></tfoot></table></div></div>`;
   const observedInputs = [...detail.querySelectorAll("[data-observed-input]")];
   const countButton = detail.querySelector("#count-order");
   let counting = false;
   const focusObserved = (index) => { const input = observedInputs[Math.max(0, Math.min(index, observedInputs.length - 1))]; input?.scrollIntoView({ block: "center", behavior: "smooth" }); input?.focus({ preventScroll: true }); };
   observedInputs.forEach((input, index) => input.addEventListener("keydown", (event) => { if (!counting || !["Enter", "ArrowDown", "ArrowUp"].includes(event.key)) return; event.preventDefault(); focusObserved(index + (event.key === "ArrowUp" ? -1 : 1)); }));
   countButton?.addEventListener("click", async () => {
-    if (!counting) { counting = true; observedInputs.forEach((input) => { input.disabled = false; }); countButton.textContent = "Process Order"; focusObserved(0); return; }
+    if (!counting) { counting = true; observedInputs.forEach((input) => { input.disabled = false; }); countButton.textContent = t("order.process"); focusObserved(0); return; }
     const invalidInput = observedInputs.find((input) => !input.checkValidity());
     if (invalidInput) { invalidInput.focus(); invalidInput.reportValidity(); return; }
     countButton.disabled = true;
-    countButton.textContent = "Processing…";
+    countButton.textContent = t("order.processing");
     try {
       const processed = await receiveProductOrder(order.id, { lines: observedInputs.map((input) => ({ id: Number(input.dataset.lineId), quantity_observed: Number(input.value) })) });
       purchaseOrders = purchaseOrders.map((item) => item.id === processed.id ? processed : item);
@@ -1453,20 +1464,20 @@ function showOrderDetail(order) {
       showOrderDetail(processed);
       loadInventory();
       refreshInventory(processed.lines.map((line) => line.product_id)).catch(console.error);
-      window.toast?.success({ title: "Order processed", description: "Inventory quantities were refreshed." });
+      window.toast?.success({ title: t("order.processed"), description: t("ui.inventory") });
     } catch (error) {
       countButton.disabled = false;
-      countButton.textContent = "Process Order";
-      window.toast?.error?.({ title: "Order could not be processed", description: error.message });
+      countButton.textContent = t("order.process");
+      window.toast?.error?.({ title: t("order.processError"), description: error.message });
     }
   });
   detail.querySelectorAll("[data-order-navigation]").forEach((button) => button.addEventListener("click", () => showOrderDetail(purchaseOrders[position + (button.dataset.orderNavigation === "previous" ? -1 : 1)])));
   detail.querySelectorAll("[data-order-product-edit]").forEach((button) => button.addEventListener("click", () => openProductEditor(Number(button.dataset.orderProductEdit), () => loadOrders().then(() => showOrderDetail(purchaseOrders.find((item) => item.id === order.id))))));
   requestAnimationFrame(() => document.querySelector("#purchase-order-title").focus());
 }
-function openPurchaseOrderCreate(mode = "purchase") { orderCreateMode = mode; ordersScreen.hidden = true; purchaseOrderScreen.hidden = false; const detail = document.querySelector("#order-detail"); const moving = mode === "move"; const sources = moving ? availableStores.map((store) => `<option value="${store.id}"${Number(store.id) === Number(storeId) ? " selected" : ""}>${store.name}</option>`).join("") : purchaseOrderSources.map((source) => `<option value="${source.id}">${source.name}</option>`).join(""); const destinations = availableStores.map((store) => `<option value="${store.id}"${Number(store.id) === Number(storeId) ? " selected" : ""}>${store.name}</option>`).join(""); document.querySelector("#purchase-order-title").textContent = moving ? "Move products" : "Purchase order"; detail.innerHTML = `<div class="card-header"><div><p class="eyebrow">Operations</p><h3 class="card-title">${moving ? "Move products" : "Create purchase order"}</h3><p class="field-description">${moving ? "Move products from an origin store to a destination store." : "Add products and confirm the requested quantities."}</p></div></div><form id="purchase-order-create-form" class="form card-content"><div class="order-form-grid"><div class="form-field"><label class="label" for="purchase-order-source">${moving ? "Origin Store" : "Source / provider"}</label><select id="purchase-order-source" class="select" required><option value="" disabled${moving ? "" : " selected"}>${moving ? "Select an origin store" : "Select a source"}</option>${sources}</select></div><div class="form-field"><label class="label" for="purchase-order-destination">Destination store</label><select id="purchase-order-destination" class="select" required>${destinations}</select></div></div><div id="order-lines" class="order-lines"></div><button id="add-order-line" class="btn" type="button" data-variant="outline" data-size="sm">Add product</button><p id="purchase-order-create-status" class="field-description" role="status"></p><div class="form-actions"><button class="btn" type="submit" data-variant="default">${moving ? "Move products" : "Create order"}</button></div></form>`; detail.querySelector("#add-order-line").addEventListener("click", () => addOrderLine(true)); const refreshLines = () => document.querySelectorAll("#order-lines .order-line[data-product-id]").forEach(refreshOrderLineInventoryQuantity); detail.querySelector("#purchase-order-source").addEventListener("change", refreshLines); if (!moving) detail.querySelector("#purchase-order-destination").addEventListener("change", refreshLines); detail.querySelector("form").addEventListener("submit", moving ? moveProducts : createPurchaseOrder); addOrderLine(true); requestAnimationFrame(() => document.querySelector("#purchase-order-source").focus()); }
-async function createPurchaseOrder(event) { event.preventDefault(); const lines = orderLinesPayload(); const status = document.querySelector("#purchase-order-create-status"); if (!lines.length) { status.textContent = "Add at least one product and quantity."; return; } status.textContent = "Creating…"; try { const order = await createProductOrder({ order_type: "purchase", from_origin_id: Number(document.querySelector("#purchase-order-source").value), to_store_id: Number(document.querySelector("#purchase-order-destination").value), lines }); purchaseOrders.unshift(order); renderOrders(); showOrderDetail(order); window.toast?.success({ title: "Purchase order created", description: `Order #${order.id} is ready to process.` }); } catch (error) { status.textContent = error.message; } }
-async function moveProducts(event) { event.preventDefault(); const status = document.querySelector("#purchase-order-create-status"); const originStoreId = Number(document.querySelector("#purchase-order-source").value), destinationStoreId = Number(document.querySelector("#purchase-order-destination").value), lines = orderLinesPayload(); if (originStoreId === destinationStoreId) { status.textContent = "Origin Store and Destination Store must be different."; return; } if (!lines.length) { status.textContent = "Add at least one product and quantity."; return; } status.textContent = "Moving products…"; try { const result = await moveInventory({ from_origin_id: originStoreId, to_store_id: destinationStoreId, lines }); const productIds = result.product_ids || lines.map((line) => line.product_id); if (Number(storeId) === originStoreId || Number(storeId) === destinationStoreId) { await refreshInventory(productIds); if (!inventoryScreen.hidden) await loadInventory(); } window.toast?.success({ title: "Products moved", description: "Inventory was updated for both stores." }); openOrders(); } catch (error) { status.textContent = error.message; } }
+function openPurchaseOrderCreate(mode = "purchase") { orderCreateMode = mode; ordersScreen.hidden = true; purchaseOrderScreen.hidden = false; const detail = document.querySelector("#order-detail"); const moving = mode === "move"; const sources = moving ? availableStores.map((store) => `<option value="${store.id}"${Number(store.id) === Number(storeId) ? " selected" : ""}>${store.name}</option>`).join("") : purchaseOrderSources.map((source) => `<option value="${source.id}">${source.name}</option>`).join(""); const destinations = availableStores.map((store) => `<option value="${store.id}"${Number(store.id) === Number(storeId) ? " selected" : ""}>${store.name}</option>`).join(""); document.querySelector("#purchase-order-title").textContent = moving ? t("order.moveProducts") : t("ui.purchaseOrder"); detail.innerHTML = `<div class="card-header"><div><p class="eyebrow">${t("ui.operations")}</p><h3 class="card-title">${moving ? t("order.moveProducts") : t("ui.createPurchaseOrder")}</h3><p class="field-description">${moving ? t("order.moveDescription") : t("order.createDescription")}</p></div></div><form id="purchase-order-create-form" class="form card-content"><div class="order-form-grid"><div class="form-field"><label class="label" for="purchase-order-source">${moving ? t("order.originStore") : t("order.sourceProvider")}</label><select id="purchase-order-source" class="select" required><option value="" disabled${moving ? "" : " selected"}>${moving ? t("order.selectOrigin") : t("order.selectSource")}</option>${sources}</select></div><div class="form-field"><label class="label" for="purchase-order-destination">${t("ui.destinationStore")}</label><select id="purchase-order-destination" class="select" required>${destinations}</select></div></div><div id="order-lines" class="order-lines"></div><button id="add-order-line" class="btn" type="button" data-variant="outline" data-size="sm">${t("product.add", { name: "" }).trim()}</button><p id="purchase-order-create-status" class="field-description" role="status"></p><div class="form-actions"><button class="btn" type="submit" data-variant="default">${moving ? t("order.moveProducts") : t("ui.createOrder")}</button></div></form>`; detail.querySelector("#add-order-line").addEventListener("click", () => addOrderLine(true)); const refreshLines = () => document.querySelectorAll("#order-lines .order-line[data-product-id]").forEach(refreshOrderLineInventoryQuantity); detail.querySelector("#purchase-order-source").addEventListener("change", refreshLines); if (!moving) detail.querySelector("#purchase-order-destination").addEventListener("change", refreshLines); detail.querySelector("form").addEventListener("submit", moving ? moveProducts : createPurchaseOrder); addOrderLine(true); requestAnimationFrame(() => document.querySelector("#purchase-order-source").focus()); }
+async function createPurchaseOrder(event) { event.preventDefault(); const lines = orderLinesPayload(); const status = document.querySelector("#purchase-order-create-status"); if (!lines.length) { status.textContent = t("ui.addProductQuantity"); return; } status.textContent = t("ui.creating"); try { const order = await createProductOrder({ order_type: "purchase", from_origin_id: Number(document.querySelector("#purchase-order-source").value), to_store_id: Number(document.querySelector("#purchase-order-destination").value), lines }); purchaseOrders.unshift(order); renderOrders(); showOrderDetail(order); window.toast?.success({ title: t("order.created"), description: t("order.ready", { id: order.id }) }); } catch (error) { status.textContent = error.message; } }
+async function moveProducts(event) { event.preventDefault(); const status = document.querySelector("#purchase-order-create-status"); const originStoreId = Number(document.querySelector("#purchase-order-source").value), destinationStoreId = Number(document.querySelector("#purchase-order-destination").value), lines = orderLinesPayload(); if (originStoreId === destinationStoreId) { status.textContent = t("order.differentStores"); return; } if (!lines.length) { status.textContent = t("ui.addProductQuantity"); return; } status.textContent = t("order.moving"); try { const result = await moveInventory({ from_origin_id: originStoreId, to_store_id: destinationStoreId, lines }); const productIds = result.product_ids || lines.map((line) => line.product_id); if (Number(storeId) === originStoreId || Number(storeId) === destinationStoreId) { await refreshInventory(productIds); if (!inventoryScreen.hidden) await loadInventory(); } window.toast?.success({ title: t("order.productsMoved"), description: t("order.inventoryUpdated") }); openOrders(); } catch (error) { status.textContent = error.message; } }
 function fillProductOptions(select) { const entries = inventoryEntries.length ? inventoryEntries : products.map((product) => ({ product_id: product.id, product_name: product.name })); select.replaceChildren(...entries.map((e) => new Option(e.product_name, e.product_id))); }
 function openProductDialog(onCreated = null) {
   pendingProductSelection = onCreated;
@@ -1481,7 +1492,7 @@ function openProductDialog(onCreated = null) {
   document.querySelector("#product-form button[type='submit']").disabled = false;
   document.querySelector("#product-image-help").textContent = "Drop an image here or choose a file (max 10 MB). It will be resized and stored as Base64.";
   setProductImagePreview(null);
-  document.querySelector("#product-dialog-title").textContent = "Create product";
+  document.querySelector("#product-dialog-title").textContent = t("ui.createProduct");
   document.querySelector("#product-form-status").textContent = "";
   loadProductPricingFields();
   dialog.showModal();
@@ -1491,11 +1502,11 @@ async function openProductEditor(productId, onSaved = null) {
   openProductDialog();
   pendingProductRefresh = onSaved;
   const status = document.querySelector("#product-form-status");
-  status.textContent = "Loading product…";
+  status.textContent = t("ui.loading");
   try {
     const item = await product(productId);
     editingProductId = item.id;
-    document.querySelector("#product-dialog-title").textContent = "Edit product";
+    document.querySelector("#product-dialog-title").textContent = t("ui.edit") + " " + t("ui.product").toLowerCase();
     document.querySelector("#product-name").value = item.name || "";
     document.querySelector("#product-code").value = item.code || "";
     document.querySelector("#product-cost").value = item.cost ?? 0;
@@ -1511,17 +1522,17 @@ function finishProductCreation() {
 }
 async function loadProductPricingFields(existingPrices = []) {
   const fields = document.querySelector("#product-pricing-fields");
-  fields.textContent = "Loading pricing lists…";
+  fields.textContent = t("ui.loadingPricing");
   try {
     const { entries } = await pricingLists();
     const prices = new Map(existingPrices.map((entry) => [Number(entry.pricing_id), entry.price]));
     fields.replaceChildren(...entries.map((list) => {
       const row = document.createElement("div"); row.className = "product-price-row"; row.dataset.pricingId = list.id;
       const label = document.createElement("label"); label.className = "label"; label.htmlFor = `product-price-${list.id}`; label.textContent = list.label || `Pricing list #${list.id}`;
-      const input = document.createElement("input"); input.id = label.htmlFor; input.className = "input"; input.type = "number"; input.min = "0"; input.step = "0.01"; input.placeholder = "Price"; input.value = prices.get(Number(list.id)) ?? ""; input.setAttribute("aria-label", `Price for ${label.textContent}`);
+      const input = document.createElement("input"); input.id = label.htmlFor; input.className = "input"; input.type = "number"; input.min = "0"; input.step = "0.01"; input.placeholder = t("ui.price"); input.value = prices.get(Number(list.id)) ?? ""; input.setAttribute("aria-label", t("ui.priceFor", { name: label.textContent }));
       row.append(label, input); return row;
     }));
-    if (!entries.length) fields.textContent = "No active pricing lists are available.";
+    if (!entries.length) fields.textContent = t("ui.noPricing");
   } catch (error) { fields.textContent = error.message; }
 }
 function openInventoryDialog(productId) { const dialog = document.querySelector("#inventory-dialog"), select = document.querySelector("#inventory-product"); fillProductOptions(select); select.value = productId || inventoryEntries[0]?.product_id || ""; updateInventoryCurrent(); dialog.showModal(); }
@@ -1543,7 +1554,7 @@ async function refreshOrderLineInventoryQuantity(line) {
     if (Number(line.dataset.productId) === productId && Number(orderCreateMode === "move" ? document.querySelector("#purchase-order-source")?.value : document.querySelector("#purchase-order-destination")?.value) === quantityStoreId) current.value = "—";
   }
 }
-function addOrderLine(empty = true) { const line = document.createElement("div"); line.className = "order-line"; const edit = document.createElement("button"); edit.className = "btn"; edit.type = "button"; edit.dataset.variant = "outline"; edit.dataset.size = "icon-sm"; edit.setAttribute("aria-label", "Edit selected product"); edit.disabled = true; edit.textContent = "✎"; const picker = document.createElement("div"); picker.className = "product-combobox"; const product = document.createElement("input"); product.className = "input"; product.type = "text"; product.placeholder = "Search products…"; product.autocomplete = "off"; product.spellcheck = false; product.setAttribute("autocorrect", "off"); product.setAttribute("autocapitalize", "off"); product.setAttribute("role", "combobox"); product.setAttribute("aria-label", "Product"); product.setAttribute("aria-autocomplete", "list"); product.setAttribute("aria-expanded", "false"); const create = document.createElement("button"); create.className = "btn"; create.type = "button"; create.dataset.variant = "outline"; create.dataset.size = "icon-sm"; create.setAttribute("aria-label", "Create product"); create.textContent = "+"; const results = document.createElement("ul"); results.className = "product-combobox-list"; results.id = `order-products-${crypto.randomUUID()}`; results.setAttribute("role", "listbox"); results.hidden = true; product.setAttribute("aria-controls", results.id); const current = document.createElement("input"); current.className = "input numeric"; current.type = "text"; current.readOnly = true; current.value = "—"; current.setAttribute("aria-label", "Current inventory quantity"); const qty = document.createElement("input"); qty.className = "input"; qty.type = "number"; qty.min = "1"; qty.required = !empty; qty.setAttribute("aria-label", "Requested quantity"); const remove = document.createElement("button"); remove.className = "btn"; remove.type = "button"; remove.dataset.variant = "ghost"; remove.dataset.size = "sm"; remove.textContent = "Remove";
+function addOrderLine(empty = true) { const line = document.createElement("div"); line.className = "order-line"; const edit = document.createElement("button"); edit.className = "btn"; edit.type = "button"; edit.dataset.variant = "outline"; edit.dataset.size = "icon-sm"; edit.setAttribute("aria-label", t("ui.editSelectedProduct")); edit.disabled = true; edit.textContent = "✎"; const picker = document.createElement("div"); picker.className = "product-combobox"; const product = document.createElement("input"); product.className = "input"; product.type = "text"; product.placeholder = t("ui.searchProducts"); product.autocomplete = "off"; product.spellcheck = false; product.setAttribute("autocorrect", "off"); product.setAttribute("autocapitalize", "off"); product.setAttribute("role", "combobox"); product.setAttribute("aria-label", t("ui.product")); product.setAttribute("aria-autocomplete", "list"); product.setAttribute("aria-expanded", "false"); const create = document.createElement("button"); create.className = "btn"; create.type = "button"; create.dataset.variant = "outline"; create.dataset.size = "icon-sm"; create.setAttribute("aria-label", t("ui.createProduct")); create.textContent = "+"; const results = document.createElement("ul"); results.className = "product-combobox-list"; results.id = `order-products-${crypto.randomUUID()}`; results.setAttribute("role", "listbox"); results.hidden = true; product.setAttribute("aria-controls", results.id); const current = document.createElement("input"); current.className = "input numeric"; current.type = "text"; current.readOnly = true; current.value = "—"; current.setAttribute("aria-label", t("ui.currentInventory")); const qty = document.createElement("input"); qty.className = "input"; qty.type = "number"; qty.min = "1"; qty.required = !empty; qty.setAttribute("aria-label", t("ui.requestedQuantity")); const remove = document.createElement("button"); remove.className = "btn"; remove.type = "button"; remove.dataset.variant = "ghost"; remove.dataset.size = "sm"; remove.textContent = t("ui.remove");
   let matches = [], activeIndex = -1, searchRequest = 0, candidates = orderLineProducts();
   const close = () => { searchRequest += 1; results.hidden = true; product.setAttribute("aria-expanded", "false"); activeIndex = -1; };
   const choose = async (entry) => {
@@ -1733,7 +1744,7 @@ function renderPrintTargets() {
   if (isDesktopTauri) { button.hidden = false; field.hidden = true; return; }
   button.hidden = !printTargets.length; field.hidden = printTargets.length < 2;
   select.replaceChildren(...printTargets.map((entry) => new Option(`${entry.label} · ${entry.printer}`, entry.session_id)));
-  document.querySelector("#receipt-print-description").textContent = printTargets.length ? "Choose an available desktop printer." : "No desktop printer is currently available.";
+  document.querySelector("#receipt-print-description").textContent = printTargets.length ? t("payment.choosePrinter") : t("ui.noDesktopPrinter");
 }
 function startPrintRelay() {
   printRelay?.close();
@@ -1747,7 +1758,7 @@ function startPrintRelay() {
       catch (error) { printRelay.reportResult({ request_id, status: "failed", message: error.message || "Printer failed." }); }
       finally { setTimeout(() => printedRelayRequests.delete(request_id), 300_000); printRelay.updatePrinter(); }
     },
-    onResult: (result) => { clearTimeout(pendingPrintTimeout); const status = document.querySelector("#receipt-print-status"); status.textContent = result.status === "success" ? "Receipt printed." : `Printing failed: ${result.message || "Desktop printer unavailable."}`; if (result.status === "success") setTimeout(() => { document.querySelector("#receipt-dialog").close(); completedReceipt = null; }, 700); },
+    onResult: (result) => { clearTimeout(pendingPrintTimeout); const status = document.querySelector("#receipt-print-status"); status.textContent = result.status === "success" ? t("ui.receiptPrinted") : t("payment.printFailed", { error: result.message || t("payment.desktopUnavailable") }); if (result.status === "success") setTimeout(() => { document.querySelector("#receipt-dialog").close(); completedReceipt = null; }, 700); },
   });
   printRelay.connect();
   if (isDesktopTauri) {
@@ -1970,7 +1981,7 @@ const productImageInput = document.querySelector("#product-image");
 const productImageDropzone = document.querySelector("#product-image-dropzone");
 const productImagePreview = document.createElement("img");
 productImagePreview.className = "product-image-preview";
-productImagePreview.alt = "Product image preview";
+productImagePreview.alt = t("ui.productImagePreview");
 productImagePreview.hidden = true;
 productImageDropzone.prepend(productImagePreview);
 function setProductImagePreview(source) {
@@ -1986,11 +1997,11 @@ const setProductImage = async (file) => {
     preparedProductImage = null;
     selectedProductImageFile = null;
     setProductImagePreview(null);
-    help.textContent = "Image must be 10 MB or smaller.";
+    help.textContent = t("ui.imageTooLarge");
     return;
   }
   selectedProductImageFile = file;
-  help.textContent = "Resizing image…";
+  help.textContent = t("ui.resizingImage");
   try {
     const source = new Image();
     const objectUrl = URL.createObjectURL(file);
@@ -2027,7 +2038,7 @@ window.__TAURI__?.webview?.getCurrentWebview?.().onDragDropEvent(async ({ payloa
   if (payload.type !== "drop" || !payload.paths?.[0]) return;
   delete productImageDropzone.dataset.dragging;
   const help = productImageDropzone.querySelector(".field-description");
-  help.textContent = "Reading dropped image…";
+  help.textContent = t("ui.readingImage");
   try {
     const bytes = await window.__TAURI__.core.invoke("read_dropped_image", { path: payload.paths[0] });
     const name = String(payload.paths[0]).split(/[\\/]/).pop() || "dropped-image";
@@ -2191,12 +2202,12 @@ invoiceTableBody.addEventListener("submit", async (event) => {
     invoices = invoices.map((entry) => entry.id === invoice.id ? refreshedInvoice : entry);
     invoiceDetails.set(invoice.id, refreshedInvoice);
     renderInvoicesPreservingScroll(refreshedInvoice.id);
-    invoiceReportStatus.textContent = "Payment recorded.";
-    window.toast?.success({ title: "Payment recorded", description: `${currency(amount)} applied to invoice ${refreshedInvoice.sequence || refreshedInvoice.id}.` });
+    invoiceReportStatus.textContent = t("ui.paymentRecorded");
+    window.toast?.success({ title: t("ui.paymentRecorded"), description: t("payment.applied", { amount: currency(amount), invoice: refreshedInvoice.sequence || refreshedInvoice.id }) });
   } catch (error) {
     console.error(error);
     invoiceReportStatus.textContent = error.message;
-    window.toast?.error({ title: "Could not record payment", description: error.message });
+    window.toast?.error({ title: t("payment.recordError"), description: error.message });
     submit.disabled = false;
   }
 });
@@ -2278,28 +2289,9 @@ function showCheckoutStage(stage) {
 }
 
 function positionCustomerPicker(stage) {
-  const picker = document.querySelector("#customer-picker");
-  const customerStage = checkoutFlow.querySelector('[data-stage="customer"] .checkout-stage-copy');
-  const details = document.querySelector("#customer-details");
   const paymentReadOnly = stage === "payment";
   orderTitle.disabled = paymentReadOnly;
   clearCustomerButton.disabled = paymentReadOnly;
-  if (stage === "payment") {
-    let slot = checkoutFlow.querySelector("#payment-customer-picker");
-    if (!slot) {
-      slot = document.createElement("div");
-      slot.id = "payment-customer-picker";
-      slot.className = "form-group payment-customer-picker";
-      checkoutFlow.querySelector('[data-stage="payment"] .checkout-stage-copy').prepend(slot);
-    }
-    picker.disabled = true;
-    picker.setAttribute("aria-disabled", "true");
-    slot.appendChild(picker);
-    return;
-  }
-  picker.disabled = false;
-  picker.removeAttribute("aria-disabled");
-  customerStage.insertBefore(picker, details);
 }
 
 async function openCheckout() {
@@ -2439,11 +2431,11 @@ document.querySelector("#complete-sale").addEventListener("click", async () => {
 document.querySelector("#skip-print").addEventListener("click", () => { document.querySelector("#receipt-dialog").close(); completedReceipt = null; });
 document.querySelector("#print-receipt").addEventListener("click", async () => {
   const button = document.querySelector("#print-receipt"), status = document.querySelector("#receipt-print-status");
-  button.disabled = true; status.textContent = "Printing…";
+  button.disabled = true; status.textContent = t("ui.printing");
   try {
-    if (isDesktopTauri) { await printer.print(completedReceipt); status.textContent = "Receipt printed."; setTimeout(() => document.querySelector("#receipt-dialog").close(), 500); completedReceipt = null; }
-    else { const target = document.querySelector("#print-target").value; if (!target) throw new Error("No desktop printer is available."); await printRelay.requestPrint(crypto.randomUUID(), target, completedReceipt); pendingPrintTimeout = setTimeout(() => { status.textContent = "Printing failed: the selected desktop printer became unavailable."; }, 20_000); }
-  } catch (error) { status.textContent = `Printing failed: ${error.message}`; }
+    if (isDesktopTauri) { await printer.print(completedReceipt); status.textContent = t("ui.receiptPrinted"); setTimeout(() => document.querySelector("#receipt-dialog").close(), 500); completedReceipt = null; }
+    else { const target = document.querySelector("#print-target").value; if (!target) throw new Error(t("ui.noDesktopPrinter")); await printRelay.requestPrint(crypto.randomUUID(), target, completedReceipt); pendingPrintTimeout = setTimeout(() => { status.textContent = t("ui.noDesktopPrinter"); }, 20_000); }
+  } catch (error) { status.textContent = t("payment.printFailed", { error: error.message }); }
   finally { button.disabled = false; }
 });
 
@@ -2496,18 +2488,18 @@ async function requestStoreSelection(result) {
   saveSession(result);
   try {
     const { entries } = await stores();
-    if (!entries.length) throw new Error("No store is available for this account.");
-    loginStoreSelect.replaceChildren(new Option("Select a store", "", true, true), ...entries.map((store) => new Option(store.name, store.id)));
+    if (!entries.length) throw new Error(t("ui.noStoreAccount"));
+    loginStoreSelect.replaceChildren(new Option(t("ui.selectStore"), "", true, true), ...entries.map((store) => new Option(store.name, store.id)));
     loginStoreSelect.disabled = false;
     loginStoreField.hidden = false;
     loginForm.elements.identifier.disabled = true;
     loginForm.elements.password.disabled = true;
-    document.querySelector("#login-submit").textContent = "Continue";
+    document.querySelector("#login-submit").textContent = t("ui.loginContinue");
     requestAnimationFrame(() => loginStoreSelect.focus());
   } catch (error) {
     clearSession();
     pendingLogin = null;
-    loginErrorMessage.textContent = error.message || "Stores could not be loaded.";
+    loginErrorMessage.textContent = error.message || t("ui.storesLoadError");
     loginError.hidden = false;
   }
 }
@@ -2592,12 +2584,12 @@ function renderUsers() {
   userScreen.replaceChildren();
   const header = document.createElement("header"); header.className = "topbar users-header"; header.innerHTML = `<div class="brand-lockup"><span class="brand-mark" aria-hidden="true">E</span><div><p class="eyebrow">${t("user.users")}</p><h1 id="users-title" class="h3" tabindex="-1">${t("user.users")}</h1></div></div>`;
   const actions = document.createElement("div"); actions.className = "users-header-actions";
-  const filter = document.createElement("input"); filter.className = "input users-search"; filter.type = "search"; filter.placeholder = "Search users"; filter.setAttribute("aria-label", "Search users"); filter.value = userFilter; filter.addEventListener("input", () => { userFilter = filter.value.trim().toLowerCase(); renderUsers(); }); actions.appendChild(filter);
+  const filter = document.createElement("input"); filter.className = "input users-search"; filter.type = "search"; filter.placeholder = t("ui.searchUsers"); filter.setAttribute("aria-label", t("ui.searchUsers")); filter.value = userFilter; filter.addEventListener("input", () => { userFilter = filter.value.trim().toLowerCase(); renderUsers(); }); actions.appendChild(filter);
   if (allowed("user.setting")) { const add = document.createElement("button"); add.className = "btn"; add.type = "button"; add.dataset.variant = "default"; add.textContent = t("user.create"); add.addEventListener("click", () => renderUserForm()); actions.appendChild(add); }
   header.appendChild(actions); userScreen.appendChild(header);
   const status = document.createElement("p"); status.className = "users-status"; status.setAttribute("role", "status"); userScreen.appendChild(status);
   const list = document.createElement("div"); list.className = "user-list";
-  managedUsers.filter((user) => `${userName(user)} ${user.username || ""} ${(user.scopes || []).join(" ")}`.toLowerCase().includes(userFilter)).forEach((user) => { const card = document.createElement("article"); card.className = "card user-card"; const body = document.createElement("div"); body.className = "card-content"; const heading = document.createElement("div"); heading.className = "user-card-heading"; const title = document.createElement("h3"); title.className = "card-title"; title.textContent = userName(user); const badge = document.createElement("span"); badge.className = `user-status ${Number(user.is_active) === 1 ? "is-active" : ""}`; badge.textContent = Number(user.is_active) === 1 ? "Active" : "Inactive"; heading.append(title, badge); const meta = document.createElement("dl"); meta.className = "user-meta"; [["Username", user.username], ["Type", "Employee"], ["Stores", storeNames(user.store_ids)], ["Permissions", user.scopes?.join(", ") || "No permissions assigned"]].forEach(([term, value]) => { const row = document.createElement("div"); const dt = document.createElement("dt"); dt.textContent = term; const dd = document.createElement("dd"); dd.textContent = value; row.append(dt, dd); meta.appendChild(row); }); body.append(heading, meta); const footer = document.createElement("div"); footer.className = "card-footer"; const view = document.createElement("button"); view.className = "btn"; view.type = "button"; view.dataset.variant = "outline"; view.textContent = "View"; view.addEventListener("click", () => renderUserForm(user, true)); footer.appendChild(view); if (allowed("user.setting")) { const edit = document.createElement("button"); edit.className = "btn"; edit.type = "button"; edit.dataset.variant = "default"; edit.textContent = "Edit"; edit.addEventListener("click", () => renderUserForm(user)); footer.appendChild(edit); if (Number(user.is_active) === 1) { const deactivate = document.createElement("button"); deactivate.className = "btn"; deactivate.type = "button"; deactivate.dataset.variant = "destructive"; deactivate.textContent = "Deactivate"; deactivate.addEventListener("click", async () => { if (!confirm(`Deactivate ${userName(user)}?`)) return; try { await deactivateUser(user.id); await loadUsers(); } catch (error) { status.textContent = error.message; } }); footer.appendChild(deactivate); } } card.append(body, footer); list.appendChild(card); });
+  managedUsers.filter((user) => `${userName(user)} ${user.username || ""} ${(user.scopes || []).join(" ")}`.toLowerCase().includes(userFilter)).forEach((user) => { const card = document.createElement("article"); card.className = "card user-card"; const body = document.createElement("div"); body.className = "card-content"; const heading = document.createElement("div"); heading.className = "user-card-heading"; const title = document.createElement("h3"); title.className = "card-title"; title.textContent = userName(user); const badge = document.createElement("span"); badge.className = `user-status ${Number(user.is_active) === 1 ? "is-active" : ""}`; badge.textContent = Number(user.is_active) === 1 ? t("user.active") : t("user.inactive"); heading.append(title, badge); const meta = document.createElement("dl"); meta.className = "user-meta"; [[t("user.username"), user.username], [t("user.userType"), t("user.employee")], [t("user.stores"), storeNames(user.store_ids)], [t("user.permissions"), user.scopes?.join(", ") || t("user.noPermissions")]].forEach(([term, value]) => { const row = document.createElement("div"); const dt = document.createElement("dt"); dt.textContent = term; const dd = document.createElement("dd"); dd.textContent = value; row.append(dt, dd); meta.appendChild(row); }); body.append(heading, meta); const footer = document.createElement("div"); footer.className = "card-footer"; const view = document.createElement("button"); view.className = "btn"; view.type = "button"; view.dataset.variant = "outline"; view.textContent = t("user.view"); view.addEventListener("click", () => renderUserForm(user, true)); footer.appendChild(view); if (allowed("user.setting")) { const edit = document.createElement("button"); edit.className = "btn"; edit.type = "button"; edit.dataset.variant = "default"; edit.textContent = t("user.edit"); edit.addEventListener("click", () => renderUserForm(user)); footer.appendChild(edit); if (Number(user.is_active) === 1) { const deactivate = document.createElement("button"); deactivate.className = "btn"; deactivate.type = "button"; deactivate.dataset.variant = "destructive"; deactivate.textContent = t("user.deactivate"); deactivate.addEventListener("click", async () => { if (!confirm(t("ui.deactivateQuestion", { name: userName(user) }))) return; try { await deactivateUser(user.id); await loadUsers(); } catch (error) { status.textContent = error.message; } }); footer.appendChild(deactivate); } } card.append(body, footer); list.appendChild(card); });
   if (!managedUsers.length) status.textContent = t("user.noUsers"); userScreen.appendChild(list); translateDocument(userScreen);
 }
 function renderUserForm(user = null, readOnly = false) {
