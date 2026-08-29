@@ -323,11 +323,15 @@ defmodule PosServer.Retaily.Sales do
   end
 
   defp sale_response(id, tenant) do
-    from(sale in Sale, where: sale.id == ^id)
-    |> with_payment_totals()
-    |> Repo.one!(prefix: tenant)
-    |> Repo.preload([:client, :sale_paids, sale_lines: :product], prefix: tenant)
+    sale =
+      from(sale in Sale, where: sale.id == ^id)
+      |> with_payment_totals()
+      |> Repo.one!(prefix: tenant)
+      |> Repo.preload([:client, :sale_paids, sale_lines: :product], prefix: tenant)
+
+    sale
     |> serialize_sale()
+    |> Map.put(:salesperson, serialize_salesperson(sale.login, tenant))
   end
 
   defp serialize_sale(sale) do
@@ -417,6 +421,13 @@ defmodule PosServer.Retaily.Sales do
 
   defp serialize_payment(payment) do
     %{id: payment.id, amount: payment.amount, type: payment.type, login: payment.login, date_create: payment.date_create}
+  end
+
+  defp serialize_salesperson(login, tenant) do
+    case Repo.one(from(user in User, where: user.username == ^login, select: %{first_name: user.first_name, last_name: user.last_name, username: user.username, pic: user.pic}), prefix: tenant) do
+      nil -> nil
+      user -> %{name: [user.first_name, user.last_name] |> Enum.reject(&is_nil/1) |> Enum.join(" "), username: user.username, pic: user.pic}
+    end
   end
 
   defp apply_filters(query, filters) do

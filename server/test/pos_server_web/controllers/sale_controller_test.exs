@@ -194,6 +194,20 @@ defmodule PosServerWeb.SaleControllerTest do
     assert Repo.aggregate(from(payment in SalePaid, where: payment.sale_id == ^response["id"]), :count, prefix: @prefix) == 1
   end
 
+  test "persists a trimmed optional memo and rejects a memo over 1000 characters", %{walex_conn: conn} do
+    response =
+      conn
+      |> post(~p"/api/sales", delivery_sale_payload(%{additional_info: "  Leave at the side entrance.\nCall on arrival.  "}))
+      |> json_response(:created)
+
+    assert response["additional_info"] == "Leave at the side entrance.\nCall on arrival."
+    assert Repo.get!(Sale, response["id"], prefix: @prefix).additional_info == "Leave at the side entrance.\nCall on arrival."
+
+    assert authenticated_conn_for("walex")
+           |> post(~p"/api/sales", delivery_sale_payload(%{additional_info: String.duplicate("a", 1001)}))
+           |> json_response(:unprocessable_entity) == %{"errors" => %{"additional_info" => ["should be at most %{count} character(s)"]}}
+  end
+
   test "uses the default price-list price for the sale total", %{walex_conn: conn} do
     Repo.insert!(%PricingList{price: 2_300.0, product_id: 8_679, pricing_id: 1}, prefix: @prefix)
 

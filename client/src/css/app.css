@@ -1220,6 +1220,47 @@ button {
 .invoice-payment-history {
   margin-bottom: 10px;
 }
+.checkout-memo {
+  margin: 12px 0 0;
+}
+.checkout-memo textarea {
+  width: 100%;
+  min-height: 4.75rem;
+  resize: vertical;
+}
+.invoice-memo {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--muted);
+  overflow-wrap: anywhere;
+}
+.invoice-memo-text {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-style: italic;
+  white-space: pre-wrap;
+}
+.invoice-memo-salesperson {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted-foreground);
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+.invoice-memo-avatar {
+  display: inline-grid;
+  width: 1.7rem;
+  height: 1.7rem;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--background);
+  color: var(--foreground);
+}
 .invoice-status {
   display: inline-flex;
   padding: 0.24rem 0.48rem;

@@ -435,6 +435,7 @@ function resetCompletedOrder() {
   document.querySelector("#payment-balance").textContent = "";
   document.querySelector("#payment-change").hidden = true;
   document.querySelector("#payment-change").textContent = "";
+  document.querySelector("#sale-additional-info").value = "";
   document.querySelector("#payment-choice").textContent = "—";
 
   const deliveryToggle = document.querySelector("#delivery-toggle");
@@ -851,7 +852,40 @@ function invoiceDetailsRow(invoice) {
       summaryRow.append(spacer, saleDiscount, summaryLabel, summaryAmount);
       foot.appendChild(summaryRow);
     });
-    table.append(caption, head, body, foot); tableWrap.append(lineItemsTitle, table); content.append(paymentTableWrap, tableWrap); card.append(header, content);
+    table.append(caption, head, body, foot); tableWrap.append(lineItemsTitle, table);
+    const memo = detail.additional_info?.trim();
+    if (memo) {
+      const memoSection = document.createElement("section");
+      memoSection.className = "invoice-memo";
+      const memoText = document.createElement("p");
+      memoText.className = "invoice-memo-text";
+      memoText.textContent = memo;
+      const salesperson = document.createElement("div");
+      salesperson.className = "invoice-memo-salesperson";
+      const avatar = document.createElement("span");
+      avatar.className = "avatar invoice-memo-avatar";
+      avatar.setAttribute("aria-hidden", "true");
+      const image = document.createElement("img");
+      image.className = "avatar-image";
+      image.alt = "";
+      const avatarUrl = avatarSource(detail.salesperson?.pic);
+      image.hidden = !avatarUrl;
+      if (avatarUrl) image.src = avatarUrl;
+      const fallback = document.createElement("span");
+      fallback.className = "avatar-fallback";
+      fallback.textContent = (detail.salesperson?.name || detail.login || "?").trim().slice(0, 1).toUpperCase();
+      fallback.hidden = Boolean(avatarUrl);
+      image.onerror = () => { image.hidden = true; fallback.hidden = false; };
+      avatar.append(image, fallback);
+      const name = document.createElement("span");
+      name.textContent = detail.salesperson?.name || detail.login || "—";
+      salesperson.append(avatar, name);
+      memoSection.append(memoText, salesperson);
+      content.append(paymentTableWrap, tableWrap, memoSection);
+    } else {
+      content.append(paymentTableWrap, tableWrap);
+    }
+    card.append(header, content);
   }
   cell.appendChild(card); row.appendChild(cell);
   return row;
@@ -2064,7 +2098,7 @@ document.querySelector("#payment-lines").addEventListener("change", () => { upda
 document.querySelector("#payment-lines").addEventListener("input", (event) => { if (event.target.matches("input")) applySplitPayment(event.target); updatePaymentCompletion(); });
 document.querySelector("#payment-lines").addEventListener("focusin", (event) => { if (mobileQuery.matches && event.target.matches("input")) event.target.scrollIntoView({ behavior: "smooth", block: "center" }); });
 document.querySelector("#credit-toggle").addEventListener("click", (event) => { const active = event.currentTarget.getAttribute("aria-pressed") !== "true"; event.currentTarget.setAttribute("aria-pressed", String(active)); event.currentTarget.dataset.variant = active ? "default" : "outline"; document.querySelector("#payment-inputs").hidden = active; updatePaymentChoice(); updatePaymentCompletion(); });
-document.querySelector("#complete-sale").addEventListener("click", async () => { const complete = document.querySelector("#complete-sale"); const credit = document.querySelector("#credit-toggle").getAttribute("aria-pressed") === "true"; const payments = [...document.querySelectorAll(".payment-line")].map((line) => ({ type: line.querySelector("select").value, amount: Number(line.querySelector("input").value) || 0 })).filter((line) => line.amount); if (pos.isEmpty() || (!credit && payments.reduce((sum, line) => sum + line.amount, 0) < pos.total())) { updatePaymentCompletion(); return; } const receipt = pos.receipt(); complete.disabled = true; try { await createSale({ store_id: storeId, client_id: selectedCustomer.id, sequence_type: document.querySelector("[data-sequence][data-variant=default]").dataset.sequence, status: credit ? "CREDIT" : "CASH", sale_type: receipt.delivery ? "FOR_DELIVER" : "IN_SHOP", delivery_charge: receipt.delivery, discount: receipt.order_discount, discount_type: receipt.order_discount_type, discount_input: receipt.order_discount_input, lines: receipt.items.map((item) => ({ product_id: Number(item.id), quantity: item.qty, discount: item.discount, discount_type: item.discount_type, discount_input: item.discount_input })), payments: credit ? [] : payments }); invoicesStale = true; await refreshInventory(receipt.items.map((item) => item.id)).catch(console.error); completedReceipt = { ...receipt, language: getLanguage() }; document.querySelector("#receipt-print-status").textContent = ""; renderPrintTargets(); resetCompletedOrder(); closeCheckout(); document.querySelector("#receipt-dialog").showModal(); } catch (error) { checkoutStatus.textContent = error.message; complete.disabled = false; } });
+document.querySelector("#complete-sale").addEventListener("click", async () => { const complete = document.querySelector("#complete-sale"); const credit = document.querySelector("#credit-toggle").getAttribute("aria-pressed") === "true"; const payments = [...document.querySelectorAll(".payment-line")].map((line) => ({ type: line.querySelector("select").value, amount: Number(line.querySelector("input").value) || 0 })).filter((line) => line.amount); const additionalInfo = document.querySelector("#sale-additional-info").value.trim(); if (pos.isEmpty() || (!credit && payments.reduce((sum, line) => sum + line.amount, 0) < pos.total())) { updatePaymentCompletion(); return; } if (additionalInfo.length > 1000) { checkoutStatus.textContent = "Memo must be 1000 characters or fewer."; return; } const receipt = pos.receipt(); complete.disabled = true; try { await createSale({ store_id: storeId, client_id: selectedCustomer.id, sequence_type: document.querySelector("[data-sequence][data-variant=default]").dataset.sequence, status: credit ? "CREDIT" : "CASH", sale_type: receipt.delivery ? "FOR_DELIVER" : "IN_SHOP", delivery_charge: receipt.delivery, discount: receipt.order_discount, discount_type: receipt.order_discount_type, discount_input: receipt.order_discount_input, additional_info: additionalInfo, lines: receipt.items.map((item) => ({ product_id: Number(item.id), quantity: item.qty, discount: item.discount, discount_type: item.discount_type, discount_input: item.discount_input })), payments: credit ? [] : payments }); invoicesStale = true; await refreshInventory(receipt.items.map((item) => item.id)).catch(console.error); completedReceipt = { ...receipt, language: getLanguage() }; document.querySelector("#receipt-print-status").textContent = ""; renderPrintTargets(); resetCompletedOrder(); closeCheckout(); document.querySelector("#receipt-dialog").showModal(); } catch (error) { checkoutStatus.textContent = error.message; complete.disabled = false; } });
 document.querySelector("#skip-print").addEventListener("click", () => { document.querySelector("#receipt-dialog").close(); completedReceipt = null; });
 document.querySelector("#print-receipt").addEventListener("click", async () => {
   const button = document.querySelector("#print-receipt"), status = document.querySelector("#receipt-print-status");

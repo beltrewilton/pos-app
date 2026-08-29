@@ -75,6 +75,8 @@ defmodule PosServer.Retaily.Sale do
         :additional_info
       ])
       |> validate_required([:amount, :sub, :discount, :tax_amount, :sequence, :sequence_type, :status, :sale_type, :login, :client_id, :store_id])
+      |> update_change(:additional_info, &String.trim/1)
+      |> validate_length(:additional_info, max: 1000)
       |> validate_inclusion(:discount_type, ["money", "percentage"])
       |> check_constraint(:discount_type, name: :sale_discount_type_valid)
     end
