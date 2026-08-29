@@ -637,7 +637,7 @@ function invoicePaymentForm(invoice) {
 function invoiceRow(invoice) {
   const row = document.createElement("tr");
   row.className = "table-row invoice-row";
-  const labels = ["Invoice", "Customer", "Date", "Status", "Total", "Balance", "Actions"];
+  const labels = ["Invoice", "Customer", "Date", "Status", "Total", "Balance", "Sales Person", "Actions"];
   [invoice.sequence || `#${invoice.id}`, invoice.client_name || "Walk-in customer"].forEach((value, index) => {
     const cell = document.createElement("td");
     cell.className = "table-cell";
@@ -681,16 +681,22 @@ function invoiceRow(invoice) {
   badge.textContent = invoiceStatusLabel(invoice.invoice_status);
   status.appendChild(badge);
   row.appendChild(status);
-  [invoice.amount, invoice.due_balance].forEach((amount, index) => {
+  [invoice.amount, Math.max(Number(invoice.due_balance || 0), 0)].forEach((amount, index) => {
     const cell = document.createElement("td");
     cell.className = "table-cell numeric";
     cell.dataset.label = labels[index + 4];
     cell.textContent = currency(amount);
     row.appendChild(cell);
   });
+  const salesperson = document.createElement("td");
+  salesperson.className = "table-cell invoice-salesperson";
+  salesperson.dataset.label = labels[6];
+  salesperson.textContent = invoice.login || "—";
+  salesperson.title = invoice.login || "";
+  row.appendChild(salesperson);
   const actions = document.createElement("td");
   actions.className = "table-cell invoice-actions";
-  actions.dataset.label = labels[6];
+  actions.dataset.label = labels[7];
   if (invoice.invoice_status !== "cancelled") {
     const cancel = document.createElement("button");
     cancel.className = "btn invoice-cancel"; cancel.type = "button"; cancel.dataset.variant = "ghost"; cancel.dataset.size = "sm"; cancel.dataset.cancelInvoice = invoice.id; cancel.textContent = t("ui.cancel");
@@ -708,7 +714,7 @@ function invoiceDetailsRow(invoice) {
   row.className = "table-row invoice-details-row";
   const cell = document.createElement("td");
   cell.className = "table-cell";
-  cell.colSpan = 7;
+  cell.colSpan = 8;
   const card = document.createElement("section");
   card.className = "card invoice-details-card";
   if (!detail) {
@@ -781,6 +787,18 @@ function invoiceDetailsRow(invoice) {
       });
       paymentBody.appendChild(paymentRow);
     });
+    if (Number(detail.change_amount || 0) > 0) {
+      const changeRow = document.createElement("tr");
+      changeRow.className = "table-row invoice-change-row";
+      const values = ["Change", "—", "—", "—", currency(-Number(detail.change_amount)), "Complete"];
+      values.forEach((value, index) => {
+        const changeCell = document.createElement("td");
+        changeCell.className = index === 4 ? "table-cell numeric" : "table-cell";
+        changeCell.textContent = value;
+        changeRow.appendChild(changeCell);
+      });
+      paymentBody.appendChild(changeRow);
+    }
     paymentTable.append(paymentCaption, paymentHead, paymentBody);
     paymentTableWrap.append(paymentTitle, paymentTable);
     const tableWrap = document.createElement("div");
@@ -804,13 +822,13 @@ function invoiceDetailsRow(invoice) {
     const body = document.createElement("tbody");
     detail.lines.forEach((line) => {
       const lineRow = document.createElement("tr"); lineRow.className = "table-row";
-      [line.product?.name || "—", line.quantity, currency(line.amount), discountPercentage(line.discount), currency(line.total_amount)].forEach((value, index) => {
+      [line.product?.name || "—", line.quantity, currency(line.amount), currency(line.discount), currency(line.total_amount)].forEach((value, index) => {
         const td = document.createElement("td"); td.className = index ? "table-cell numeric" : "table-cell"; td.textContent = value; lineRow.appendChild(td);
       });
       body.appendChild(lineRow);
     });
     const foot = document.createElement("tfoot");
-    [["Subtotal", detail.sub], ["Tax", detail.tax_amount], ["Discount", detail.discount], ["Total", detail.amount]].forEach(([label, value]) => {
+    [["Subtotal", detail.sub], ["Tax", detail.tax_amount], ["Discount", detail.discount], ...(Number(detail.delivery_charge || 0) > 0 ? [["Delivery", detail.delivery_charge]] : []), ["Total", detail.amount]].forEach(([label, value]) => {
       const summaryRow = document.createElement("tr");
       summaryRow.className = "table-row invoice-line-summary";
       if (label === "Total") summaryRow.classList.add("invoice-line-summary-total");

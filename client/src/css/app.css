@@ -1128,6 +1128,12 @@ button {
   padding-top: 16px;
   padding-bottom: 16px;
 }
+.invoice-salesperson {
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .invoice-date,
 .invoice-time {
   display: block;

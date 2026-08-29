@@ -20,7 +20,7 @@ SELECT
   COALESCE(payment_totals.total_paid, 0) AS total_paid,
   CASE
     WHEN sale.status = 'RETURN' THEN 0
-    ELSE sale.amount - COALESCE(payment_totals.total_paid, 0)
+    ELSE GREATEST(sale.amount - COALESCE(payment_totals.total_paid, 0), 0)
   END AS due_balance,
   CASE
     WHEN sale.status = 'RETURN' THEN 'cancelled'

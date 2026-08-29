@@ -307,6 +307,7 @@ defmodule PosServer.Retaily.Sales do
     paid = sale.total_paid || Enum.reduce(sale.sale_paids, @zero, &Decimal.add(&1.amount, &2))
     # An overpayment is cash returned as change, never a negative invoice balance.
     due = sale.due_balance || outstanding_balance(sale.amount, paid)
+    change = if Decimal.positive?(Decimal.sub(paid, sale.amount)), do: Decimal.sub(paid, sale.amount), else: @zero
     invoice_status = sale.invoice_status || if(sale.status == "RETURN", do: "cancelled", else: if(Decimal.positive?(due), do: "open", else: "close"))
     %{
       id: sale.id,
@@ -328,6 +329,7 @@ defmodule PosServer.Retaily.Sales do
       lines: Enum.map(sale.sale_lines, &serialize_line/1),
       payments: Enum.map(sale.sale_paids, &serialize_payment/1),
       total_paid: paid,
+      change_amount: change,
       due_balance: due,
       invoice_status: invoice_status
     }
