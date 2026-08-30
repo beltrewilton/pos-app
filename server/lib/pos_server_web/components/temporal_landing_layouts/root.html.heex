@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    <title>KAM.SOFTWARE</title>
+    <link rel="preload" href={~p"/temporal_landing/fonts/inter-latin-variable.woff2"} as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href={~p"/temporal_landing/temporal_landing.css"} />
+    <script defer src={~p"/temporal_landing/temporal_landing.js"}></script>
+  </head>
+  <body class="temporal-landing-body">
+    {@inner_content}
+  </body>
+</html>

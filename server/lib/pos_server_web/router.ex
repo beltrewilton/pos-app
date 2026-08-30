@@ -28,6 +28,7 @@ defmodule PosServerWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+    get "/temporal_landing", TemporalLandingController, :index
     live "/users", UserLive, :index
     live "/users/new", UserLive, :new
   end
