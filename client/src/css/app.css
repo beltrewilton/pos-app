@@ -1968,6 +1968,9 @@ dialog#customer-purchases-dialog .dialog-content {
 .invoice-payment-history .table > tbody {
   display: table-row-group !important;
 }
+.invoice-payment-mobile-list {
+  display: none;
+}
 .invoice-line-summary .table-cell {
   padding: 0.55rem 0.75rem;
   font-size: 0.75rem;
@@ -2834,6 +2837,23 @@ dialog#customer-purchases-dialog .dialog-content {
     margin-left: auto;
   }
 
+  /* Keep the cleared-cart state compact in the mobile sale sheet. */
+  .cart-empty:not([hidden]) {
+    flex: 0 0 auto;
+    min-height: 0;
+    padding: 12px 0;
+  }
+
+  .cart-empty:not([hidden]) + .cart-lines {
+    flex: 0 0 auto;
+    min-height: 0;
+    margin-top: 0;
+  }
+
+  .cart-empty:not([hidden]) svg {
+    display: none;
+  }
+
   .cart-lines {
     max-height: none;
   }
@@ -3403,6 +3423,69 @@ dialog#customer-purchases-dialog .dialog-content {
   .invoice-payment-history,
   .invoice-details-card .table-container {
     overflow: visible;
+  }
+  .invoice-payment-history {
+    display: none;
+  }
+  .invoice-payment-mobile-list {
+    display: grid;
+    min-width: 0;
+    gap: 8px;
+    overflow: hidden;
+  }
+  .invoice-payment-mobile-list .invoice-table-section-title {
+    margin-bottom: 0;
+  }
+  .invoice-payment-mobile-card {
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--background);
+  }
+  .invoice-payment-mobile-card-header {
+    display: flex;
+    min-width: 0;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--foreground);
+  }
+  .invoice-payment-mobile-card-header strong:last-child {
+    flex: 0 0 auto;
+    text-align: right;
+  }
+  .invoice-payment-mobile-details {
+    display: grid;
+    gap: 6px;
+    margin: 10px 0 0;
+  }
+  .invoice-payment-mobile-details > div {
+    display: grid;
+    grid-template-columns: minmax(4.5rem, auto) minmax(0, 1fr);
+    gap: 12px;
+    align-items: baseline;
+  }
+  .invoice-payment-mobile-details dt {
+    color: var(--muted-foreground);
+    font-size: 0.7rem;
+    font-weight: 650;
+  }
+  .invoice-payment-mobile-details dd {
+    min-width: 0;
+    margin: 0;
+    overflow-wrap: anywhere;
+    text-align: right;
+  }
+  .invoice-payment-mobile-change {
+    padding-block: 12px;
+  }
+  .invoice-payment-mobile-empty {
+    margin: 0;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--background);
   }
   .invoice-payment-history .table,
   .invoice-detail-lines,

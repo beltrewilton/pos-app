@@ -1008,6 +1008,64 @@ function invoiceDetailsRow(invoice) {
     }
     paymentTable.append(paymentCaption, paymentHead, paymentBody);
     paymentTableWrap.append(paymentTitle, paymentTable);
+    const paymentMobileList = document.createElement("section");
+    paymentMobileList.className = "invoice-payment-mobile-list";
+    paymentMobileList.setAttribute("aria-label", t("invoice.recordedPayments"));
+    const paymentMobileTitle = document.createElement("p");
+    paymentMobileTitle.className = "invoice-table-section-title";
+    paymentMobileTitle.textContent = t("invoice.payments");
+    paymentMobileList.appendChild(paymentMobileTitle);
+    if (!detail.payments.length) {
+      const emptyMessage = document.createElement("p");
+      emptyMessage.className = "invoice-payment-mobile-empty muted";
+      emptyMessage.textContent = t("invoice.noPayments");
+      paymentMobileList.appendChild(emptyMessage);
+    }
+    detail.payments.forEach((payment) => {
+      const paymentCard = document.createElement("article");
+      paymentCard.className = "invoice-payment-mobile-card";
+      const paymentCardHeader = document.createElement("div");
+      paymentCardHeader.className = "invoice-payment-mobile-card-header";
+      const paymentName = document.createElement("strong");
+      paymentName.textContent = t("invoice.payment");
+      const paymentAmount = document.createElement("strong");
+      paymentAmount.className = "numeric";
+      paymentAmount.textContent = currency(payment.amount);
+      paymentCardHeader.append(paymentName, paymentAmount);
+      const paymentDetails = document.createElement("dl");
+      paymentDetails.className = "invoice-payment-mobile-details";
+      const dateParts = dateTimeParts(payment.date_create);
+      [
+        [t("ui.date"), dateParts ? `${dateParts.date} · ${dateParts.time}` : "—"],
+        [t("invoice.user"), payment.login || detail.login || "—"],
+        [t("invoice.method"), payment.type === "CC" ? t("checkout.card") : t("checkout.cash")],
+        [t("ui.status"), detail.invoice_status === "close" ? t("invoice.complete") : t("invoice.partial")],
+      ].forEach(([label, value]) => {
+        const detailRow = document.createElement("div");
+        const detailLabel = document.createElement("dt");
+        detailLabel.textContent = label;
+        const detailValue = document.createElement("dd");
+        detailValue.textContent = value;
+        detailRow.append(detailLabel, detailValue);
+        paymentDetails.appendChild(detailRow);
+      });
+      paymentCard.append(paymentCardHeader, paymentDetails);
+      paymentMobileList.appendChild(paymentCard);
+    });
+    if (Number(detail.change_amount || 0) > 0) {
+      const changeCard = document.createElement("article");
+      changeCard.className = "invoice-payment-mobile-card invoice-payment-mobile-change";
+      const changeHeader = document.createElement("div");
+      changeHeader.className = "invoice-payment-mobile-card-header";
+      const changeName = document.createElement("strong");
+      changeName.textContent = t("checkout.change");
+      const changeAmount = document.createElement("strong");
+      changeAmount.className = "numeric";
+      changeAmount.textContent = currency(-Number(detail.change_amount));
+      changeHeader.append(changeName, changeAmount);
+      changeCard.appendChild(changeHeader);
+      paymentMobileList.appendChild(changeCard);
+    }
     const tableWrap = document.createElement("div");
     tableWrap.className = "table-container";
     const lineItemsTitle = document.createElement("p");
@@ -1085,9 +1143,9 @@ function invoiceDetailsRow(invoice) {
       name.textContent = detail.salesperson?.name || detail.login || "—";
       salesperson.append(avatar, name);
       memoSection.append(memoText, salesperson);
-      content.append(paymentTableWrap, tableWrap, memoSection);
+      content.append(paymentTableWrap, paymentMobileList, tableWrap, memoSection);
     } else {
-      content.append(paymentTableWrap, tableWrap);
+      content.append(paymentTableWrap, paymentMobileList, tableWrap);
     }
     card.append(header, content);
   }

@@ -137,7 +137,7 @@ export function createPos(options) {
   totalTrigger.addEventListener("dblclick", openOrderDiscount);
   totalTrigger.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openOrderDiscount(); } });
   clearButton.addEventListener("click", () => { if (cart.length) clearDialog.showModal(); });
-  clearConfirmButton.addEventListener("click", () => { cart.splice(0); orderDiscount = 0; render(); clearDialog.close(); window.toast?.info(t("order.cleared")); });
+  clearConfirmButton.addEventListener("click", () => { cart.splice(0); orderDiscount = 0; render(); clearDialog.close(); if (!window.matchMedia("(max-width: 640px)").matches) window.toast?.info(t("order.cleared")); });
   discountForm.addEventListener("submit", (event) => {
     event.preventDefault();
     const discount = Number(discountInput.value);
