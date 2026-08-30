@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    <title>tigoo</title>
+    <meta name="description" content="tigoo brings sales, inventory, and retail operations together in one dependable workspace." />
+    <link rel="canonical" href="https://tigoo.app" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="tigoo" />
+    <meta property="og:title" content="tigoo" />
+    <meta property="og:description" content="Sales, inventory, and retail operations in one dependable workspace." />
+    <meta property="og:url" content="https://tigoo.app" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="tigoo" />
+    <meta name="twitter:description" content="Sales, inventory, and retail operations in one dependable workspace." />
+    <link rel="preload" href={~p"/landing/fonts/inter-latin-variable.woff2"} as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href={~p"/landing/landing.css"} />
+    <script defer src={~p"/landing/landing.js"}></script>
+  </head>
+  <body class="landing-page-body">
+    {@inner_content}
+  </body>
+</html>

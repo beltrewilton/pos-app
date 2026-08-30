@@ -1,7 +1,7 @@
 (() => {
-  if (!document.querySelector("[data-temporal-landing]")) return;
-  if (window.__temporalLandingInitialized) return;
-  window.__temporalLandingInitialized = true;
+  if (!document.querySelector("[data-landing-page]")) return;
+  if (window.__landingPageInitialized) return;
+  window.__landingPageInitialized = true;
 
 (function () {
   const faqData = [
@@ -412,7 +412,7 @@ window.addEventListener(
   "pagehide",
   () => {
     cancelAnimationFrame(animationFrame);
-    window.__temporalLandingInitialized = false;
+    window.__landingPageInitialized = false;
   },
   { once: true }
 );

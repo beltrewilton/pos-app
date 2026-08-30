@@ -1,10 +1,10 @@
-defmodule PosServerWeb.TemporalLanding.Components do
+defmodule PosServerWeb.Landing.Components do
   @moduledoc """
-  Small, page-local building blocks for the temporary landing page.
+  Page-local building blocks for the root landing page.
 
   The static source has bespoke SVG-heavy section markup, so it remains in the
   HEEx template to preserve the supplied design exactly. These components are
-  intentionally local and safe to remove with the temporary page.
+  intentionally local to the landing page.
   """
   use Phoenix.Component
 
@@ -12,7 +12,7 @@ defmodule PosServerWeb.TemporalLanding.Components do
 
   def page_shell(assigns) do
     ~H"""
-    <div class="temporal-landing" data-temporal-landing>
+    <div class="landing-page" data-landing-page>
       {render_slot(@inner_block)}
     </div>
     """
