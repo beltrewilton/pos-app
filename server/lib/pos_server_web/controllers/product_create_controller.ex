@@ -4,7 +4,7 @@ defmodule PosServerWeb.ProductCreateController do
   import Ecto.Query
   alias Ecto.Changeset
   alias PosServer.{Repo, TenantContext}
-  alias PosServer.Retaily.{Inventory, InventoryContext, PricingList, Product, Store}
+  alias PosServer.Retaily.{Inventory, InventoryContext, PricingList, Product, Sql, Store}
 
   def create(conn, attrs) do
     with {:ok, store_id} <- positive_integer(attrs["store_id"]),
@@ -12,20 +12,30 @@ defmodule PosServerWeb.ProductCreateController do
       username = conn.assigns.current_scope.user.name
       now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
 
-      Repo.transaction(fn ->
-        product_attrs = Map.take(attrs, ["name", "cost", "margin", "code", "img_path", "image_raw", "active"])
-          |> Map.merge(%{"active" => attrs["active"] || 1, "user_modified" => username, "date_create" => now, "archived" => "0"})
+      product_attrs = Map.take(attrs, ["name", "cost", "margin", "code", "img_path", "image_raw", "active"])
+        |> Map.merge(%{"active" => attrs["active"] || 1, "user_modified" => username, "date_create" => now, "archived" => "0"})
 
-        with {:ok, product} <- %Product{} |> Product.changeset(product_attrs) |> Repo.insert(prefix: tenant),
-             {_, _} <- initialize_inventory(product.id, username, now, tenant) do
-          product_response(product)
+      Repo.transaction(fn ->
+        with :ok <- require_default_price(attrs["prices"]),
+             {:ok, product} <- %Product{} |> Product.changeset(product_attrs) |> Repo.insert(prefix: tenant),
+             {_, _} <- initialize_inventory(product.id, username, now, tenant),
+             :ok <- save_prices(attrs["prices"], product.id, username, now, tenant) do
+          product
         else
           {:error, changeset} -> Repo.rollback(changeset)
+          {:error, reason} -> Repo.rollback(reason)
         end
       end)
       |> case do
-        {:ok, product} -> conn |> put_status(:created) |> json(product)
+        {:ok, product} ->
+          case Sql.active_product(product.id, store_id) do
+            {:ok, product} when is_map(product) ->
+              conn |> put_status(:created) |> json(product)
+            _ -> conn |> put_status(:internal_server_error) |> json(%{error: "could not load created product"})
+          end
         {:error, %Changeset{} = changeset} -> conn |> put_status(:unprocessable_entity) |> json(%{errors: Changeset.traverse_errors(changeset, fn {message, _} -> message end)})
+        {:error, :default_price_required} -> conn |> put_status(:unprocessable_entity) |> json(%{error: "a default selling price is required"})
+        {:error, _reason} -> conn |> put_status(:unprocessable_entity) |> json(%{error: "prices are invalid"})
       end
     else
       {:error, :invalid_params} -> conn |> put_status(:bad_request) |> json(%{error: "store_id is required"})
@@ -89,12 +99,24 @@ defmodule PosServerWeb.ProductCreateController do
       attrs = %{product_id: product_id, pricing_id: pricing_id, price: price, user_modified: username, date_create: now}
       entry = Repo.one(from(entry in PricingList, where: entry.product_id == ^product_id and entry.pricing_id == ^pricing_id, order_by: [desc: entry.id], limit: 1), prefix: tenant)
       changeset = if entry, do: PricingList.changeset(entry, attrs), else: PricingList.changeset(%PricingList{}, attrs)
-      case Repo.insert_or_update(changeset, prefix: tenant) do {:ok, value} -> value; {:error, changeset} -> Repo.rollback(changeset) end
+      case Repo.insert_or_update(changeset, prefix: tenant) do
+        {:ok, value} -> value
+        {:error, changeset} -> Repo.rollback(changeset)
+      end
     else
       _ -> Repo.rollback(Changeset.add_error(%PricingList{} |> PricingList.changeset(%{}), :price, "must be a non-negative number"))
     end
   end
   defp upsert_price(_, _product_id, _username, _now, _tenant), do: Repo.rollback(:invalid_prices)
+  defp require_default_price(prices) when is_list(prices) do
+    if Enum.any?(prices, &(Map.get(&1, "pricing_id") in [1, "1"] and Map.get(&1, "price") not in [nil, ""])), do: :ok, else: {:error, :default_price_required}
+  end
+  defp require_default_price(_), do: {:error, :default_price_required}
+  defp save_prices(prices, product_id, username, now, tenant) when is_list(prices) do
+    Enum.each(prices, &upsert_price(&1, product_id, username, now, tenant))
+    :ok
+  end
+  defp save_prices(_, _product_id, _username, _now, _tenant), do: {:error, :invalid_prices}
   defp positive_integer(value) when is_binary(value) do
     case Integer.parse(value) do
       {id, ""} when id > 0 -> {:ok, id}

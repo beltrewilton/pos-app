@@ -2513,10 +2513,16 @@ dialog#customer-purchases-dialog .dialog-content {
     overflow: visible;
   }
 
+  .mobile-topbar-cart svg {
+    width: 26px;
+    height: 26px;
+    stroke-width: 2.35;
+  }
+
   .mobile-cart-count:not([hidden]) {
     position: absolute;
-    top: -0.2rem;
-    right: -0.28rem;
+    top: 0.1rem;
+    right: 0.1rem;
     display: grid;
     min-width: 1.05rem;
     height: 1.05rem;
@@ -2667,6 +2673,34 @@ dialog#customer-purchases-dialog .dialog-content {
     padding-left: 12px;
   }
 
+  .mobile-language-switcher {
+    border-radius: var(--radius-md);
+  }
+  .mobile-language-switcher > summary {
+    list-style: none;
+    justify-content: space-between;
+    cursor: pointer;
+  }
+  .mobile-language-switcher > summary::-webkit-details-marker { display: none; }
+  .mobile-language-switcher[open] > summary { background: var(--muted); }
+  .mobile-language-options {
+    display: grid;
+    gap: 3px;
+    padding: 4px 0 4px 12px;
+  }
+  .mobile-language-options button {
+    min-height: 42px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--foreground);
+    font: inherit;
+    text-align: left;
+  }
+  .mobile-language-options button:hover,
+  .mobile-language-options button:focus-visible { background: var(--muted); }
+
   .mobile-navigation-footer {
     display: flex;
     align-items: center;
@@ -2685,15 +2719,27 @@ dialog#customer-purchases-dialog .dialog-content {
   }
 
   .mobile-user-menu {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
     margin-top: auto;
+    padding: 12px 2px 2px;
+    border-top: 1px solid var(--border);
   }
-  .mobile-user-menu .avatar-trigger {
+  .mobile-user-menu .avatar {
     width: 40px;
     height: 40px;
   }
-  .mobile-user-menu .user-menu-content {
-    bottom: calc(100% + 8px);
-    left: 0;
+  .mobile-user-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .mobile-logout {
+    min-height: 40px;
+    padding-inline: 10px;
   }
 
   @keyframes mobile-sheet-in {
@@ -2708,8 +2754,7 @@ dialog#customer-purchases-dialog .dialog-content {
   }
 
   .status-strip {
-    grid-column: 1;
-    grid-row: 1;
+    display: none;
   }
 
   .catalog-panel {
@@ -2798,9 +2843,32 @@ dialog#customer-purchases-dialog .dialog-content {
   .topbar {
     top: 20px;
     flex-wrap: wrap;
+    justify-content: flex-start;
     gap: 8px;
     margin: 0 -12px;
     padding: 8px 12px;
+  }
+
+  .invoice-topbar,
+  .operations-topbar {
+    align-items: center;
+    min-height: 60px;
+  }
+  .topbar .brand-lockup {
+    min-width: 0;
+  }
+  .topbar h1,
+  .topbar h2 {
+    font-size: 1.15rem;
+    line-height: 1.1;
+  }
+  .topbar > .topbar-search,
+  .topbar > .invoice-filters,
+  .topbar > .operations-filters,
+  .topbar > .customers-header-actions,
+  .topbar > .users-header-actions,
+  .topbar > .form-actions {
+    flex-basis: 100%;
   }
 
   .brand-lockup {
@@ -2815,13 +2883,60 @@ dialog#customer-purchases-dialog .dialog-content {
   .brand-lockup .eyebrow {
     font-size: 0.58rem;
   }
-  .topbar h1 {
+  .topbar h1,
+  .topbar h2 {
     font-size: 0.76rem;
   }
 
   .topbar-search {
     flex-basis: 100%;
     grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  /* Touch feedback is intentionally short and scoped to controls that act. */
+  .btn:not(:disabled),
+  .product:not(.product-skeleton-card),
+  .customers-screen .table-row,
+  .invoice-row,
+  .operations-table > tbody > .table-row,
+  .mobile-navigation-link,
+  .mobile-language-options button,
+  .mobile-topbar-cart,
+  .inventory-total-quantity,
+  .inventory-sku-trace {
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 90ms ease-out, opacity 90ms ease-out, background-color 90ms ease-out;
+  }
+  .btn:not(:disabled):active,
+  .product:not(.product-skeleton-card):active,
+  .customers-screen .table-row:active,
+  .invoice-row:active,
+  .operations-table > tbody > .table-row:active,
+  .mobile-navigation-link:active,
+  .mobile-language-options button:active,
+  .mobile-topbar-cart:active,
+  .inventory-total-quantity:active,
+  .inventory-sku-trace:active {
+    opacity: 0.84;
+    transform: scale(0.985);
+  }
+
+  .toast-container {
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    left: 12px;
+    padding: 0;
+  }
+  .toast {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    padding: 12px;
+  }
+  .toast[data-variant="success"] .toast-icon {
+    width: 24px;
+    height: 24px;
+    margin-top: 0;
   }
 
   .topbar-search > .btn:not(.search-clear) {
@@ -2891,6 +3006,22 @@ dialog#customer-purchases-dialog .dialog-content {
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
+  .invoice-filters {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 8px;
+    width: 100%;
+  }
+  .invoice-filters .search-field { grid-column: 1 / -1; }
+  .invoice-date-range {
+    min-width: 0;
+    width: 100%;
+    padding-inline: 10px;
+  }
+  .invoice-filters > .btn:not(.invoice-date-range) {
+    min-width: 0;
+    padding-inline: 12px;
+  }
+
   .invoice-filters .search-field,
   .operations-filters .search-field {
     grid-column: 1 / -1;
@@ -2951,6 +3082,9 @@ dialog#customer-purchases-dialog .dialog-content {
   }
 
   .customers-screen .table-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 16px;
     margin-bottom: 10px;
     padding: 12px;
     border: 1px solid var(--border);
@@ -2962,6 +3096,17 @@ dialog#customer-purchases-dialog .dialog-content {
   .customers-screen .table-cell {
     padding: 3px 0;
     border: 0;
+  }
+  .customers-screen .table-cell:first-child,
+  .customers-screen .customer-action {
+    grid-column: 1 / -1;
+  }
+  .customers-screen .table-cell:first-child { padding-bottom: 7px; }
+  .customers-screen .table-cell:not(.customer-action) {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .customers-screen .table-cell:not(.customer-action)::before {
@@ -2978,6 +3123,12 @@ dialog#customer-purchases-dialog .dialog-content {
     margin-top: 8px;
     text-align: left;
   }
+
+  .customers-screen .table-caption,
+  .invoice-table .table-caption,
+  #orders-screen .table-caption,
+  #purchase-order-screen .table-caption,
+  .purchase-order-lines-table .table-caption { display: none; }
 
   .customers-screen .customer-action .btn {
     width: 100%;
@@ -3092,8 +3243,8 @@ dialog#customer-purchases-dialog .dialog-content {
   .inventory-summary {
     display: flex;
     gap: 10px;
-    margin-inline: -12px;
-    padding: 0 12px 8px;
+    margin-inline: 0;
+    padding: 0 0 8px;
     overflow-x: auto;
     scroll-snap-type: x proximity;
   }
@@ -3103,6 +3254,9 @@ dialog#customer-purchases-dialog .dialog-content {
     flex: 0 0 min(78vw, 270px);
     scroll-snap-align: start;
   }
+
+  .invoice-summary .card:first-child,
+  .inventory-summary .card:first-child { margin-left: 0; }
   .inventory-summary .inventory-summary-valuation {
     flex-basis: min(96vw, 540px);
   }
@@ -3196,7 +3350,15 @@ dialog#customer-purchases-dialog .dialog-content {
   }
   .inventory-inline-editor {
     width: 100%;
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .inventory-inline-editor .input {
+    grid-column: 1 / -1;
+    height: 2.75rem;
+  }
+  .inventory-inline-editor .btn {
+    width: 100%;
+    min-height: 2.5rem;
   }
   .inventory-store-row .table-cell:empty {
     display: none;
@@ -3269,6 +3431,8 @@ dialog#customer-purchases-dialog .dialog-content {
     padding: 3px 0;
     border: 0;
     text-align: right;
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
   .invoice-payment-history tbody .table-cell::before,
   .invoice-detail-lines tbody .table-cell::before {
@@ -3502,6 +3666,57 @@ dialog#customer-purchases-dialog .dialog-content {
     flex: 1 1 0;
     min-height: 2.75rem;
   }
+
+  .inventory-trace-wrap { overflow: visible; }
+  .inventory-trace-table,
+  .inventory-trace-table tbody,
+  .inventory-trace-table .table-row,
+  .inventory-trace-table .table-cell {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+  .inventory-trace-table thead { display: none; }
+  .inventory-trace-table tbody .table-row {
+    margin: 8px 0;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--background);
+  }
+  .inventory-trace-table tbody .table-cell {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 3px 0;
+    border: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: right;
+  }
+  .inventory-trace-table tbody .table-cell::before {
+    flex: 0 0 auto;
+    color: var(--muted-foreground);
+    font-size: 0.7rem;
+    font-weight: 650;
+    text-align: left;
+  }
+  .inventory-trace-table tbody .table-cell:nth-child(1)::before { content: "Date"; }
+  .inventory-trace-table tbody .table-cell:nth-child(2)::before { content: "Action"; }
+  .inventory-trace-table tbody .table-cell:nth-child(3)::before { content: "Store"; }
+  .inventory-trace-table tbody .table-cell:nth-child(4)::before { content: "Change"; }
+  .inventory-trace-table tbody .table-cell:nth-child(5)::before { content: "Before → After"; }
+  .inventory-trace-table tbody .table-cell:nth-child(6)::before { content: "Operator"; }
+  .inventory-trace-table tbody .table-cell:nth-child(7)::before { content: "Context"; }
+
+  .catalog-panel > :not([hidden]),
+  .application-screen:not([hidden]) {
+    animation: mobile-screen-enter 180ms ease-out both;
+  }
+  @keyframes mobile-screen-enter {
+    from { opacity: 0; transform: translateX(8px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
 }
 
 @media (max-width: 400px) {
@@ -3584,5 +3799,25 @@ dialog#customer-purchases-dialog .dialog-content {
   }
   .company-setting-form .btn {
     min-height: 2.5rem;
+  }
+}
+
+/* Keep the established skeleton component, with an explicit top-level mobile
+   animation rule for Android WebView's media-query parser. */
+@media (max-width: 640px) and (prefers-reduced-motion: no-preference) {
+  .skeleton {
+    background-repeat: no-repeat;
+    background-size: 240% 100%;
+    background-position: 100% 0;
+    will-change: background-position;
+    animation-name: skeleton-shimmer;
+    animation-duration: 1.15s;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+  }
+
+  @keyframes skeleton-shimmer {
+    from { background-position: 100% 0; }
+    to { background-position: -120% 0; }
   }
 }

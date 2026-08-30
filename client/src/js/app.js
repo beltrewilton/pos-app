@@ -4,7 +4,7 @@ import Pica from "../vendor/pica/pica.mjs";
 import { API_BASE_URL, activeProducts, addSalePayment, adjustInventory, cancelSale, clearSession, companySettings, createCustomer, createPriceList, createProduct, createProductOrder, createProvider, createSale, createSequenceSet, createStore, createUser, customerDetail, customerPurchases, customers, deactivateUser, deletePriceList, deleteProvider, deleteSequenceSet, deleteStore, inventoryQuantities, inventoryStoreQuantities, inventorySummary, login, moveInventory, pricingLists, product, productOrders, productTraces, purchaseSources, receiveProductOrder, saleDetails, salesReport, saveSession, session, setProductPrices, stores, updatePriceList, updateProduct, updateProvider, updateSequenceSet, updateStore, updateUser, userOptions, users } from "./api.js";
 import { createPos } from "./pos.js";
 import { buildReceiptData } from "./receipt.js";
-import { formatCurrency, getLanguage, onLanguageChange, t, translateDocument } from "./i18n.js";
+import { formatCurrency, getLanguage, onLanguageChange, setLanguage, t, translateDocument } from "./i18n.js";
 import { createLanguageSwitcher } from "./language-switcher.js";
 
 const printerStatus = document.querySelector("#printer-status");
@@ -272,7 +272,8 @@ function openMobileNavigation(trigger) {
   mobileNavigation.showModal();
 }
 
-document.querySelectorAll(".topbar").forEach((topbar) => {
+function addMobileNavigationTrigger(topbar) {
+  if (topbar.querySelector(".mobile-navigation-trigger")) return;
   const trigger = document.createElement("button");
   trigger.className = "btn mobile-navigation-trigger";
   trigger.type = "button";
@@ -284,7 +285,8 @@ document.querySelectorAll(".topbar").forEach((topbar) => {
   trigger.innerHTML = navigationIcon();
   trigger.addEventListener("click", () => openMobileNavigation(trigger));
   topbar.prepend(trigger);
-});
+}
+document.querySelectorAll(".topbar").forEach(addMobileNavigationTrigger);
 
 mobileTopbarCart.addEventListener("click", () => setMobileCart(true));
 
@@ -296,6 +298,13 @@ mobileNavigation.addEventListener("close", () => {
   mobileNavigationTrigger?.setAttribute("aria-expanded", "false");
   if (mobileNavigationRestoreFocus) mobileNavigationTrigger?.focus();
   mobileNavigationRestoreFocus = true;
+});
+
+document.querySelectorAll("[data-mobile-language]").forEach((button) => {
+  button.addEventListener("click", () => {
+    setLanguage(button.dataset.mobileLanguage);
+    document.querySelector("#mobile-language-switcher").open = false;
+  });
 });
 
 function setMobileCart(open, { restoreFocus = true } = {}) {
@@ -1118,7 +1127,7 @@ async function loadInvoices({ reset = false } = {}) {
     updateInvoiceSummary(page.summary);
     renderInvoices();
     if (reset) invoicesStale = false;
-    invoiceReportStatus.textContent = invoiceHasMore ? t("product.scroll") : t("ui.invoicesLoaded", { count: invoices.length });
+    invoiceReportStatus.textContent = invoiceHasMore ? t(mobileQuery.matches ? "ui.scrollInvoices" : "product.scroll") : t("ui.invoicesLoaded", { count: invoices.length });
   } catch (error) {
     console.error(error);
     invoiceLoadError = true;
@@ -1534,7 +1543,7 @@ async function loadProductPricingFields(existingPrices = []) {
     fields.replaceChildren(...entries.map((list) => {
       const row = document.createElement("div"); row.className = "product-price-row"; row.dataset.pricingId = list.id;
       const label = document.createElement("label"); label.className = "label"; label.htmlFor = `product-price-${list.id}`; label.textContent = list.label || `Pricing list #${list.id}`;
-      const input = document.createElement("input"); input.id = label.htmlFor; input.className = "input"; input.type = "number"; input.min = "0"; input.step = "0.01"; input.placeholder = t("ui.price"); input.value = prices.get(Number(list.id)) ?? ""; input.setAttribute("aria-label", t("ui.priceFor", { name: label.textContent }));
+      const input = document.createElement("input"); input.id = label.htmlFor; input.className = "input"; input.type = "number"; input.min = "0"; input.step = "0.01"; input.placeholder = t("ui.price"); input.value = prices.get(Number(list.id)) ?? ""; input.required = Number(list.id) === 1; input.setAttribute("aria-label", t("ui.priceFor", { name: label.textContent }));
       row.append(label, input); return row;
     }));
     if (!entries.length) fields.textContent = t("ui.noPricing");
@@ -2065,12 +2074,12 @@ document.querySelector("#product-form").addEventListener("submit", async (event)
     if (editingProductId) {
       createdProduct = await updateProduct(editingProductId, product);
     } else if (!createdProduct) {
-      createdProduct = await createProduct(product);
-      products.unshift({ ...createdProduct, inventory_quantity: 0 });
-      inventoryEntries.unshift({ product_id: createdProduct.id, product_name: createdProduct.name, product_code: createdProduct.code, product_cost: createdProduct.cost, product_price: null, store_name: "Current store", quantity: 0, prev_quantity: 0 });
+      createdProduct = await createProduct({ ...product, prices });
+      products = [createdProduct, ...products.filter((item) => Number(item.id) !== Number(createdProduct.id))];
+      inventoryEntries.unshift({ product_id: createdProduct.id, product_name: createdProduct.name, product_code: createdProduct.code, product_cost: createdProduct.cost, product_price: createdProduct.price, store_name: "Current store", quantity: createdProduct.inventory_quantity, prev_quantity: 0 });
       pendingProductSelection?.(createdProduct); renderInventory();
     }
-    if (prices.length) await setProductPrices(createdProduct.id, prices);
+    if (editingProductId && prices.length) await setProductPrices(createdProduct.id, prices);
     await loadInventory(createdProduct.id);
     if (editingProductId) {
       products = products.map((item) => item.id === createdProduct.id ? { ...item, ...createdProduct } : item);
@@ -2602,7 +2611,7 @@ function userCheckboxes(items, selected, name, label) {
 function renderUsers() {
   editingUser = null;
   userScreen.replaceChildren();
-  const header = document.createElement("header"); header.className = "topbar users-header"; header.innerHTML = `<div class="brand-lockup"><span class="brand-mark" aria-hidden="true">E</span><div><p class="eyebrow">${t("user.users")}</p><h1 id="users-title" class="h3" tabindex="-1">${t("user.users")}</h1></div></div>`;
+  const header = document.createElement("header"); header.className = "topbar users-header"; header.innerHTML = `<div class="brand-lockup"><span class="brand-mark" aria-hidden="true">E</span><div><p class="eyebrow">${t("user.users")}</p><h1 id="users-title" class="h3" tabindex="-1">${t("user.users")}</h1></div></div>`; addMobileNavigationTrigger(header);
   const actions = document.createElement("div"); actions.className = "users-header-actions";
   const filter = document.createElement("input"); filter.className = "input users-search"; filter.type = "search"; filter.placeholder = t("ui.searchUsers"); filter.setAttribute("aria-label", t("ui.searchUsers")); filter.value = userFilter; filter.addEventListener("input", () => { userFilter = filter.value.trim().toLowerCase(); renderUsers(); }); actions.appendChild(filter);
   if (allowed("user.setting")) { const add = document.createElement("button"); add.className = "btn"; add.type = "button"; add.dataset.variant = "default"; add.textContent = t("user.create"); add.addEventListener("click", () => renderUserForm()); actions.appendChild(add); }
@@ -2614,7 +2623,7 @@ function renderUsers() {
 }
 function renderUserForm(user = null, readOnly = false) {
   editingUser = user; userScreen.replaceChildren();
-  const heading = document.createElement("header"); heading.className = "users-header"; heading.innerHTML = `<div><p class="eyebrow">${t("user.users")}</p><h2 id="users-title" class="h3" tabindex="-1">${readOnly ? t("user.details") : user ? t("user.edit") : t("user.create")}</h2></div>`; userScreen.appendChild(heading);
+  const heading = document.createElement("header"); heading.className = "users-header"; heading.innerHTML = `<div><p class="eyebrow">${t("user.users")}</p><h2 id="users-title" class="h3" tabindex="-1">${readOnly ? t("user.details") : user ? t("user.edit") : t("user.create")}</h2></div>`; addMobileNavigationTrigger(heading); userScreen.appendChild(heading);
   const card = document.createElement("div"); card.className = "card user-form-card"; const content = document.createElement("div"); content.className = "card-content"; const form = document.createElement("form"); form.className = "form"; form.noValidate = true;
   [["first_name", "First name", "text", true], ["last_name", "Last name", "text", true], ["username", "Username", "text", true], ["password", user ? "New password (leave blank to keep current)" : "Password", "password", !user]].forEach(([name, label, type, required]) => { const field = document.createElement("div"); field.className = "form-field"; const input = document.createElement("input"); input.className = "input"; input.name = name; input.id = `user-${name}`; input.type = type; input.required = required; input.value = type === "password" ? "" : user?.[name] || ""; input.disabled = readOnly; const inputLabel = document.createElement("label"); inputLabel.className = "label"; inputLabel.htmlFor = input.id; inputLabel.textContent = label; field.append(inputLabel, input); form.appendChild(field); });
   const active = document.createElement("div"); active.className = "form-field-inline"; active.innerHTML = '<input id="user-active" class="checkbox" type="checkbox" name="is_active"><label class="label" for="user-active">Active user</label>'; active.querySelector("input").checked = user ? Number(user.is_active) === 1 : true; active.querySelector("input").disabled = readOnly; form.appendChild(active);

@@ -27,7 +27,7 @@ defmodule PosServer.Retaily.Sql do
     with :ok <- validate_cursor(after_id),
          {:ok, page_size} <- page_size(opts),
          {:ok, store_id} <- store_id(opts),
-         {:ok, result} <- run(tenant, "active_products", [after_id, page_size + 1, @tax_rate, store_id, normalize_search(Keyword.get(opts, :search))]) do
+         {:ok, result} <- run(tenant, "active_products", [after_id, page_size + 1, @tax_rate, store_id, normalize_search(Keyword.get(opts, :search)), nil]) do
       entries = result |> rows_as_maps() |> Enum.take(page_size)
       has_more? = result.num_rows > page_size
 
@@ -37,6 +37,16 @@ defmodule PosServer.Retaily.Sql do
          has_more?: has_more?,
          next_cursor: next_cursor(entries, has_more?)
        }}
+    end
+  end
+
+  @spec active_product(pos_integer(), pos_integer()) :: {:ok, map() | nil} | {:error, term()}
+  def active_product(product_id, store_id) do
+    tenant = TenantContext.tenant!()
+
+    with {:ok, valid_store_id} <- store_id(store_id),
+         {:ok, result} <- run(tenant, "active_products", [nil, 1, @tax_rate, valid_store_id, nil, product_id]) do
+      {:ok, result |> rows_as_maps() |> List.first()}
     end
   end
 

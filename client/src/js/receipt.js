@@ -3,6 +3,29 @@
 // this complete, database-free payload.
 const value = (input) => Number(input || 0);
 
+// Sale totals are authoritative. Older sale lines do not retain their own
+// tax amount, so distribute the persisted invoice tax only for display. The
+// final line receives the rounding remainder, ensuring printed line tax adds
+// up exactly to the invoice tax rather than creating a second total.
+function lineTaxes(lines, invoiceTax) {
+  const storedTax = lines.reduce((sum, line) => sum + value(line.tax_amount), 0);
+  const missing = lines.filter((line) => value(line.tax_amount) <= 0);
+  const total = missing.reduce((sum, line) => sum + value(line.total_amount), 0);
+  const remainingTax = Math.max(invoiceTax - storedTax, 0);
+  let allocated = 0;
+  return lines.map((line, index) => {
+    const stored = value(line.tax_amount);
+    if (stored > 0) return stored;
+    if (!remainingTax || !total) return 0;
+    const isLastMissing = line === missing[missing.length - 1];
+    const tax = isLastMissing
+      ? Number((remainingTax - allocated).toFixed(2))
+      : Number((remainingTax * value(line.total_amount) / total).toFixed(2));
+    allocated += tax;
+    return tax;
+  });
+}
+
 function dateTime(input) {
   if (!input) return "";
   const date = new Date(String(input).replace(" ", "T"));
@@ -65,6 +88,8 @@ export function buildReceiptData(invoice, { company, store, sequences = [], lang
   const totalDiscount = value(invoice.discount);
   const lineDiscount = (invoice.lines || []).reduce((sum, line) => sum + value(line.discount), 0);
   const globalDiscount = value(invoice.global_discount ?? Math.max(totalDiscount - lineDiscount, 0));
+  const lines = invoice.lines || [];
+  const taxes = lineTaxes(lines, value(invoice.tax_amount));
   return {
     number: invoice.sequence || String(invoice.id),
     sequence_description: sequence?.name || "",
@@ -81,13 +106,13 @@ export function buildReceiptData(invoice, { company, store, sequences = [], lang
     customer_document: invoice.client?.document_id || "",
     cashier: invoice.salesperson?.name || invoice.login || "",
     memo: invoice.additional_info || "",
-    items: (invoice.lines || []).map((line) => ({
+    items: lines.map((line, index) => ({
       name: line.product?.name || "",
       sku: line.product?.code || "",
       qty: value(line.quantity),
       price: value(line.amount),
       discount: value(line.discount),
-      tax: value(line.tax_amount),
+      tax: taxes[index],
       total: value(line.total_amount),
     })),
     subtotal: value(invoice.sub),

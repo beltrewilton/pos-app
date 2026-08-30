@@ -29,6 +29,7 @@ WITH catalog AS (
       AND app_inventory.store_id = $4
   ) AS inventory ON TRUE
   WHERE product.active = 1
+    AND ($6::bigint IS NULL OR product.id = $6)
 )
 SELECT
   catalog.*,

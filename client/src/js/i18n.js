@@ -146,6 +146,10 @@ Object.assign(translations.por, {
 });
 
 const LANGUAGE_KEY = "retaily-pos-language";
+Object.assign(translations.eng, { "ui.scrollInvoices": "Scroll for more invoices" });
+Object.assign(translations.latam, { "ui.scrollInvoices": "Desplázate para ver más facturas" });
+Object.assign(translations.por, { "ui.scrollInvoices": "Role para ver mais faturas" });
+
 const staticLabelKeys = {
   Sales: "ui.sales", "Invoice report": "ui.invoiceReport", "Search product": "ui.searchProduct", "Store or warehouse": "ui.storeWarehouse", "Any date": "ui.anyDate", Apply: "ui.apply", Clear: "ui.clear", Paid: "ui.paid", Pending: "ui.pending", Cancelled: "ui.cancelled", Invoice: "ui.invoice", Customer: "ui.customer", Date: "ui.date", Status: "ui.status", Balance: "ui.balance", Actions: "ui.actions",
   Operations: "ui.operations", Inventory: "ui.inventory", Product: "ui.product", Store: "ui.store", Cost: "ui.cost", Price: "ui.price", "Current quantity": "ui.currentQuantity", "Previous quantity": "ui.previousQuantity", "Last updated": "ui.lastUpdated", "Updated by": "ui.updatedBy", Action: "ui.action", "Purchase orders": "ui.purchaseOrders", "Create purchase order": "ui.createPurchaseOrder", "Order ID": "ui.orderId", Source: "ui.source", "Destination store": "ui.destinationStore", "Order cost": "ui.orderCost", "Cost difference": "ui.costDifference", "Created by": "ui.createdBy", "Purchase order": "ui.purchaseOrder", "Back to orders": "ui.backToOrders", "Current store": "ui.currentStore", "Create product": "ui.createProduct", "Show more KPIs": "ui.showMoreKpis", "Update inventory": "ui.updateInventory", "Quantity to add": "ui.quantityToAdd", Save: "ui.save", Cancel: "ui.cancel", Name: "ui.name", "Price lists": "ui.priceLists", "Image upload": "ui.imageUpload", "Sale completed": "ui.saleCompleted", "Print receipt": "ui.printReceipt", "Recent purchases": "ui.recentPurchases", Close: "ui.close", "Cancel invoice": "ui.cancelInvoice", "Keep invoice": "ui.keepInvoice", "Select date range": "ui.selectDateRange", "Previous month": "ui.previousMonth", "Next month": "ui.nextMonth", "Apply range": "ui.applyRange",
