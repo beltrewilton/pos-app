@@ -20,6 +20,13 @@ if System.get_env("PHX_SERVER") do
   config :pos_server, PosServerWeb.Endpoint, server: true
 end
 
+# Google OAuth credentials are intentionally read at runtime. GOOGLE_REDIRECT_URI
+# is optional when the endpoint URL (PHX_HOST in production) is the public URL.
+config :pos_server, :google_oauth,
+  client_id: System.get_env("GOOGLE_CLIENT"),
+  client_secret: System.get_env("GOOGLE_KEY"),
+  redirect_uri: System.get_env("GOOGLE_REDIRECT_URI")
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

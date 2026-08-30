@@ -20,6 +20,62 @@ defmodule PosServer.Accounts do
     |> Repo.insert()
   end
 
+  @doc "Finds or provisions an admin account from verified Google user info."
+  def upsert_user_from_google(user_info)
+      when is_map(user_info) do
+    google_uid = user_info["sub"] || user_info["id"]
+    email = user_info["email"]
+    name = user_info["name"] || email
+    email_verified? = user_info["email_verified"] == true
+
+    with true <- email_verified?,
+         true <- is_binary(google_uid) and byte_size(google_uid) > 0,
+         true <- is_binary(email) and byte_size(email) > 0 do
+      attrs = %{
+        email: email,
+        name: name,
+        tenant: google_tenant(google_uid),
+        google_uid: google_uid,
+        google_picture_url: user_info["picture"],
+        confirmed_at: DateTime.utc_now(:second)
+      }
+
+      case Repo.get_by(User, google_uid: google_uid) || Repo.get_by(User, email: email) do
+        %User{} = user ->
+          attrs = %{attrs | tenant: user.tenant || attrs.tenant}
+
+          user
+          |> User.google_oauth_changeset(attrs)
+          |> Repo.update()
+
+        nil ->
+          create_google_user(attrs)
+      end
+    else
+      _ -> {:error, :invalid_google_user}
+    end
+  end
+
+  defp create_google_user(attrs) do
+    user_changeset = User.google_oauth_changeset(%User{}, attrs)
+    company_changeset = Company.changeset(%Company{}, %{company_name: "#{attrs.name}'s business"})
+
+    cond do
+      not user_changeset.valid? ->
+        {:error, user_changeset}
+
+      not company_changeset.valid? ->
+        {:error, company_changeset}
+
+      true ->
+        create_valid_company_user(user_changeset, company_changeset)
+    end
+  end
+
+  defp google_tenant(google_uid) do
+    "google_" <> (:crypto.hash(:sha256, google_uid) |> Base.encode16(case: :lower) |> binary_part(0, 24))
+  end
+
   def change_company(%Company{} = company, attrs \\ %{}), do: Company.changeset(company, attrs)
 
   def create_company_user(user_attrs, company_attrs) do

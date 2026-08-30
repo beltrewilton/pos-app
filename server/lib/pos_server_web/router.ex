@@ -8,6 +8,7 @@ defmodule PosServerWeb.Router do
     plug :put_root_layout, html: {PosServerWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug PosServerWeb.Plugs.FetchCurrentScope
   end
 
   pipeline :api do
@@ -28,6 +29,9 @@ defmodule PosServerWeb.Router do
     pipe_through :browser
 
     get "/", LandingController, :index
+    get "/google_auth_url", GoogleAuthController, :redirect_to
+    get "/auth/google/callback", GoogleAuthController, :callback
+    get "/google_helper", GoogleAuthController, :helper
     live "/users", UserLive, :index
     live "/users/new", UserLive, :new
   end

@@ -1,0 +1,124 @@
+defmodule PosServerWeb.GoogleAuthController do
+  use PosServerWeb, :controller
+
+  alias PosServer.{Accounts, Authentication}
+
+  @google_authorize_url "https://accounts.google.com/o/oauth2/v2/auth"
+  @google_token_url "https://oauth2.googleapis.com/token"
+  @google_user_info_url "https://www.googleapis.com/oauth2/v3/userinfo"
+
+  def redirect_to(conn, _params) do
+    state = :crypto.strong_rand_bytes(32) |> Base.url_encode64(padding: false)
+
+    conn
+    |> put_session(:google_oauth_state, state)
+    |> redirect(external: google_auth_url(state))
+  end
+
+  # Compatibility entry point for the helper URL used by edoc. Keep the OAuth
+  # work in this controller so the callback has one state-aware implementation.
+  def helper(conn, _params), do: redirect(conn, to: ~p"/google_auth_url")
+
+  def callback(conn, %{"code" => code, "state" => state}) do
+    with :ok <- verify_state(conn, state),
+         {:ok, token_map} <- exchange_code_for_token(code),
+         {:ok, user_info} <- fetch_user_info(token_map["access_token"]),
+         {:ok, user} <- Accounts.upsert_user_from_google(user_info),
+         {:ok, session_token, _scope} <- Authentication.log_in_user(user) do
+      conn
+      |> delete_session(:google_oauth_state)
+      |> configure_session(renew: true)
+      |> put_session(:user_token, session_token)
+      |> put_flash(:info, "Sesión iniciada con Google.")
+      |> redirect(to: ~p"/users")
+    else
+      {:error, reason} -> google_error(conn, reason)
+      _ -> google_error(conn, :google_sign_in_failed)
+    end
+  end
+
+  def callback(conn, _params), do: google_error(conn, :google_sign_in_cancelled)
+
+  def google_auth_url(state) when is_binary(state) do
+    %{client_id: client_id, redirect_uri: redirect_uri} = google_config!()
+
+    query =
+      URI.encode_query(%{
+        "access_type" => "offline",
+        "client_id" => client_id,
+        "prompt" => "consent",
+        "redirect_uri" => redirect_uri,
+        "response_type" => "code",
+        "scope" => "openid email profile",
+        "state" => state
+      })
+
+    @google_authorize_url <> "?" <> query
+  end
+
+  defp exchange_code_for_token(code) do
+    %{client_id: client_id, client_secret: client_secret, redirect_uri: redirect_uri} = google_config!()
+
+    case Req.post(@google_token_url,
+           form: %{
+             "client_id" => client_id,
+             "client_secret" => client_secret,
+             "code" => code,
+             "grant_type" => "authorization_code",
+             "redirect_uri" => redirect_uri
+           }
+         ) do
+      {:ok, %Req.Response{status: 200, body: body}} -> {:ok, body}
+      {:ok, %Req.Response{status: status, body: body}} -> {:error, {:google_token_error, status, body}}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp fetch_user_info(access_token) when is_binary(access_token) do
+    case Req.get(@google_user_info_url, headers: [{"authorization", "Bearer #{access_token}"}]) do
+      {:ok, %Req.Response{status: 200, body: body}} -> {:ok, body}
+      {:ok, %Req.Response{status: status, body: body}} -> {:error, {:google_user_info_error, status, body}}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp fetch_user_info(_), do: {:error, :missing_google_access_token}
+
+  defp verify_state(conn, state) when is_binary(state) do
+    case get_session(conn, :google_oauth_state) do
+      expected when is_binary(expected) and byte_size(expected) == byte_size(state) ->
+        if Plug.Crypto.secure_compare(expected, state), do: :ok, else: {:error, :invalid_google_oauth_state}
+
+      _ ->
+        {:error, :invalid_google_oauth_state}
+    end
+  end
+
+  defp verify_state(_conn, _state), do: {:error, :invalid_google_oauth_state}
+
+  defp google_config! do
+    config = Application.get_env(:pos_server, :google_oauth, [])
+    client_id = Keyword.fetch!(config, :client_id)
+    client_secret = Keyword.fetch!(config, :client_secret)
+
+    if is_binary(client_id) and client_id != "" and is_binary(client_secret) and client_secret != "" do
+      %{client_id: client_id, client_secret: client_secret, redirect_uri: google_redirect_uri(config)}
+    else
+      raise "GOOGLE_CLIENT and GOOGLE_KEY must be configured to use Google sign-in"
+    end
+  end
+
+  defp google_redirect_uri(config) do
+    case Keyword.get(config, :redirect_uri) do
+      uri when is_binary(uri) and uri != "" -> uri
+      _ -> PosServerWeb.Endpoint.url() <> "/auth/google/callback"
+    end
+  end
+
+  defp google_error(conn, _reason) do
+    conn
+    |> delete_session(:google_oauth_state)
+    |> put_flash(:error, "No se pudo iniciar sesión con Google. Inténtalo de nuevo.")
+    |> redirect(to: ~p"/")
+  end
+end

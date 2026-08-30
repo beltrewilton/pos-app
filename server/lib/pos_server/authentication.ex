@@ -32,6 +32,12 @@ defmodule PosServer.Authentication do
 
   def login(_), do: {:error, :invalid_credentials}
 
+  @doc "Issues the application's normal API token for an already authenticated admin."
+  def log_in_user(%User{} = user) do
+    scope = Scope.for_user(user)
+    {:ok, issue(scope), scope}
+  end
+
   def authenticate(token) when is_binary(token) do
     with {:ok, payload} <-
            Phoenix.Token.verify(PosServerWeb.Endpoint, @salt, token, max_age: 86_400),
