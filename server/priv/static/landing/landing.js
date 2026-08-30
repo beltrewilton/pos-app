@@ -6,39 +6,39 @@
 (function () {
   const faqData = [
     {
-      question: "How do we kick things off?",
+      question: "¿Qué es tigoo?",
       answer:
-        "Just pick the option that fits your needs, whether it's a landing page or retainer, and I'll sync on timeline and budget before diving into design and build."
+        "tigoo es una solución para gestionar ventas, inventario, clientes, compras y facturación desde un solo lugar."
     },
     {
-      question: "Do you accept crypto?",
+      question: "¿Puedo usar tigoo en varias tiendas?",
       answer:
-        "Yes, I accept Bitcoin, Ethereum, and stablecoins (USDC/USDT) for both one-time and retainer payments."
+        "Sí. Puedes organizar existencias y operaciones por tienda y mantener una visión centralizada del negocio."
     },
     {
-      question: "What services do you offer?",
+      question: "¿Puedo usar lectores de código de barras?",
       answer:
-        "UI/UX design, landing pages, dashboards, web apps, design systems, and front-end development using Next.js and Tailwind CSS."
+        "tigoo agiliza la búsqueda y venta de productos mediante códigos de barras cuando el equipo está configurado para ello."
     },
     {
-      question: "Can you work with our team?",
+      question: "¿Puedo imprimir recibos?",
       answer:
-        "Absolutely. I collaborate with product managers, developers, and stakeholders using Figma, Slack, and Notion."
+        "Sí. La solución contempla impresión de recibos en el flujo de venta y reimpresión desde las facturas."
     },
     {
-      question: "Do you offer frontend dev?",
+      question: "¿Puedo gestionar inventario?",
       answer:
-        "Yes, I write production-ready Next.js code with Tailwind CSS. It's included in the retainer and available as an add-on for landing pages."
+        "Sí. Consulta cantidades, movimientos, compras, ajustes y transferencias entre tiendas."
     },
     {
-      question: "What if priorities change?",
+      question: "¿Puedo emitir facturación electrónica?",
       answer:
-        "We adapt. I work flexibly and reprioritize tasks as your business evolves, keeping communication open throughout."
+        "tigoo incorpora flujos de facturación orientados a la operación comercial en República Dominicana."
     },
     {
-      question: "How long does it usually take?",
+      question: "¿Puedo consultar mi negocio desde otro dispositivo?",
       answer:
-        "Landing pages: 1-2 weeks. Retainer: ongoing with 24-hour updates. Timelines are tailored to your specific scope."
+        "Consulta ventas, productos e inventario desde computador, tablet o móvil sin perder de vista tu operación."
     }
   ];
 
