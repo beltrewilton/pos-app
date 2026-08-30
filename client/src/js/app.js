@@ -3,6 +3,7 @@ import { createPrintRelay } from "./print-relay.js";
 import Pica from "../vendor/pica/pica.mjs";
 import { API_BASE_URL, activeProducts, addSalePayment, adjustInventory, cancelSale, clearSession, companySettings, createCustomer, createPriceList, createProduct, createProductOrder, createProvider, createSale, createSequenceSet, createStore, createUser, customerDetail, customerPurchases, customers, deactivateUser, deletePriceList, deleteProvider, deleteSequenceSet, deleteStore, inventoryQuantities, inventoryStoreQuantities, inventorySummary, login, moveInventory, pricingLists, product, productOrders, productTraces, purchaseSources, receiveProductOrder, saleDetails, salesReport, saveSession, session, setProductPrices, stores, updatePriceList, updateProduct, updateProvider, updateSequenceSet, updateStore, updateUser, userOptions, users } from "./api.js";
 import { createPos } from "./pos.js";
+import { buildReceiptData } from "./receipt.js";
 import { formatCurrency, getLanguage, onLanguageChange, t, translateDocument } from "./i18n.js";
 import { createLanguageSwitcher } from "./language-switcher.js";
 
@@ -850,6 +851,10 @@ function invoiceDetailsRow(invoice) {
     const headerCopy = document.createElement("div");
     headerCopy.append(title, description);
     header.appendChild(headerCopy);
+    const printCopy = document.createElement("button");
+    printCopy.className = "btn"; printCopy.type = "button"; printCopy.dataset.variant = "outline";
+    printCopy.dataset.printInvoice = detail.id; printCopy.textContent = t("receipt.printCopy");
+    header.appendChild(printCopy);
     if (detail.invoice_status === "open") header.appendChild(invoicePaymentForm(detail));
     if (["close", "cancelled"].includes(detail.invoice_status)) {
       const statusBadge = document.createElement("span");
@@ -2149,6 +2154,12 @@ document.querySelector("#invoice-filters-clear").addEventListener("click", () =>
   loadInvoices({ reset: true });
 });
 invoiceTableBody.addEventListener("click", async (event) => {
+  const print = event.target.closest("[data-print-invoice]");
+  if (print) {
+    const invoice = invoiceDetails.get(Number(print.dataset.printInvoice));
+    if (invoice) openReceiptPrint(invoice, true);
+    return;
+  }
   const trigger = event.target.closest("[data-invoice-detail]");
   if (!trigger) return;
   const invoiceId = Number(trigger.dataset.invoiceDetail);
@@ -2427,7 +2438,16 @@ document.querySelector("#payment-lines").addEventListener("change", () => { upda
 document.querySelector("#payment-lines").addEventListener("input", (event) => { if (event.target.matches("input")) applySplitPayment(event.target); updatePaymentCompletion(); });
 document.querySelector("#payment-lines").addEventListener("focusin", (event) => { if (mobileQuery.matches && event.target.matches("input")) event.target.scrollIntoView({ behavior: "smooth", block: "center" }); });
 document.querySelector("#credit-toggle").addEventListener("click", (event) => { const active = event.currentTarget.getAttribute("aria-pressed") !== "true"; event.currentTarget.setAttribute("aria-pressed", String(active)); event.currentTarget.dataset.variant = active ? "default" : "outline"; document.querySelector("#payment-inputs").hidden = active; updatePaymentChoice(); updatePaymentCompletion(); });
-document.querySelector("#complete-sale").addEventListener("click", async () => { const complete = document.querySelector("#complete-sale"); const credit = document.querySelector("#credit-toggle").getAttribute("aria-pressed") === "true"; const payments = [...document.querySelectorAll(".payment-line")].map((line) => ({ type: line.querySelector("select").value, amount: Number(line.querySelector("input").value) || 0 })).filter((line) => line.amount); const additionalInfo = document.querySelector("#sale-additional-info").value.trim(); if (pos.isEmpty() || (!credit && payments.reduce((sum, line) => sum + line.amount, 0) < pos.total())) { updatePaymentCompletion(); return; } if (additionalInfo.length > 1000) { checkoutStatus.textContent = "Memo must be 1000 characters or fewer."; return; } const receipt = pos.receipt(); complete.disabled = true; try { await createSale({ store_id: storeId, client_id: selectedCustomer.id, sequence_type: document.querySelector("[data-sequence][data-variant=default]").dataset.sequence, status: credit ? "CREDIT" : "CASH", sale_type: receipt.delivery ? "FOR_DELIVER" : "IN_SHOP", delivery_charge: receipt.delivery, discount: receipt.order_discount, discount_type: receipt.order_discount_type, discount_input: receipt.order_discount_input, additional_info: additionalInfo, lines: receipt.items.map((item) => ({ product_id: Number(item.id), quantity: item.qty, discount: item.discount, discount_type: item.discount_type, discount_input: item.discount_input })), payments: credit ? [] : payments }); invoicesStale = true; await refreshInventory(receipt.items.map((item) => item.id)).catch(console.error); completedReceipt = { ...receipt, language: getLanguage() }; document.querySelector("#receipt-print-status").textContent = ""; renderPrintTargets(); resetCompletedOrder(); closeCheckout(); document.querySelector("#receipt-dialog").showModal(); } catch (error) { checkoutStatus.textContent = error.message; complete.disabled = false; } });
+function openReceiptPrint(invoice, copy = false) {
+  const store = (companySettingsData.stores || []).find((entry) => Number(entry.id) === Number(invoice.store_id));
+  completedReceipt = buildReceiptData(invoice, { company: companySettingsData.company, store, sequences: companySettingsData.sequence_sets, language: getLanguage(), t, copy });
+  document.querySelector("#receipt-print-status").textContent = "";
+  document.querySelector("#receipt-dialog-title").textContent = copy ? t("receipt.printCopy") : t("receipt.saleCompleted");
+  document.querySelector("#receipt-print-description").textContent = t("receipt.printDescription");
+  renderPrintTargets(); document.querySelector("#receipt-dialog").showModal();
+}
+
+document.querySelector("#complete-sale").addEventListener("click", async () => { const complete = document.querySelector("#complete-sale"); const credit = document.querySelector("#credit-toggle").getAttribute("aria-pressed") === "true"; const payments = [...document.querySelectorAll(".payment-line")].map((line) => ({ type: line.querySelector("select").value, amount: Number(line.querySelector("input").value) || 0 })).filter((line) => line.amount); const draft = pos.receipt(); const additionalInfo = document.querySelector("#sale-additional-info").value.trim(); if (pos.isEmpty() || (!credit && payments.reduce((sum, line) => sum + line.amount, 0) < pos.total())) { updatePaymentCompletion(); return; } if (additionalInfo.length > 1000) { checkoutStatus.textContent = "Memo must be 1000 characters or fewer."; return; } complete.disabled = true; try { const savedSale = await createSale({ store_id: storeId, client_id: selectedCustomer.id, sequence_type: document.querySelector("[data-sequence][data-variant=default]").dataset.sequence, status: credit ? "CREDIT" : "CASH", sale_type: draft.delivery ? "FOR_DELIVER" : "IN_SHOP", delivery_charge: draft.delivery, discount: draft.order_discount, discount_type: draft.order_discount_type, discount_input: draft.order_discount_input, additional_info: additionalInfo, lines: draft.items.map((item) => ({ product_id: Number(item.id), quantity: item.qty, discount: item.discount, discount_type: item.discount_type, discount_input: item.discount_input })), payments: credit ? [] : payments }); invoicesStale = true; await refreshInventory(draft.items.map((item) => item.id)).catch(console.error); resetCompletedOrder(); closeCheckout(); openReceiptPrint(savedSale); } catch (error) { checkoutStatus.textContent = error.message; complete.disabled = false; } });
 document.querySelector("#skip-print").addEventListener("click", () => { document.querySelector("#receipt-dialog").close(); completedReceipt = null; });
 document.querySelector("#print-receipt").addEventListener("click", async () => {
   const button = document.querySelector("#print-receipt"), status = document.querySelector("#receipt-print-status");
