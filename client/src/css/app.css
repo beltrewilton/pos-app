@@ -2470,6 +2470,10 @@ dialog#customer-purchases-dialog .dialog-content {
 }
 
 /* Phone layout: a left navigation sheet replaces the desktop rail. */
+.mobile-pull-to-refresh {
+  display: none;
+}
+
 @media (max-width: 640px) {
   .pos-shell.users-view {
     height: auto;
@@ -3739,6 +3743,62 @@ dialog#customer-purchases-dialog .dialog-content {
   body {
     min-width: 0;
   }
+
+  /* Shown only by the scoped mobile touch gesture; desktop never receives it. */
+  .catalog-content,
+  .customers-screen,
+  .invoice-report,
+  .operations-screen {
+    position: relative;
+  }
+
+  .mobile-pull-to-refresh {
+    --mobile-pull-distance: 0px;
+    position: absolute;
+    top: 0;
+    left: 50%;
+    z-index: 5;
+    display: grid;
+    width: 2rem;
+    height: 2rem;
+    place-items: center;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--card);
+    box-shadow: var(--shadow-sm);
+    color: var(--muted-foreground);
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, calc(var(--mobile-pull-distance) - 2.5rem));
+    transition: opacity 140ms ease, transform 180ms ease, color 140ms ease;
+  }
+
+  .mobile-pull-to-refresh.is-pulling,
+  .mobile-pull-to-refresh.is-refreshing {
+    opacity: 1;
+  }
+
+  .mobile-pull-to-refresh.is-ready {
+    color: var(--primary);
+  }
+
+  .mobile-pull-to-refresh.is-refreshing {
+    transform: translate(-50%, 0.5rem);
+  }
+
+  .mobile-pull-to-refresh-icon {
+    font-size: 1rem;
+    line-height: 1;
+  }
+
+  .mobile-pull-to-refresh.is-refreshing .mobile-pull-to-refresh-icon {
+    animation: mobile-pull-refresh-spin 700ms linear infinite;
+  }
+
+  @keyframes mobile-pull-refresh-spin {
+    to { transform: rotate(360deg); }
+  }
+
   .users-screen {
     padding: 0 0 calc(20px + env(safe-area-inset-bottom));
   }

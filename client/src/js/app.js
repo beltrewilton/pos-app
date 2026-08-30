@@ -181,6 +181,83 @@ let editingCompanySetting = null;
 
 const mobileQuery = window.matchMedia("(max-width: 640px)");
 
+// The catalog panel is the scroll surface on mobile.  Keeping the gesture here
+// lets every list share the same WebView-friendly touch behavior without
+// changing desktop scrolling or adding document-level touch handlers.
+function createMobilePullToRefresh({ screen, onRefresh, isActive = () => !screen.hidden, scrollContainer = catalogPanel }) {
+  const indicator = document.createElement("div");
+  indicator.className = "mobile-pull-to-refresh";
+  indicator.setAttribute("role", "status");
+  indicator.setAttribute("aria-live", "polite");
+  indicator.setAttribute("aria-label", "Pull down to refresh");
+  indicator.innerHTML = '<span class="mobile-pull-to-refresh-icon" aria-hidden="true">↻</span>';
+  screen.prepend(indicator);
+
+  const threshold = 72;
+  let startY = 0;
+  let startX = 0;
+  let distance = 0;
+  let tracking = false;
+  let vertical = false;
+  let refreshing = false;
+
+  const reset = () => {
+    distance = 0;
+    tracking = false;
+    vertical = false;
+    indicator.style.removeProperty("--mobile-pull-distance");
+    indicator.classList.remove("is-pulling", "is-ready");
+  };
+  const isInteractive = (target) => target.closest("button, input, select, textarea, a, summary, [role='button'], [data-no-pull-refresh]");
+
+  catalogPanel.addEventListener("touchstart", (event) => {
+    if (!mobileQuery.matches || refreshing || !isActive() || scrollContainer.scrollTop > 0 || isInteractive(event.target)) return;
+    const touch = event.touches[0];
+    startY = touch.clientY;
+    startX = touch.clientX;
+    tracking = true;
+    vertical = false;
+  }, { passive: true });
+
+  catalogPanel.addEventListener("touchmove", (event) => {
+    if (!tracking || refreshing || !isActive()) return;
+    const touch = event.touches[0];
+    const deltaY = touch.clientY - startY;
+    const deltaX = touch.clientX - startX;
+    if (!vertical) {
+      if (Math.abs(deltaX) > Math.abs(deltaY)) { tracking = false; return; }
+      if (deltaY <= 0) return;
+      vertical = true;
+    }
+    if (scrollContainer.scrollTop > 0 || deltaY <= 0) { reset(); return; }
+    distance = Math.min(threshold * 1.35, deltaY * 0.48);
+    indicator.style.setProperty("--mobile-pull-distance", `${distance}px`);
+    indicator.classList.add("is-pulling");
+    indicator.classList.toggle("is-ready", distance >= threshold);
+    // Only take over once this is confirmed as a downward, top-of-list pull.
+    event.preventDefault();
+  }, { passive: false });
+
+  const finish = async () => {
+    if (!tracking) return;
+    const shouldRefresh = distance >= threshold && !refreshing;
+    reset();
+    if (!shouldRefresh) return;
+    refreshing = true;
+    indicator.classList.add("is-refreshing");
+    indicator.setAttribute("aria-label", "Refreshing");
+    try {
+      await onRefresh();
+    } finally {
+      refreshing = false;
+      indicator.classList.remove("is-refreshing");
+      indicator.setAttribute("aria-label", "Pull down to refresh");
+    }
+  };
+  catalogPanel.addEventListener("touchend", finish, { passive: true });
+  catalogPanel.addEventListener("touchcancel", reset, { passive: true });
+}
+
 function populateStoreOptions() {
   document.querySelectorAll("#inventory-store, #inventory-form-store, #order-destination, #sidebar-store").forEach((select) => {
     const selected = String(storeId);
@@ -1110,18 +1187,20 @@ function sortInvoices() {
   });
 }
 
-async function loadInvoices({ reset = false } = {}) {
+async function loadInvoices({ reset = false, preserveExpanded = false, quiet = false } = {}) {
   if (invoiceLoading || (!reset && !invoiceHasMore)) return;
+  const refreshedExpandedId = preserveExpanded ? expandedInvoiceId : null;
   if (reset) { invoiceCursor = null; invoiceHasMore = true; invoices = []; expandedInvoiceId = null; }
   invoiceLoading = true;
   invoiceLoadError = false;
-  if (reset) setScreenLoading(invoiceReport, true);
+  if (reset && !quiet) setScreenLoading(invoiceReport, true);
   renderInvoices();
   invoiceReportStatus.textContent = invoices.length ? t("ui.loadingMoreInvoices") : t("ui.loadingInvoices");
   try {
     const page = await salesReport(storeId, invoiceCursor, invoiceSearch.value.trim(), invoiceDateFrom.value, invoiceDateTo.value, invoiceStatusFilter);
     invoices = invoices.concat(page.entries);
     sortInvoices();
+    if (refreshedExpandedId && invoices.some((invoice) => invoice.id === refreshedExpandedId)) expandedInvoiceId = refreshedExpandedId;
     invoiceCursor = page.next_cursor;
     invoiceHasMore = page.has_more;
     updateInvoiceSummary(page.summary);
@@ -1132,7 +1211,7 @@ async function loadInvoices({ reset = false } = {}) {
     console.error(error);
     invoiceLoadError = true;
     invoiceReportStatus.textContent = t("ui.invoicesLoadError");
-  } finally { invoiceLoading = false; renderInvoices(); if (reset) setScreenLoading(invoiceReport, false); }
+  } finally { invoiceLoading = false; renderInvoices(); if (reset && !quiet) setScreenLoading(invoiceReport, false); }
 }
 
 function openInvoiceReport() {
@@ -1399,10 +1478,11 @@ function renderInventoryWithoutMoving() {
   renderInventory();
   catalogPanel.scrollTop = scrollTop;
 }
-async function loadInventory(focusProductId = null) {
-  setScreenLoading(inventoryScreen, true);
+async function loadInventory(focusProductId = null, { preserveContext = false } = {}) {
+  const scrollTop = preserveContext ? catalogPanel.scrollTop : null;
+  if (!preserveContext) setScreenLoading(inventoryScreen, true);
   inventoryStatus.textContent = t("ui.loadingInventory");
-  inventoryTableBody.replaceChildren(...inventorySkeletonRows());
+  if (!preserveContext) inventoryTableBody.replaceChildren(...inventorySkeletonRows());
   const storeId = document.querySelector("#inventory-store").value;
   try {
     const inventoryUrl = new URL(`${API_BASE_URL}/inventory`);
@@ -1416,13 +1496,14 @@ async function loadInventory(focusProductId = null) {
     inventoryEntries = (await inventoryResponse.json()).entries;
     renderInventorySummary(summaryResponse.summary);
     renderInventory();
+    if (scrollTop !== null) catalogPanel.scrollTop = scrollTop;
     requestAnimationFrame(() => focusInventoryRow(focusProductId));
   } catch (error) {
     console.error(error);
     renderInventory();
     inventoryStatus.textContent = t("inventory.loadError");
   } finally {
-    setScreenLoading(inventoryScreen, false);
+    if (!preserveContext) setScreenLoading(inventoryScreen, false);
   }
 }
 
@@ -1706,8 +1787,9 @@ function productSkeletonCards() {
   });
 }
 
-async function loadProducts() {
-  if (!storeId || loading || !hasMore) return;
+async function loadProducts({ reset = false } = {}) {
+  if (!storeId || loading || (!reset && !hasMore)) return;
+  if (reset) { cursor = null; hasMore = true; products = []; }
   loading = true;
   renderProducts();
   productStatus.textContent = products.length ? t("product.loadingMore") : t("products.loading");
@@ -2663,4 +2745,28 @@ document.addEventListener("click", (event) => {
 }, true);
 loginForm.addEventListener("submit", async (event) => { event.preventDefault(); loginError.hidden = true; if (pendingLogin) { completeStoreSelection(); return; } if (!loginForm.reportValidity()) return; const submit = document.querySelector("#login-submit"); submit.disabled = true; try { await requestStoreSelection(await login(loginForm.elements.identifier.value.trim(), loginForm.elements.password.value)); } catch (error) { loginErrorMessage.textContent = error.code === "SERVER_UNAVAILABLE" ? t("auth.serverUnavailable") : error.status === 401 ? t("auth.invalidCredentials") : t("auth.unableToSignIn"); loginError.hidden = false; } finally { submit.disabled = false; } });
 onLanguageChange(() => { if (!userScreen.hidden) editingUser ? renderUserForm(editingUser) : renderUsers(); });
+
+createMobilePullToRefresh({
+  screen: catalogPanel.querySelector(".catalog-content"),
+  onRefresh: () => loadProducts({ reset: true }),
+  isActive: () => !catalogPanel.dataset.view,
+  scrollContainer: document.scrollingElement
+});
+createMobilePullToRefresh({
+  screen: customersScreen,
+  onRefresh: () => loadCustomers()
+});
+createMobilePullToRefresh({
+  screen: invoiceReport,
+  onRefresh: () => loadInvoices({ reset: true, preserveExpanded: true, quiet: true })
+});
+createMobilePullToRefresh({
+  screen: inventoryScreen,
+  onRefresh: () => loadInventory(null, { preserveContext: true })
+});
+createMobilePullToRefresh({
+  screen: ordersScreen,
+  onRefresh: () => loadOrders()
+});
+
 if (session()?.token && session()?.store_id) { showApplication(); handleRoute(); } else if (session()?.token) { showLogin(); requestStoreSelection(session()); } else showLogin();
