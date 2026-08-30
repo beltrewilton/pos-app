@@ -43,21 +43,40 @@
   box-sizing: border-box;
 }
 
-.temporal-landing a {
+.temporal-landing :where(a) {
   text-decoration: none;
   color: inherit;
 }
 
-.temporal-landing button {
+.temporal-landing :where(button) {
   cursor: pointer;
   border: none;
   background: none;
   font: inherit;
 }
 
-.temporal-landing img {
+.temporal-landing :where(img) {
   display: block;
   max-width: 100%;
+}
+
+/* Preserve the source word-by-word layout used by the about scroll effect. */
+.temporal-landing .about-card .about-text-wrapper {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px 12px;
+  font-size: clamp(22px, 4vw, 40px);
+  font-weight: 700;
+  line-height: 1.6;
+  letter-spacing: -1px;
+  color: #1a1b1e;
+}
+
+.temporal-landing .about-word {
+  display: inline-block;
+  padding: 2px 4px;
 }
 
 @scope (.temporal-landing) {
@@ -900,23 +919,6 @@ img {
   color: var(--fg);
   text-decoration: underline;
 }
-
-.footer .bg-svg {
-  width: 100%;
-  overflow: hidden;
-  line-height: 0;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.footer .bg-svg svg {
-  display: block;
-  width: auto;
-  height: 90px !important;
-  max-width: 100%;
-}
-
 .footer .blur-overlay {
   position: absolute;
   bottom: 0;
