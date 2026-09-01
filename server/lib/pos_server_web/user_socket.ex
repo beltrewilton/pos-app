@@ -4,6 +4,7 @@ defmodule PosServerWeb.UserSocket do
   channel "system:*", PosServerWeb.SystemChannel
   channel "inventory:*", PosServerWeb.SystemChannel
   channel "print-relay:*", PosServerWeb.SystemChannel
+  channel "login:*", PosServerWeb.LoginChannel
 
   @impl true
   def connect(%{"token" => token}, socket, _connect_info) do
@@ -13,6 +14,13 @@ defmodule PosServerWeb.UserSocket do
 
       {:error, _} ->
         :error
+    end
+  end
+
+  def connect(%{"login_attempt_id" => id, "login_attempt_token" => token}, socket, _connect_info) do
+    case PosServer.Authentication.authenticate_tauri_login_attempt(id, token) do
+      {:ok, _attempt} -> {:ok, assign(socket, login_attempt_id: id)}
+      {:error, _} -> :error
     end
   end
 

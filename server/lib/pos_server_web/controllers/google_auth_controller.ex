@@ -15,6 +15,20 @@ defmodule PosServerWeb.GoogleAuthController do
     |> redirect(external: google_auth_url(state))
   end
 
+  def tauri_redirect_to(conn, %{"platform" => platform, "attempt_id" => attempt_id}) when platform in ["desktop", "mobile"] do
+    if Authentication.valid_tauri_login_attempt?(attempt_id) do
+      state = :crypto.strong_rand_bytes(32) |> Base.url_encode64(padding: false)
+
+      conn
+      |> put_session(:google_oauth_state, %{value: state, client: "tauri", platform: platform, attempt_id: attempt_id})
+      |> redirect(external: google_auth_url(state))
+    else
+      conn |> put_status(:unauthorized) |> text("Invalid or expired Tauri login attempt")
+    end
+  end
+
+  def tauri_redirect_to(conn, _params), do: conn |> put_status(:bad_request) |> text("Unsupported Tauri platform")
+
   # Compatibility entry point for the helper URL used by edoc. Keep the OAuth
   # work in this controller so the callback has one state-aware implementation.
   def helper(conn, _params), do: redirect(conn, to: ~p"/google_auth_url")
@@ -23,14 +37,8 @@ defmodule PosServerWeb.GoogleAuthController do
     with :ok <- verify_state(conn, state),
          {:ok, token_map} <- exchange_code_for_token(code),
          {:ok, user_info} <- fetch_user_info(token_map["access_token"]),
-         {:ok, user} <- Accounts.upsert_user_from_google(user_info),
-         {:ok, session_token, _scope} <- Authentication.log_in_user(user) do
-      conn
-      |> delete_session(:google_oauth_state)
-      |> configure_session(renew: true)
-      |> put_session(:user_token, session_token)
-      |> put_flash(:info, "Sesión iniciada con Google.")
-      |> redirect(to: ~p"/users")
+         {:ok, user} <- Accounts.upsert_user_from_google(user_info) do
+      finish_google_sign_in(conn, user)
     else
       {:error, reason} -> google_error(conn, reason)
       _ -> google_error(conn, :google_sign_in_failed)
@@ -89,6 +97,9 @@ defmodule PosServerWeb.GoogleAuthController do
       expected when is_binary(expected) and byte_size(expected) == byte_size(state) ->
         if Plug.Crypto.secure_compare(expected, state), do: :ok, else: {:error, :invalid_google_oauth_state}
 
+      %{value: expected} when is_binary(expected) and byte_size(expected) == byte_size(state) ->
+        if Plug.Crypto.secure_compare(expected, state), do: :ok, else: {:error, :invalid_google_oauth_state}
+
       _ ->
         {:error, :invalid_google_oauth_state}
     end
@@ -115,10 +126,61 @@ defmodule PosServerWeb.GoogleAuthController do
     end
   end
 
+  defp finish_google_sign_in(conn, user) do
+    case get_session(conn, :google_oauth_state) do
+      %{client: "tauri", attempt_id: attempt_id} ->
+        case Authentication.complete_tauri_login_attempt(attempt_id, user) do
+          {:ok, payload} ->
+            PosServerWeb.Endpoint.broadcast("login:" <> attempt_id, "login_result", payload)
+            tauri_result_page(conn, :success)
+
+          {:error, _} ->
+            tauri_result_page(conn, :error)
+        end
+
+      _ ->
+        with {:ok, session_token, _scope} <- Authentication.log_in_user(user) do
+          conn
+          |> delete_session(:google_oauth_state)
+          |> configure_session(renew: true)
+          |> put_session(:user_token, session_token)
+          |> put_flash(:info, "Sesión iniciada con Google.")
+          |> redirect(to: ~p"/users")
+        end
+    end
+  end
+
   defp google_error(conn, _reason) do
+    case get_session(conn, :google_oauth_state) do
+      %{client: "tauri", attempt_id: attempt_id} ->
+        case Authentication.fail_tauri_login_attempt(attempt_id, "google_sign_in_failed") do
+          {:ok, payload} -> PosServerWeb.Endpoint.broadcast("login:" <> attempt_id, "login_result", payload)
+          _ -> :ok
+        end
+
+        tauri_result_page(conn, :error)
+
+      _ ->
+        conn
+        |> delete_session(:google_oauth_state)
+        |> put_flash(:error, "No se pudo iniciar sesión con Google. Inténtalo de nuevo.")
+        |> redirect(to: ~p"/")
+    end
+  end
+
+  defp tauri_result_page(conn, :success) do
     conn
     |> delete_session(:google_oauth_state)
-    |> put_flash(:error, "No se pudo iniciar sesión con Google. Inténtalo de nuevo.")
-    |> redirect(to: ~p"/")
+    |> configure_session(drop: true)
+    |> put_resp_content_type("text/html")
+    |> send_resp(200, "<!doctype html><html><head><meta charset=\"utf-8\"><title>Signed in</title></head><body><main><h1>You’re signed in to tigoo</h1><p>You can close this page and return to the app.</p></main></body></html>")
+  end
+
+  defp tauri_result_page(conn, :error) do
+    conn
+    |> delete_session(:google_oauth_state)
+    |> configure_session(drop: true)
+    |> put_resp_content_type("text/html")
+    |> send_resp(400, "<!doctype html><html><head><meta charset=\"utf-8\"><title>Sign-in failed</title></head><body><main><h1>Sign-in couldn’t be completed</h1><p>You can close this page and try again from tigoo.</p></main></body></html>")
   end
 end

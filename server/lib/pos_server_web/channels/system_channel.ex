@@ -8,11 +8,14 @@ defmodule PosServerWeb.SystemChannel do
   @impl true
   def join("system:health", _payload, socket), do: {:ok, socket}
   def join("inventory:" <> topic, _payload, socket) do
-    if topic == InventoryEvents.topic(socket.assigns.tenant, socket.assigns.store_id) do
-      Phoenix.PubSub.subscribe(PosServer.PubSub, topic)
+    with [tenant, raw_store_id] <- String.split(topic, ":", parts: 2),
+         ^tenant <- socket.assigns.tenant,
+         {store_id, ""} <- Integer.parse(raw_store_id),
+         true <- allowed_store?(socket.assigns.scope, store_id) do
+      Phoenix.PubSub.subscribe(PosServer.PubSub, InventoryEvents.topic(tenant, store_id))
       {:ok, socket}
     else
-      {:error, %{reason: "unsupported_topic"}}
+      _ -> {:error, %{reason: "unsupported_topic"}}
     end
   end
   def join("print-relay:" <> store_id, payload, socket) do

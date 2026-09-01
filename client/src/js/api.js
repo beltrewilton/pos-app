@@ -1,6 +1,11 @@
-// Use the LAN address while testing on a physical Android device. Replace this
-// with the production HTTPS endpoint before shipping the app.
-export const API_BASE_URL = "http://10.0.0.31:4000/api";
+const invoke = window.__TAURI__?.core?.invoke;
+if (typeof invoke !== "function") throw new Error("This POS client must run inside Tauri.");
+
+const phoenixServerDns = await invoke("phoenix_server_dns");
+const phoenixServerUrl = new URL(phoenixServerDns);
+if (!/^https?:$/.test(phoenixServerUrl.protocol)) throw new Error("PHOENIX_SERVER_DNS must be an HTTP(S) URL.");
+
+export const API_BASE_URL = new URL("/api", phoenixServerUrl).toString().replace(/\/$/, "");
 const rawFetch = window.fetch.bind(window);
 
 const SESSION_KEY = "retaily-pos-session";
@@ -48,6 +53,34 @@ export async function login(identifier, password) {
     error.status = response.status;
     throw error;
   }
+  return response.json();
+}
+
+export function tauriGoogleAuthorizationUrl(platform, attemptId) {
+  const origin = new URL(API_BASE_URL).origin;
+  const url = new URL("/auth/google/tauri", origin);
+  url.searchParams.set("platform", platform);
+  url.searchParams.set("attempt_id", attemptId);
+  return url.toString();
+}
+
+export async function createTauriGoogleAttempt(platform) {
+  const response = await rawFetch(`${API_BASE_URL}/auth/tauri/attempts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ platform }),
+  });
+  if (!response.ok) throw new Error("Could not start Google sign-in.");
+  return response.json();
+}
+
+export async function exchangeTauriGoogleCode(code) {
+  const response = await rawFetch(`${API_BASE_URL}/auth/tauri/exchange`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code }),
+  });
+  if (!response.ok) throw new Error("Google sign-in could not be completed.");
   return response.json();
 }
 

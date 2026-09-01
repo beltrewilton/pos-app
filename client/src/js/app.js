@@ -1,7 +1,7 @@
 import * as printer from "./printer.js";
 import { createPrintRelay } from "./print-relay.js";
 import Pica from "../vendor/pica/pica.mjs";
-import { API_BASE_URL, activeProducts, addSalePayment, adjustInventory, cancelSale, clearSession, companySettings, createCustomer, createPriceList, createProduct, createProductOrder, createProvider, createSale, createSequenceSet, createStore, createUser, customerDetail, customerPurchases, customers, deactivateUser, deletePriceList, deleteProvider, deleteSequenceSet, deleteStore, inventoryQuantities, inventoryStoreQuantities, inventorySummary, login, moveInventory, pricingLists, product, productOrders, productTraces, purchaseSources, receiveProductOrder, saleDetails, salesReport, saveSession, session, setProductPrices, stores, updatePriceList, updateProduct, updateProvider, updateSequenceSet, updateStore, updateUser, userOptions, users } from "./api.js";
+import { API_BASE_URL, activeProducts, addSalePayment, adjustInventory, cancelSale, clearSession, companySettings, createCustomer, createPriceList, createProduct, createProductOrder, createProvider, createSale, createSequenceSet, createStore, createTauriGoogleAttempt, createUser, customerDetail, customerPurchases, customers, deactivateUser, deletePriceList, deleteProvider, deleteSequenceSet, deleteStore, exchangeTauriGoogleCode, inventoryQuantities, inventoryStoreQuantities, inventorySummary, login, moveInventory, pricingLists, product, productOrders, productTraces, purchaseSources, receiveProductOrder, saleDetails, salesReport, saveSession, session, setProductPrices, stores, tauriGoogleAuthorizationUrl, updatePriceList, updateProduct, updateProvider, updateSequenceSet, updateStore, updateUser, userOptions, users } from "./api.js";
 import { createPos } from "./pos.js";
 import { buildReceiptData } from "./receipt.js";
 import { formatCurrency, getLanguage, onLanguageChange, setLanguage, t, translateDocument } from "./i18n.js";
@@ -2632,6 +2632,7 @@ const loginError = document.querySelector("#login-error");
 const loginErrorMessage = document.querySelector("#login-error-message");
 const loginStoreField = document.querySelector("#login-store-field");
 const loginStoreSelect = document.querySelector("#login-store");
+const googleLoginButton = document.querySelector("#google-login");
 const usersNav = document.querySelector("#users-nav");
 const userScreen = document.querySelector("#users-screen");
 let managedUsers = [];
@@ -2652,6 +2653,78 @@ function showLogin(message = "") {
   loginErrorMessage.textContent = message;
   requestAnimationFrame(() => document.querySelector("#login-identifier").focus());
 }
+function showLoginError(message) {
+  loginErrorMessage.textContent = message;
+  loginError.hidden = false;
+}
+function tauriPlatform() {
+  return /Android|iPhone|iPad/i.test(navigator.userAgent) ? "mobile" : "desktop";
+}
+let activeGoogleLogin = null;
+let googleLoginTimeout = null;
+function joinGoogleLoginChannel(attempt, onResult) {
+  let socket, stopped = false, joined = false, ref = 0, reconnectTimer;
+  const topic = `login:${attempt.attempt_id}`;
+  const send = (event, payload = {}) => socket?.readyState === WebSocket.OPEN && socket.send(JSON.stringify(["1", String(++ref), topic, event, payload]));
+  const connect = () => {
+    const url = new URL(API_BASE_URL);
+    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+    url.pathname = "/socket/websocket";
+    url.search = new URLSearchParams({ vsn: "2.0.0", login_attempt_id: attempt.attempt_id, login_attempt_token: attempt.channel_token }).toString();
+    socket = new WebSocket(url);
+    socket.onopen = () => send("phx_join");
+    socket.onmessage = ({ data }) => {
+      const [, , messageTopic, event, payload] = JSON.parse(data);
+      if (messageTopic !== topic) return;
+      if (event === "phx_reply" && payload.status === "ok") { joined = true; onResult(payload.response); }
+      if (event === "login_result") onResult(payload);
+    };
+    socket.onclose = () => { if (!stopped) reconnectTimer = setTimeout(connect, 1_500); };
+  };
+  connect();
+  return { close: () => { stopped = true; clearTimeout(reconnectTimer); socket?.close(); }, ready: () => joined };
+}
+async function handleGoogleLoginResult(payload, attemptId) {
+  if (!activeGoogleLogin || payload.attempt_id !== attemptId || payload.status === "pending") return;
+  clearTimeout(googleLoginTimeout);
+  if (payload.status === "error") {
+    activeGoogleLogin.close(); activeGoogleLogin = null; googleLoginButton.disabled = false;
+    showLoginError("Google sign-in was cancelled or could not be completed.");
+    return;
+  }
+  activeGoogleLogin.close(); activeGoogleLogin = null;
+  try { await requestStoreSelection(await exchangeTauriGoogleCode(payload.exchange_code)); }
+  catch (error) { showLoginError(error.message || "Google sign-in could not be completed."); }
+  finally { googleLoginButton.disabled = false; }
+}
+async function openGoogleLogin() {
+  if (!window.__TAURI__) {
+    showLoginError("Google sign-in is available in the desktop or mobile app.");
+    return;
+  }
+  googleLoginButton.disabled = true;
+  loginError.hidden = true;
+  try {
+    const attempt = await createTauriGoogleAttempt(tauriPlatform());
+    activeGoogleLogin = joinGoogleLoginChannel(attempt, (payload) => handleGoogleLoginResult(payload, attempt.attempt_id));
+    const startedAt = Date.now();
+    while (!activeGoogleLogin.ready()) {
+      if (Date.now() - startedAt > 10_000) throw new Error("Could not connect to sign-in service.");
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    const url = tauriGoogleAuthorizationUrl(tauriPlatform(), attempt.attempt_id);
+    const invoke = window.__TAURI__?.core?.invoke;
+    if (typeof invoke !== "function") throw new Error("The system browser is unavailable.");
+    await invoke("open_external_url", { url });
+    googleLoginTimeout = setTimeout(() => {
+      activeGoogleLogin?.close(); activeGoogleLogin = null; googleLoginButton.disabled = false;
+      showLoginError("Google sign-in timed out. Please try again.");
+    }, 305_000);
+  } catch (error) {
+    showLoginError(error.message || "Could not open Google sign-in.");
+    clearTimeout(googleLoginTimeout); activeGoogleLogin?.close(); activeGoogleLogin = null; googleLoginButton.disabled = false;
+  }
+}
 async function requestStoreSelection(result) {
   pendingLogin = result;
   saveSession(result);
@@ -2663,6 +2736,7 @@ async function requestStoreSelection(result) {
     loginStoreField.hidden = false;
     loginForm.elements.identifier.disabled = true;
     loginForm.elements.password.disabled = true;
+    googleLoginButton.disabled = true;
     document.querySelector("#login-submit").textContent = t("ui.loginContinue");
     requestAnimationFrame(() => loginStoreSelect.focus());
   } catch (error) {
@@ -2681,6 +2755,7 @@ function completeStoreSelection() {
   loginStoreSelect.disabled = true;
   loginForm.elements.identifier.disabled = false;
   loginForm.elements.password.disabled = false;
+  googleLoginButton.disabled = false;
   document.querySelector("#login-submit").textContent = "Sign in";
   loginForm.reset();
   showApplication();
@@ -2728,6 +2803,7 @@ function logout() {
   loginStoreSelect.disabled = true;
   loginForm.elements.identifier.disabled = false;
   loginForm.elements.password.disabled = false;
+  googleLoginButton.disabled = false;
   document.querySelector("#login-submit").textContent = "Sign in";
   closeMobileNavigation({ restoreFocus: false });
   showLogin();
@@ -2802,6 +2878,7 @@ document.addEventListener("click", (event) => {
   if (!allowed(permission)) { event.preventDefault(); event.stopImmediatePropagation(); showUnauthorized(); }
 }, true);
 loginForm.addEventListener("submit", async (event) => { event.preventDefault(); loginError.hidden = true; if (pendingLogin) { completeStoreSelection(); return; } if (!loginForm.reportValidity()) return; const submit = document.querySelector("#login-submit"); submit.disabled = true; try { await requestStoreSelection(await login(loginForm.elements.identifier.value.trim(), loginForm.elements.password.value)); } catch (error) { loginErrorMessage.textContent = error.code === "SERVER_UNAVAILABLE" ? t("auth.serverUnavailable") : error.status === 401 ? t("auth.invalidCredentials") : t("auth.unableToSignIn"); loginError.hidden = false; } finally { submit.disabled = false; } });
+googleLoginButton.addEventListener("click", openGoogleLogin);
 onLanguageChange(() => { if (!userScreen.hidden) editingUser ? renderUserForm(editingUser) : renderUsers(); });
 
 createMobilePullToRefresh({

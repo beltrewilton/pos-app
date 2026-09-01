@@ -30,6 +30,7 @@ defmodule PosServerWeb.Router do
 
     get "/", LandingController, :index
     get "/google_auth_url", GoogleAuthController, :redirect_to
+    get "/auth/google/tauri", GoogleAuthController, :tauri_redirect_to
     get "/auth/google/callback", GoogleAuthController, :callback
     get "/google_helper", GoogleAuthController, :helper
     live "/users", UserLive, :index
@@ -41,6 +42,8 @@ defmodule PosServerWeb.Router do
 
     get "/health", HealthController, :show
     post "/login", AuthController, :login
+    post "/auth/tauri/attempts", TauriAuthController, :create_attempt
+    post "/auth/tauri/exchange", TauriAuthController, :exchange
     options "/*path", HealthController, :show
   end
 
