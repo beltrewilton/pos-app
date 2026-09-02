@@ -42,6 +42,15 @@ defmodule PosServerWeb.Router do
     post "/dash/tenant", DashboardController, :create
   end
 
+  scope "/addons", PosServerWeb do
+    pipe_through :browser
+
+    get "/install", AddonController, :install_index
+    post "/install", AddonController, :install
+    post "/:identifier/uninstall", AddonController, :uninstall
+    get "/:identifier", AddonController, :show
+  end
+
   scope "/admin", PosServerWeb do
     pipe_through :browser
 

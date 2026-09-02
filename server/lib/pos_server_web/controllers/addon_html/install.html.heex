@@ -1,0 +1,27 @@
+<main class="dashboard-shell" aria-labelledby="addons-title">
+  <.dashboard_sidebar active={:addons} />
+  <div class="dashboard-main">
+    <header class="dashboard-header"><div><p class="dashboard-kicker">Extensions</p><h1 id="addons-title">Install Addon</h1></div></header>
+    <div class="dashboard-content">
+      <section class="card dashboard-panel">
+        <div class="card-header"><h2 class="card-title">Local add-ons</h2><p class="card-description">Install from the server-owned external add-on catalog.</p></div>
+        <div class="card-content">
+          <article :for={identifier <- @available} class="card">
+            <div class="card-header"><h3 class="card-title"><%= identifier %></h3></div>
+            <div class="card-footer">
+              <form :if={not Enum.any?(@installed, &(&1.identifier == identifier))} action={~p"/addons/install"} method="post">
+                <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+                <input type="hidden" name="identifier" value={identifier} />
+                <button class="btn" data-variant="default" type="submit">Install Addon</button>
+              </form>
+              <form :if={Enum.any?(@installed, &(&1.identifier == identifier))} action={"/addons/#{identifier}/uninstall"} method="post">
+                <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+                <button class="btn" data-variant="outline" type="submit">Uninstall Addon</button>
+              </form>
+            </div>
+          </article>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
