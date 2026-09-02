@@ -16,6 +16,10 @@ defmodule PosServerWeb.Router do
     plug :put_desktop_cors_headers
   end
 
+  pipeline :admin do
+    plug PosServerWeb.Plugs.RequireAdminSession
+  end
+
   pipeline :tenant_api do
     plug :accepts, ["json"]
     plug :put_desktop_cors_headers
@@ -36,9 +40,22 @@ defmodule PosServerWeb.Router do
     post "/logout", GoogleAuthController, :logout
     get "/dash", DashboardController, :index
     post "/dash/tenant", DashboardController, :create
-    live "/admin", UserLive, :index
-    live "/admin/users", UserLive, :index
-    live "/admin/users/new", UserLive, :new
+  end
+
+  scope "/admin", PosServerWeb do
+    pipe_through :browser
+
+    get "/login", AdminSessionController, :new
+    post "/login", AdminSessionController, :create
+  end
+
+  scope "/admin", PosServerWeb do
+    pipe_through [:browser, :admin]
+
+    post "/logout", AdminSessionController, :delete
+    live "/", UserLive, :index
+    live "/users", UserLive, :index
+    live "/users/new", UserLive, :new
   end
 
   scope "/api", PosServerWeb do

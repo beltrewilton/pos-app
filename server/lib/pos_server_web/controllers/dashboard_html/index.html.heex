@@ -5,11 +5,19 @@
       <div><p class="dashboard-kicker">Overview</p><h1 id="dashboard-title">Dashboard</h1></div>
       <div class="dashboard-header-actions">
         <button class="btn" data-variant="ghost" data-size="icon-sm" type="button" data-theme-toggle aria-label="Toggle color theme"><span aria-hidden="true">◐</span></button>
-        <div class="dashboard-account" aria-label={"Signed in as #{@user.name}"}>
-          <img :if={is_binary(@user.google_picture_url) and @user.google_picture_url != ""} class="dashboard-account-avatar" src={@user.google_picture_url} alt="" referrerpolicy="no-referrer" />
-          <span :if={is_nil(@user.google_picture_url) or @user.google_picture_url == ""} class="dashboard-account-avatar dashboard-account-avatar-fallback" aria-hidden="true"><%= @user.name |> String.first() |> String.upcase() %></span>
-          <span class="dashboard-account-name"><%= @user.name %></span>
-        </div>
+        <details class="dashboard-account-menu">
+          <summary class="dashboard-account" aria-label={"Abrir menú de cuenta de #{@user.name}"}>
+            <img :if={is_binary(@user.google_picture_url) and @user.google_picture_url != ""} class="dashboard-account-avatar" src={@user.google_picture_url} alt="" referrerpolicy="no-referrer" />
+            <span :if={is_nil(@user.google_picture_url) or @user.google_picture_url == ""} class="dashboard-account-avatar dashboard-account-avatar-fallback" aria-hidden="true"><%= @user.name |> String.first() |> String.upcase() %></span>
+            <span class="dashboard-account-name"><%= @user.name %></span>
+          </summary>
+          <div class="dashboard-account-menu-content">
+            <form action={~p"/logout"} method="post">
+              <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+              <button class="dashboard-account-logout" type="submit"><.icon name="hero-arrow-right-on-rectangle" class="size-4" /> Cerrar sesión</button>
+            </form>
+          </div>
+        </details>
       </div>
     </header>
 

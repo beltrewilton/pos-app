@@ -1,0 +1,30 @@
+<main class="dashboard-shell" aria-labelledby="admin-login-title">
+  <div class="dashboard-main">
+    <div class="dashboard-content">
+      <section class="card dashboard-panel dashboard-user-form">
+        <div class="card-header">
+          <p class="dashboard-kicker">Administration</p>
+          <h1 class="card-title" id="admin-login-title">Admin sign in</h1>
+          <p class="card-description">Sign in to access the administration area.</p>
+        </div>
+        <form class="card-content" action={~p"/admin/login"} method="post">
+          <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+          <div class="form-grid">
+            <div class="form-field">
+              <label class="label" for="admin-username">Username</label>
+              <input class="input" id="admin-username" name="admin[username]" type="text" required autocomplete="username" />
+            </div>
+            <div class="form-field">
+              <label class="label" for="admin-password">Password</label>
+              <input class="input" id="admin-password" name="admin[password]" type="password" required autocomplete="current-password" />
+            </div>
+          </div>
+          <p :if={@flash["error"]} class="field-error" role="alert">{@flash["error"]}</p>
+          <div class="form-actions dashboard-form-actions">
+            <button class="btn" data-variant="default" type="submit">Login</button>
+          </div>
+        </form>
+      </section>
+    </div>
+  </div>
+</main>

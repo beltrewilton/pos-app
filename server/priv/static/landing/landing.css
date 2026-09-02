@@ -211,7 +211,7 @@ img {
 }
 
 .navbar .social-icons a,
-.navbar .social-icons .landing-logout {
+.navbar .social-icons .landing-account-menu summary {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -224,8 +224,60 @@ img {
 }
 
 .navbar .social-icons a:hover,
-.navbar .social-icons .landing-logout:hover {
+.navbar .social-icons .landing-account-menu summary:hover {
   background: #f8f8f8;
+}
+
+.navbar .social-icons .landing-account-menu {
+  position: relative;
+}
+
+.navbar .social-icons .landing-account-menu summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.navbar .social-icons .landing-account-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.navbar .social-icons .landing-account-menu-content {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 158px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.1);
+}
+
+.navbar .social-icons .landing-account-menu-content a,
+.navbar .social-icons .landing-account-menu-content .landing-logout {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: auto;
+  gap: 8px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #52525c;
+  font-size: 13px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.navbar .social-icons .landing-account-menu-content a:hover,
+.navbar .social-icons .landing-account-menu-content .landing-logout:hover {
+  background: #f8f8f8;
+  color: #000;
+}
+
+.navbar .social-icons .landing-account-menu-content form {
+  display: contents;
 }
 
 .navbar .social-icons .landing-account-avatar {
@@ -238,6 +290,11 @@ img {
 .navbar .social-icons .landing-account-icon {
   width: 22px;
   height: 22px;
+}
+
+.navbar .social-icons .landing-account-menu-icon {
+  width: 16px;
+  height: 16px;
 }
 
 .navbar .menu-toggle {

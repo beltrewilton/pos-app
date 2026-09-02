@@ -27,6 +27,12 @@ config :pos_server, :google_oauth,
   client_secret: System.get_env("GOOGLE_KEY"),
   redirect_uri: System.get_env("GOOGLE_REDIRECT_URI")
 
+# Admin credentials are intentionally kept separate from application and OAuth
+# credentials. They are read at runtime and are never sent to the client.
+config :pos_server, :admin_auth,
+  username: System.get_env("ADMIN_USER"),
+  password: System.get_env("ADMIN_PASWORD")
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

@@ -9,16 +9,32 @@
         <a href="#footer">Contacto</a>
       </div>
       <div class="social-icons">
-        <a href={if @current_user, do: ~p"/dash", else: ~p"/google_auth_url"} aria-label={if @current_user, do: "Visita tu perfil", else: "Iniciar sesión"}>
-          <img :if={is_binary(@current_user && @current_user.google_picture_url) and @current_user.google_picture_url != ""} class="landing-account-avatar" src={@current_user.google_picture_url} alt="" referrerpolicy="no-referrer" />
-          <.icon :if={is_nil(@current_user) or is_nil(@current_user.google_picture_url) or @current_user.google_picture_url == ""} name="hero-user-circle" class="landing-account-icon" />
+        <a :if={is_nil(@current_user)} href={~p"/google_auth_url"} aria-label="Iniciar sesión">
+          <svg class="landing-account-icon" aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M4.4 10.1 18.7 4.6c.67-.26 1.25.16 1.03.94l-2.43 11.2c-.17.79-.78.98-1.43.61l-3.62-2.67-1.75 1.69c-.19.19-.36.35-.73.35l.26-3.69 6.72-6.07c.29-.26-.07-.41-.45-.15L8 12.05l-3.58-1.12c-.78-.24-.8-.78-.02-.99Z" fill="#2AABEE" />
+          </svg>
         </a>
-        <form :if={@current_user} action={~p"/logout"} method="post">
-          <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
-          <button type="submit" class="landing-logout" aria-label="Cerrar sesión">
-            <.icon name="hero-arrow-right-on-rectangle" class="landing-account-icon" />
-          </button>
-        </form>
+        <details :if={@current_user} class="landing-account-menu">
+          <summary aria-label="Abrir menú de cuenta">
+            <img :if={is_binary(@current_user.google_picture_url) and @current_user.google_picture_url != ""} class="landing-account-avatar" src={@current_user.google_picture_url} alt="" referrerpolicy="no-referrer" />
+            <svg :if={is_nil(@current_user.google_picture_url) or @current_user.google_picture_url == ""} class="landing-account-icon" aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M4.4 10.1 18.7 4.6c.67-.26 1.25.16 1.03.94l-2.43 11.2c-.17.79-.78.98-1.43.61l-3.62-2.67-1.75 1.69c-.19.19-.36.35-.73.35l.26-3.69 6.72-6.07c.29-.26-.07-.41-.45-.15L8 12.05l-3.58-1.12c-.78-.24-.8-.78-.02-.99Z" fill="#2AABEE" />
+            </svg>
+          </summary>
+          <div class="landing-account-menu-content">
+            <a href={~p"/dash"}>Visita tu perfil</a>
+            <form action={~p"/logout"} method="post">
+              <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+              <button type="submit" class="landing-logout">
+                <svg class="landing-account-menu-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <path d="M14 5h4v14h-4" stroke-linecap="round" stroke-linejoin="round" />
+                  <path d="M11 17l4-5-4-5M15 12H4" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                Cerrar sesión
+              </button>
+            </form>
+          </div>
+        </details>
         <button class="menu-toggle" aria-label="Menu">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
             <path d="M20 12H10" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" />
