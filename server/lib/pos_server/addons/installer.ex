@@ -10,7 +10,8 @@ defmodule PosServer.Addons.Installer do
   alias PosServer.Addons
 
   @catalog %{
-    "simply_print" => Path.expand("../../../../../addons-pos-app/simply_print/addon.ex", __DIR__)
+    "simply_print" => Path.expand("../../../../../addons-pos-app/simply_print/addon.ex", __DIR__),
+    "sales_report_evofit" => Path.expand("../../../../../addons-pos-app/sales_report_evofit/addon.ex", __DIR__)
   }
 
   def available, do: Map.keys(@catalog)
@@ -31,7 +32,7 @@ defmodule PosServer.Addons.Installer do
          true <- File.regular?(path),
          _ <- Code.require_file(path),
          handler <- String.to_existing_atom(addon.handler),
-         true <- ensure_page_handler(path, handler) do
+         true <- ensure_entrypoint(path, handler) do
       {:ok, handler}
     else
       false -> {:error, :invalid_addon_handler}
@@ -101,12 +102,12 @@ defmodule PosServer.Addons.Installer do
 
   # Reload only when an installed add-on exposes an older host contract.
   # Normal requests do not recompile the external source.
-  defp ensure_page_handler(path, handler) do
-    if function_exported?(handler, :page, 2) do
+  defp ensure_entrypoint(path, handler) do
+    if function_exported?(handler, :call, 2) do
       true
     else
       Code.compile_file(path)
-      function_exported?(handler, :page, 2)
+      function_exported?(handler, :call, 2)
     end
   end
 
