@@ -11,6 +11,7 @@ defmodule PosServer.Addons.Installer do
 
   @catalog %{
     "simply_print" => Path.expand("../../../../../addons-pos-app/simply_print/addon.ex", __DIR__),
+    "simply_print_copy" => "/tmp/simply_print_copy/addon.ex",
     "sales_report_evofit" => Path.expand("../../../../../addons-pos-app/sales_report_evofit/addon.ex", __DIR__),
     "sales_summary_report" => Path.expand("../../../../../addons-pos-app/sales_summary_report/addon.ex", __DIR__)
   }
