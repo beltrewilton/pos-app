@@ -31,7 +31,7 @@ defmodule PosServer.Addons.Installer do
          true <- File.regular?(path),
          _ <- Code.require_file(path),
          handler <- String.to_existing_atom(addon.handler),
-         true <- function_exported?(handler, :page, 0) do
+         true <- ensure_page_handler(path, handler) do
       {:ok, handler}
     else
       false -> {:error, :invalid_addon_handler}
@@ -97,6 +97,17 @@ defmodule PosServer.Addons.Installer do
     {:ok, String.to_existing_atom(handler)}
   rescue
     ArgumentError -> :not_loaded
+  end
+
+  # Reload only when an installed add-on exposes an older host contract.
+  # Normal requests do not recompile the external source.
+  defp ensure_page_handler(path, handler) do
+    if function_exported?(handler, :page, 2) do
+      true
+    else
+      Code.compile_file(path)
+      function_exported?(handler, :page, 2)
+    end
   end
 
   defp source_path(identifier) do

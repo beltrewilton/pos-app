@@ -31,10 +31,10 @@ defmodule PosServerWeb.AddonController do
   def uninstall(conn, _params), do: redirect(conn, to: ~p"/")
 
   # The static Phoenix route ends here. Runtime registry lookup selects the add-on.
-  def show(%{assigns: %{current_scope: %{actor: :admin}}} = conn, %{"identifier" => identifier}) do
+  def show(%{assigns: %{current_scope: %{actor: :admin} = scope}} = conn, %{"identifier" => identifier}) do
     with addon when not is_nil(addon) <- Addons.get_enabled(identifier),
          {:ok, handler} <- Installer.handler(addon) do
-      render(conn, :show, addon: addon, page: handler.page())
+      render(conn, :show, addon: addon, page: handler.page(scope, %{}))
     else
       _ -> send_resp(conn, :not_found, "Add-on not found")
     end
