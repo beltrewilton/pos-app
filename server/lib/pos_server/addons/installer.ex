@@ -103,11 +103,11 @@ defmodule PosServer.Addons.Installer do
   # Reload only when an installed add-on exposes an older host contract.
   # Normal requests do not recompile the external source.
   defp ensure_entrypoint(path, handler) do
-    if function_exported?(handler, :call, 2) do
+    if function_exported?(handler, :render, 1) do
       true
     else
       Code.compile_file(path)
-      function_exported?(handler, :call, 2)
+      function_exported?(handler, :render, 1)
     end
   end
 

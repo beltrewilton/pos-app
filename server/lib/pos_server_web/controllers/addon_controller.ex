@@ -34,7 +34,7 @@ defmodule PosServerWeb.AddonController do
   def show(%{assigns: %{current_scope: %{actor: :admin} = scope}} = conn, %{"identifier" => identifier}) do
     with addon when not is_nil(addon) <- Addons.get_enabled(identifier),
          {:ok, handler} <- Installer.handler(addon) do
-      handler.call(conn, addon_context(scope, addon))
+      render(conn, :show, addon: addon, entrypoint: handler, context: addon_context(scope, addon, conn.params))
     else
       _ -> send_resp(conn, :not_found, "Add-on not found")
     end
@@ -43,12 +43,13 @@ defmodule PosServerWeb.AddonController do
   def show(conn, _params), do: redirect(conn, to: ~p"/")
 
   # This is the complete host-to-add-on contract for the first version. The
-  # add-on owns its query, rendering, and feature-specific request handling.
-  defp addon_context(scope, addon) do
+  # host owns the dashboard shell; the add-on owns its feature content.
+  defp addon_context(scope, addon, params) do
     %{
       addon: %{identifier: addon.identifier, route: addon.route},
       tenant: scope.tenant,
       actor: %{id: scope.actor_id, type: scope.actor},
+      params: Map.take(params, ["login", "date_from", "date_to"]),
       repo: PosServer.Repo
     }
   end
