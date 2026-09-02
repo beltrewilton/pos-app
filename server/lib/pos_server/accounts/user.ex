@@ -33,6 +33,15 @@ defmodule PosServer.Accounts.User do
     |> hash_password()
   end
 
+  def tenant_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:tenant])
+    |> validate_required([:tenant])
+    |> validate_format(:tenant, ~r/^[a-z][a-z0-9_]{2,62}$/,
+      message: "must be a lowercase tenant identifier (letters, numbers, and underscores)"
+    )
+  end
+
   @doc "Creates or updates a user authenticated by Google OAuth."
   def google_oauth_changeset(user, attrs) do
     user

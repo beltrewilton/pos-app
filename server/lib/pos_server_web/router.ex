@@ -34,6 +34,7 @@ defmodule PosServerWeb.Router do
     get "/auth/google/callback", GoogleAuthController, :callback
     get "/google_helper", GoogleAuthController, :helper
     get "/dash", DashboardController, :index
+    post "/dash/tenant", DashboardController, :create
     live "/admin", UserLive, :index
     live "/admin/users", UserLive, :index
     live "/admin/users/new", UserLive, :new

@@ -14,6 +14,21 @@ defmodule PosServer.Accounts do
 
   def get_user(id), do: Repo.get(User, id)
 
+  def get_company_for_user(%User{tenant: tenant, id: user_id})
+      when is_binary(tenant) and tenant != "" do
+    Repo.one(
+      from(company in Company,
+        join: membership in UserCompany,
+        on: membership.company_id == company.id,
+        where: membership.user_id == ^user_id,
+        limit: 1
+      ),
+      prefix: Triplex.to_prefix(tenant)
+    )
+  end
+
+  def get_company_for_user(_user), do: nil
+
   def change_user(%User{} = user, attrs \\ %{}), do: User.changeset(user, attrs)
 
   def create_user(attrs) do
@@ -127,6 +142,44 @@ defmodule PosServer.Accounts do
   def confirm_user(%User{} = user), do: {:ok, user}
 
   def change_company(%Company{} = company, attrs \\ %{}), do: Company.changeset(company, attrs)
+
+  def change_tenant(%User{} = user, attrs \\ %{}), do: User.tenant_changeset(user, attrs)
+
+  @doc "Creates a company tenant for a confirmed browser account without creating another user."
+  def create_tenant_for_user(%User{confirmed_at: nil}, _tenant_attrs, _company_attrs),
+    do: {:error, :unconfirmed}
+
+  def create_tenant_for_user(%User{tenant: tenant}, _tenant_attrs, _company_attrs)
+      when is_binary(tenant) and tenant != "",
+      do: {:error, :tenant_exists}
+
+  def create_tenant_for_user(%User{} = user, tenant_attrs, company_attrs)
+      when is_map(tenant_attrs) and is_map(company_attrs) do
+    tenant_changeset = change_tenant(user, tenant_attrs)
+    company_changeset = change_company(%Company{}, company_attrs)
+
+    cond do
+      not tenant_changeset.valid? ->
+        {:error, :tenant, tenant_changeset}
+
+      not company_changeset.valid? ->
+        {:error, :company, company_changeset}
+
+      true ->
+        case Repo.update(tenant_changeset) do
+          {:ok, updated_user} ->
+            case create_tenant_company(updated_user.tenant, updated_user.id, company_changeset) do
+              :ok -> {:ok, updated_user}
+              {:error, :tenant, reason} ->
+                Repo.update(Ecto.Changeset.change(updated_user, tenant: nil))
+                {:error, :provisioning, reason}
+            end
+
+          {:error, changeset} ->
+            {:error, :tenant, changeset}
+        end
+    end
+  end
 
   def create_company_user(user_attrs, company_attrs) do
     user_changeset = User.changeset(%User{}, user_attrs)
