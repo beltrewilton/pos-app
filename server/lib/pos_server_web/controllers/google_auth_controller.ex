@@ -33,6 +33,12 @@ defmodule PosServerWeb.GoogleAuthController do
   # work in this controller so the callback has one state-aware implementation.
   def helper(conn, _params), do: redirect(conn, to: ~p"/google_auth_url")
 
+  def logout(conn, _params) do
+    conn
+    |> configure_session(drop: true)
+    |> redirect(to: ~p"/")
+  end
+
   def callback(conn, %{"code" => code, "state" => state}) do
     with :ok <- verify_state(conn, state),
          {:ok, token_map} <- exchange_code_for_token(code),

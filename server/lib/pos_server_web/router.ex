@@ -33,6 +33,7 @@ defmodule PosServerWeb.Router do
     get "/auth/google/tauri", GoogleAuthController, :tauri_redirect_to
     get "/auth/google/callback", GoogleAuthController, :callback
     get "/google_helper", GoogleAuthController, :helper
+    post "/logout", GoogleAuthController, :logout
     get "/dash", DashboardController, :index
     post "/dash/tenant", DashboardController, :create
     live "/admin", UserLive, :index

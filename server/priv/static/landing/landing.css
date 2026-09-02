@@ -210,7 +210,8 @@ img {
   align-items: center;
 }
 
-.navbar .social-icons a {
+.navbar .social-icons a,
+.navbar .social-icons .landing-logout {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -222,8 +223,21 @@ img {
   transition: 0.2s;
 }
 
-.navbar .social-icons a:hover {
+.navbar .social-icons a:hover,
+.navbar .social-icons .landing-logout:hover {
   background: #f8f8f8;
+}
+
+.navbar .social-icons .landing-account-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.navbar .social-icons .landing-account-icon {
+  width: 22px;
+  height: 22px;
 }
 
 .navbar .menu-toggle {
