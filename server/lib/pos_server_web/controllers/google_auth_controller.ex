@@ -37,7 +37,7 @@ defmodule PosServerWeb.GoogleAuthController do
     with :ok <- verify_state(conn, state),
          {:ok, token_map} <- exchange_code_for_token(code),
          {:ok, user_info} <- fetch_user_info(token_map["access_token"]),
-         {:ok, user} <- Accounts.upsert_user_from_google(user_info) do
+         {:ok, user} <- upsert_google_user(conn, user_info) do
       finish_google_sign_in(conn, user)
     else
       {:error, reason} -> google_error(conn, reason)
@@ -126,6 +126,13 @@ defmodule PosServerWeb.GoogleAuthController do
     end
   end
 
+  defp upsert_google_user(conn, user_info) do
+    case get_session(conn, :google_oauth_state) do
+      %{client: "tauri"} -> Accounts.upsert_tauri_user_from_google(user_info)
+      _ -> Accounts.upsert_user_from_google(user_info)
+    end
+  end
+
   defp finish_google_sign_in(conn, user) do
     case get_session(conn, :google_oauth_state) do
       %{client: "tauri", attempt_id: attempt_id} ->
@@ -145,7 +152,7 @@ defmodule PosServerWeb.GoogleAuthController do
           |> configure_session(renew: true)
           |> put_session(:user_token, session_token)
           |> put_flash(:info, "Sesión iniciada con Google.")
-          |> redirect(to: ~p"/users")
+          |> redirect(to: ~p"/dash")
         end
     end
   end

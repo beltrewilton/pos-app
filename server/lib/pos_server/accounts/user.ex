@@ -44,11 +44,8 @@ defmodule PosServer.Accounts.User do
       :google_picture_url,
       :confirmed_at
     ])
-    |> validate_required([:email, :name, :tenant, :google_uid])
+    |> validate_required([:email, :name, :google_uid])
     |> validate_format(:email, ~r/^[^\s]+@[^\s]+$/)
-    |> validate_format(:tenant, ~r/^[a-z][a-z0-9_]{2,62}$/,
-      message: "must be a lowercase tenant identifier (letters, numbers, and underscores)"
-    )
     |> unique_constraint(:email)
     |> unique_constraint(:google_uid)
   end

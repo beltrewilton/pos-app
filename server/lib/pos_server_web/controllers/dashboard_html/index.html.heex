@@ -1,0 +1,35 @@
+<main class="admin-page" aria-labelledby="dashboard-title">
+  <header class="admin-topbar account-topbar">
+    <a class="brand" href={~p"/dash"}>
+      <span class="brand-mark" aria-hidden="true">R</span>
+      <span>retaily</span>
+    </a>
+  </header>
+
+  <section class="admin-content">
+    <div class="dashboard-heading">
+      <div>
+        <p class="eyebrow"><span aria-hidden="true"></span> Account</p>
+        <h1 id="dashboard-title">Welcome back, <%= @user.name %></h1>
+        <p>Your account confirmation status.</p>
+      </div>
+    </div>
+
+    <section class="card account-status-card" aria-labelledby="account-status-title">
+      <div class="card-header">
+        <p class="card-description">Account status</p>
+        <h2 class="card-title" id="account-status-title"><%= if @user.confirmed_at, do: "Confirmed", else: "Awaiting confirmation" %></h2>
+      </div>
+      <div class="card-content">
+        <div :if={is_nil(@user.confirmed_at)} class="alert" role="alert">
+          <svg class="alert-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
+          <div class="alert-content"><h3 class="alert-title">Confirmation pending</h3><p class="alert-description">Your account is awaiting confirmation from an administrator.</p></div>
+        </div>
+        <div :if={@user.confirmed_at} class="alert" role="status">
+          <svg class="alert-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6"/></svg>
+          <div class="alert-content"><h3 class="alert-title">Your account is confirmed</h3><p class="alert-description">Your account has been confirmed by an administrator.</p></div>
+        </div>
+      </div>
+    </section>
+  </section>
+</main>

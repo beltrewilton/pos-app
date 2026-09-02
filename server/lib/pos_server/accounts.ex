@@ -12,6 +12,8 @@ defmodule PosServer.Accounts do
 
   def get_user_by_email(email) when is_binary(email), do: Repo.get_by(User, email: email)
 
+  def get_user(id), do: Repo.get(User, id)
+
   def change_user(%User{} = user, attrs \\ %{}), do: User.changeset(user, attrs)
 
   def create_user(attrs) do
@@ -22,6 +24,40 @@ defmodule PosServer.Accounts do
 
   @doc "Finds or provisions an admin account from verified Google user info."
   def upsert_user_from_google(user_info)
+      when is_map(user_info) do
+    google_uid = user_info["sub"] || user_info["id"]
+    email = user_info["email"]
+    name = user_info["name"] || email
+    email_verified? = user_info["email_verified"] == true
+
+    with true <- email_verified?,
+         true <- is_binary(google_uid) and byte_size(google_uid) > 0,
+         true <- is_binary(email) and byte_size(email) > 0 do
+      attrs = %{
+        email: email,
+        name: name,
+        google_uid: google_uid,
+        google_picture_url: user_info["picture"]
+      }
+
+      case Repo.get_by(User, google_uid: google_uid) || Repo.get_by(User, email: email) do
+        %User{} = user ->
+          user
+          |> User.google_oauth_changeset(attrs)
+          |> Repo.update()
+
+        nil ->
+          create_google_user(attrs)
+      end
+    else
+      _ -> {:error, :invalid_google_user}
+    end
+  end
+
+  @doc false
+  # The desktop/mobile OAuth handoff still requires a tenant-backed account.
+  # Browser sign-up deliberately uses `upsert_user_from_google/1` instead.
+  def upsert_tauri_user_from_google(user_info)
       when is_map(user_info) do
     google_uid = user_info["sub"] || user_info["id"]
     email = user_info["email"]
@@ -49,7 +85,7 @@ defmodule PosServer.Accounts do
           |> Repo.update()
 
         nil ->
-          create_google_user(attrs)
+          create_tauri_google_user(attrs)
       end
     else
       _ -> {:error, :invalid_google_user}
@@ -57,6 +93,12 @@ defmodule PosServer.Accounts do
   end
 
   defp create_google_user(attrs) do
+    %User{}
+    |> User.google_oauth_changeset(attrs)
+    |> Repo.insert()
+  end
+
+  defp create_tauri_google_user(attrs) do
     user_changeset = User.google_oauth_changeset(%User{}, attrs)
     company_changeset = Company.changeset(%Company{}, %{company_name: "#{attrs.name}'s business"})
 
@@ -75,6 +117,14 @@ defmodule PosServer.Accounts do
   defp google_tenant(google_uid) do
     "google_" <> (:crypto.hash(:sha256, google_uid) |> Base.encode16(case: :lower) |> binary_part(0, 24))
   end
+
+  def confirm_user(%User{confirmed_at: nil} = user) do
+    user
+    |> Ecto.Changeset.change(confirmed_at: DateTime.utc_now(:second))
+    |> Repo.update()
+  end
+
+  def confirm_user(%User{} = user), do: {:ok, user}
 
   def change_company(%Company{} = company, attrs \\ %{}), do: Company.changeset(company, attrs)
 
