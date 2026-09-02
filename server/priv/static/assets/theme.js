@@ -19,4 +19,16 @@
       row.hidden = query !== "" && !row.dataset.search.includes(query)
     })
   })
+
+  document.addEventListener("click", event => {
+    const toggle = event.target.closest("[data-dashboard-sidebar-toggle]")
+    if (!toggle) return
+
+    const shell = toggle.closest(".dashboard-shell")
+    if (!shell) return
+
+    const collapsed = shell.classList.toggle("is-sidebar-collapsed")
+    toggle.setAttribute("aria-expanded", String(!collapsed))
+    toggle.setAttribute("aria-label", collapsed ? "Expand navigation" : "Collapse navigation")
+  })
 })()

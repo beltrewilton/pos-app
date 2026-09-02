@@ -1,74 +1,27 @@
-<main class="admin-page" aria-labelledby="dashboard-title">
-  <header class="admin-topbar account-topbar">
-    <a class="brand" href={~p"/dash"}>
-      <span class="brand-mark" aria-hidden="true">R</span>
-      <span>retaily</span>
-    </a>
-  </header>
+<main class="dashboard-shell" aria-labelledby="dashboard-title">
+  <.dashboard_sidebar active={:dash} />
+  <div class="dashboard-main">
+    <header class="dashboard-header">
+      <div><p class="dashboard-kicker">Overview</p><h1 id="dashboard-title">Dashboard</h1></div>
+      <button class="btn" data-variant="ghost" data-size="icon-sm" type="button" data-theme-toggle aria-label="Toggle color theme"><span aria-hidden="true">◐</span></button>
+    </header>
 
-  <section class="admin-content">
-    <div class="dashboard-heading">
-      <div>
-        <p class="eyebrow"><span aria-hidden="true"></span> Account</p>
-        <h1 id="dashboard-title">Welcome back, <%= @user.name %></h1>
-        <p>Your account confirmation status.</p>
-      </div>
+    <div class="dashboard-content">
+      <section class="dashboard-intro" aria-labelledby="welcome-title"><h2 id="welcome-title">Welcome back, <%= @user.name %></h2><p>Manage your account confirmation and workspace setup.</p></section>
+
+      <section class="dashboard-summary-grid" aria-label="Account summary">
+        <article class="card dashboard-summary-card"><div class="card-header"><p class="card-description">Account status</p><h2 class="card-title"><%= if @user.confirmed_at, do: "Confirmed", else: "Awaiting confirmation" %></h2></div><div class="card-content"><span class="status-badge" data-confirmed={not is_nil(@user.confirmed_at)}><i></i><%= if @user.confirmed_at, do: "Ready", else: "Pending review" %></span></div></article>
+        <article class="card dashboard-summary-card"><div class="card-header"><p class="card-description">Workspace</p><h2 class="card-title"><%= if @company, do: @company.company_name, else: "Not created" %></h2></div><div class="card-content"><p class="dashboard-summary-detail"><%= if @company, do: @user.tenant, else: "Create it after confirmation" %></p></div></article>
+      </section>
+
+      <section :if={is_nil(@user.confirmed_at)} class="card dashboard-panel" aria-labelledby="confirmation-title"><div class="card-header"><h2 class="card-title" id="confirmation-title">Confirmation pending</h2><p class="card-description">Your account is awaiting confirmation from an administrator.</p></div><div class="card-content"><div class="alert" role="alert"><svg class="alert-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg><div class="alert-content"><h3 class="alert-title">No action needed</h3><p class="alert-description">You’ll be able to create a workspace once your account is confirmed.</p></div></div></div></section>
+
+      <section :if={@user.confirmed_at && is_nil(@user.tenant)} class="card dashboard-panel" aria-labelledby="tenant-setup-title">
+        <div class="card-header"><h2 class="card-title" id="tenant-setup-title">Create workspace</h2><p class="card-description">Set up the company workspace for this account.</p></div>
+        <form class="card-content" action={~p"/dash/tenant"} method="post"><input type="hidden" name="_csrf_token" value={get_csrf_token()} /><div class="form-grid dashboard-form-grid"><div class="form-field" data-invalid={@company_form[:company_name].errors != [] || nil}><label class="label" for={@company_form[:company_name].id}>Company name</label><input class="input" id={@company_form[:company_name].id} name={@company_form[:company_name].name} type="text" value={@company_form[:company_name].value} required aria-invalid={if @company_form[:company_name].errors == [], do: "false", else: "true"} /><p :for={{message, _} <- @company_form[:company_name].errors} class="field-error" role="alert"><%= message %></p></div><div class="form-field" data-invalid={@tenant_form[:tenant].errors != [] || nil}><label class="label" for={@tenant_form[:tenant].id}>Workspace ID</label><input class="input" id={@tenant_form[:tenant].id} name={@tenant_form[:tenant].name} type="text" value={@tenant_form[:tenant].value} required autocomplete="off" aria-describedby="tenant-help" aria-invalid={if @tenant_form[:tenant].errors == [], do: "false", else: "true"} /><p class="field-description" id="tenant-help">Lowercase letters, numbers, and underscores only.</p><p :for={{message, _} <- @tenant_form[:tenant].errors} class="field-error" role="alert"><%= message %></p></div><div class="form-field"><label class="label" for={@company_form[:rnc].id}>RNC <span aria-hidden="true">(optional)</span></label><input class="input" id={@company_form[:rnc].id} name={@company_form[:rnc].name} type="text" value={@company_form[:rnc].value} /></div></div><div class="form-actions dashboard-form-actions"><button class="btn" data-variant="default" type="submit">Create workspace</button></div></form>
+      </section>
+
+      <section :if={@company} class="card dashboard-panel" aria-labelledby="workspace-summary-title"><div class="card-header"><h2 class="card-title" id="workspace-summary-title">Workspace details</h2><p class="card-description">Your active company workspace.</p></div><div class="card-content dashboard-detail-grid"><div><p class="dashboard-detail-label">Company</p><p class="dashboard-detail-value"><%= @company.company_name %></p></div><div><p class="dashboard-detail-label">Workspace ID</p><p class="dashboard-detail-value"><%= @user.tenant %></p></div><div><p class="dashboard-detail-label">RNC</p><p class="dashboard-detail-value"><%= @company.rnc || "Not provided" %></p></div></div></section>
     </div>
-
-    <section class="card account-status-card" aria-labelledby="account-status-title">
-      <div class="card-header">
-        <p class="card-description">Account status</p>
-        <h2 class="card-title" id="account-status-title"><%= if @user.confirmed_at, do: "Confirmed", else: "Awaiting confirmation" %></h2>
-      </div>
-      <div class="card-content">
-        <div :if={is_nil(@user.confirmed_at)} class="alert" role="alert">
-          <svg class="alert-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
-          <div class="alert-content"><h3 class="alert-title">Confirmation pending</h3><p class="alert-description">Your account is awaiting confirmation from an administrator.</p></div>
-        </div>
-        <div :if={@user.confirmed_at} class="alert" role="status">
-          <svg class="alert-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6"/></svg>
-          <div class="alert-content"><h3 class="alert-title">Your account is confirmed</h3><p class="alert-description">Your account has been confirmed by an administrator.</p></div>
-        </div>
-      </div>
-    </section>
-
-    <section :if={@user.confirmed_at && is_nil(@user.tenant)} class="card tenant-setup-card" aria-labelledby="tenant-setup-title">
-      <div class="card-header">
-        <h2 class="card-title" id="tenant-setup-title">Create your workspace</h2>
-        <p class="card-description">Choose a company name and permanent workspace ID.</p>
-      </div>
-      <form class="card-content" action={~p"/dash/tenant"} method="post">
-        <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
-        <div class="form-grid tenant-setup-grid">
-          <div class="form-field" data-invalid={@company_form[:company_name].errors != [] || nil}>
-            <label class="label" for={@company_form[:company_name].id}>Company name</label>
-            <input class="input" id={@company_form[:company_name].id} name={@company_form[:company_name].name} type="text" value={@company_form[:company_name].value} required aria-invalid={if @company_form[:company_name].errors == [], do: "false", else: "true"} />
-            <p :for={{message, _} <- @company_form[:company_name].errors} class="field-error" role="alert"><%= message %></p>
-          </div>
-          <div class="form-field" data-invalid={@tenant_form[:tenant].errors != [] || nil}>
-            <label class="label" for={@tenant_form[:tenant].id}>Workspace ID</label>
-            <input class="input" id={@tenant_form[:tenant].id} name={@tenant_form[:tenant].name} type="text" value={@tenant_form[:tenant].value} required autocomplete="off" aria-describedby="tenant-help" aria-invalid={if @tenant_form[:tenant].errors == [], do: "false", else: "true"} />
-            <p class="field-description" id="tenant-help">Lowercase letters, numbers, and underscores only.</p>
-            <p :for={{message, _} <- @tenant_form[:tenant].errors} class="field-error" role="alert"><%= message %></p>
-          </div>
-          <div class="form-field">
-            <label class="label" for={@company_form[:rnc].id}>RNC <span aria-hidden="true">(optional)</span></label>
-            <input class="input" id={@company_form[:rnc].id} name={@company_form[:rnc].name} type="text" value={@company_form[:rnc].value} />
-          </div>
-        </div>
-        <div class="form-actions tenant-setup-actions"><button class="btn" data-variant="default" type="submit">Create workspace</button></div>
-      </form>
-    </section>
-
-    <section :if={@company} class="card tenant-summary-card" aria-labelledby="workspace-summary-title">
-      <div class="card-header">
-        <p class="card-description">Workspace</p>
-        <h2 class="card-title" id="workspace-summary-title"><%= @company.company_name %></h2>
-      </div>
-      <div class="card-content tenant-summary-grid">
-        <div><p class="tenant-summary-label">Workspace ID</p><p class="tenant-summary-value"><%= @user.tenant %></p></div>
-        <div><p class="tenant-summary-label">RNC</p><p class="tenant-summary-value"><%= @company.rnc || "Not provided" %></p></div>
-      </div>
-    </section>
-  </section>
+  </div>
 </main>
