@@ -1,4 +1,4 @@
 <main class="dashboard-shell" aria-label={@addon.name}>
-  <.dashboard_sidebar active={@addon.identifier} />
+  <.dashboard_sidebar active={@addon.identifier} tenant={@context.tenant} />
   <div class="dashboard-main"><%= @entrypoint.render(@context) %></div>
 </main>

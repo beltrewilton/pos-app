@@ -17,12 +17,14 @@ defmodule PosServer.Addons.Installer do
 
   def available, do: Map.keys(@catalog)
 
-  def install(identifier) do
-    if Addons.installed?(identifier), do: :ok, else: discover_load_and_register(identifier)
+  def install(identifier, tenant) when is_binary(tenant) and tenant != "" do
+    if Addons.installed?(identifier, tenant), do: :ok, else: discover_load_and_register(identifier, tenant)
   end
 
-  def uninstall(identifier) do
-    case Addons.get_enabled(identifier) do
+  def install(_identifier, _tenant), do: {:error, :missing_tenant}
+
+  def uninstall(identifier, tenant) do
+    case Addons.get_enabled_for(identifier, tenant) do
       nil -> {:error, :unknown_addon}
       addon -> unload_and_unregister(addon)
     end
@@ -31,8 +33,8 @@ defmodule PosServer.Addons.Installer do
   def handler(addon) do
     with {:ok, path} <- source_path(addon.identifier),
          true <- File.regular?(path),
-         _ <- Code.require_file(path),
-         handler <- String.to_existing_atom(addon.handler),
+         handler <- revision_module(addon.identifier, addon.tenant, addon.revision),
+         true <- addon.handler == Atom.to_string(handler),
          true <- ensure_entrypoint(path, handler) do
       {:ok, handler}
     else
@@ -43,14 +45,17 @@ defmodule PosServer.Addons.Installer do
     ArgumentError -> {:error, :invalid_addon_handler}
   end
 
-  defp discover_load_and_register(identifier) do
+  defp discover_load_and_register(identifier, tenant) do
     with {:ok, path} <- source_path(identifier),
          true <- File.regular?(path),
-         modules when is_list(modules) <- Code.compile_file(path),
+         {:ok, source} <- File.read(path),
+         revision <- revision_for(source),
+         handler <- revision_module(identifier, tenant, revision),
+         modules when is_list(modules) <- compile_source(source, path, handler),
          {:ok, module} <- addon_module(modules),
          manifest when is_map(manifest) <- module.manifest(),
-         :ok <- validate_manifest(manifest, identifier),
-         {:ok, _addon} <- Addons.register(registration_attrs(manifest)) do
+         :ok <- validate_manifest(manifest, identifier, handler),
+         {:ok, _addon} <- Addons.register(registration_attrs(manifest, tenant, revision, handler)) do
       :ok
     else
       false -> {:error, :missing_addon_source}
@@ -60,17 +65,41 @@ defmodule PosServer.Addons.Installer do
   end
 
   defp unload_and_unregister(addon) do
-    case handler_atom(addon.handler) do
-      :not_loaded -> unregister(addon, :not_loaded)
+    handler = revision_module(addon.identifier, addon.tenant, addon.revision)
 
-      {:ok, handler} ->
-        # delete/1 makes current code old. soft_purge/1 only removes that old
-        # code if no process still references it; unlike purge/1, it never kills.
-        case safely_unload(handler) do
-          :purged -> unregister(addon, :purged)
-          :still_referenced -> unregister(addon, :still_referenced)
-        end
+    if addon.handler == Atom.to_string(handler) do
+      # Source files may define nested helper modules. Unload leaves before
+      # their root namespace, always using soft_purge/1 (never purge/1).
+      case safely_unload_namespace(handler) do
+        :purged -> unregister(addon, :purged)
+        :still_referenced -> unregister(addon, :still_referenced)
+      end
+    else
+      {:error, :invalid_addon_handler}
     end
+  end
+
+  defp safely_unload_namespace(handler) do
+    handler
+    |> namespace_modules()
+    |> Enum.reduce(:purged, fn module, status ->
+      case safely_unload(module) do
+        :purged -> status
+        :still_referenced -> :still_referenced
+      end
+    end)
+  end
+
+  defp namespace_modules(handler) do
+    namespace = Atom.to_string(handler)
+
+    :code.all_loaded()
+    |> Enum.map(&elem(&1, 0))
+    |> Enum.filter(fn module ->
+      module_name = Atom.to_string(module)
+      module_name == namespace or String.starts_with?(module_name, namespace <> ".")
+    end)
+    |> Enum.sort_by(&(Atom.to_string(&1) |> byte_size()), :desc)
   end
 
   defp safely_unload(handler) do
@@ -95,21 +124,50 @@ defmodule PosServer.Addons.Installer do
     end
   end
 
-  defp handler_atom(handler) do
-    {:ok, String.to_existing_atom(handler)}
-  rescue
-    ArgumentError -> :not_loaded
-  end
-
   # Reload only when an installed add-on exposes an older host contract.
   # Normal requests do not recompile the external source.
   defp ensure_entrypoint(path, handler) do
     if function_exported?(handler, :render, 1) do
       true
     else
-      Code.compile_file(path)
+      compile_revision(path, handler)
       function_exported?(handler, :render, 1)
     end
+  end
+
+  defp compile_revision(path, handler) do
+    with {:ok, source} <- File.read(path) do
+      compile_source(source, path, handler)
+    else
+      _ -> []
+    end
+  end
+
+  defp compile_source(source, path, handler) do
+    source
+    |> rewrite_root_module(handler)
+    |> Code.compile_string(path)
+  end
+
+  defp rewrite_root_module(source, handler) do
+    Regex.replace(~r/defmodule\s+[A-Za-z0-9_.]+\s+do/, source, "defmodule #{inspect(handler)} do", global: false)
+  end
+
+  defp revision_module(identifier, tenant, revision) do
+    tenant_part = tenant |> String.replace(~r/[^a-zA-Z0-9]/, "_") |> Macro.camelize() |> String.slice(0, 40)
+    tenant_hash = :crypto.hash(:sha256, tenant) |> Base.encode16(case: :lower) |> String.slice(0, 10)
+    addon_part = identifier |> String.replace(~r/[^a-zA-Z0-9]/, "_") |> Macro.camelize()
+    revision_part = revision |> String.replace("-", "")
+
+    Module.concat([PosServer, :TenantAddons, "Tenant#{tenant_part}#{tenant_hash}", "#{addon_part}Revision#{revision_part}"])
+  end
+
+  # Reinstalling unchanged source reuses its module name. A code change gets a
+  # new immutable revision namespace, limiting new atoms to real source versions.
+  defp revision_for(source) do
+    :crypto.hash(:sha256, source)
+    |> Base.encode16(case: :lower)
+    |> String.slice(0, 16)
   end
 
   defp source_path(identifier) do
@@ -126,18 +184,20 @@ defmodule PosServer.Addons.Installer do
     end
   end
 
-  defp validate_manifest(%{identifier: identifier, route: "/addons/" <> identifier, handler: handler}, identifier)
+  defp validate_manifest(%{identifier: identifier, route: "/addons/" <> identifier, handler: handler}, identifier, handler)
        when is_atom(handler), do: :ok
 
-  defp validate_manifest(_, _), do: {:error, :invalid_manifest}
+  defp validate_manifest(_, _, _), do: {:error, :invalid_manifest}
 
-  defp registration_attrs(manifest) do
+  defp registration_attrs(manifest, tenant, revision, handler) do
     %{
       identifier: manifest.identifier,
       name: manifest.name,
       route: manifest.route,
       icon: manifest.icon,
-      handler: Atom.to_string(manifest.handler),
+      handler: Atom.to_string(handler),
+      tenant: tenant,
+      revision: revision,
       installed: true,
       enabled: true,
       installed_at: DateTime.utc_now() |> DateTime.truncate(:second)

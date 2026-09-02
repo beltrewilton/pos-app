@@ -5,13 +5,14 @@ defmodule PosServerWeb.AddonController do
   alias PosServer.Addons.Installer
 
   def install_index(%{assigns: %{current_scope: %{actor: :admin}}} = conn, _params) do
-    render(conn, :install, available: Installer.available(), installed: Addons.enabled())
+    tenant = conn.assigns.current_scope.tenant
+    render(conn, :install, available: Installer.available(), installed: Addons.enabled_for(tenant), tenant: tenant)
   end
 
   def install_index(conn, _params), do: redirect(conn, to: ~p"/")
 
-  def install(%{assigns: %{current_scope: %{actor: :admin}}} = conn, %{"identifier" => identifier}) do
-    case Installer.install(identifier) do
+  def install(%{assigns: %{current_scope: %{actor: :admin, tenant: tenant}}} = conn, %{"identifier" => identifier}) do
+    case Installer.install(identifier, tenant) do
       :ok -> conn |> put_flash(:info, "#{identifier} is installed.") |> redirect(to: ~p"/addons/install")
       {:error, reason} -> conn |> put_flash(:error, "Could not install add-on: #{inspect(reason)}") |> redirect(to: ~p"/addons/install")
     end
@@ -19,8 +20,8 @@ defmodule PosServerWeb.AddonController do
 
   def install(conn, _params), do: redirect(conn, to: ~p"/")
 
-  def uninstall(%{assigns: %{current_scope: %{actor: :admin}}} = conn, %{"identifier" => identifier}) do
-    case Installer.uninstall(identifier) do
+  def uninstall(%{assigns: %{current_scope: %{actor: :admin, tenant: tenant}}} = conn, %{"identifier" => identifier}) do
+    case Installer.uninstall(identifier, tenant) do
       {:ok, :purged} -> conn |> put_flash(:info, "#{identifier} was uninstalled and unloaded.") |> redirect(to: ~p"/addons/install")
       {:ok, :not_loaded} -> conn |> put_flash(:info, "#{identifier} was uninstalled.") |> redirect(to: ~p"/addons/install")
       {:ok, :still_referenced} -> conn |> put_flash(:info, "#{identifier} was uninstalled. Its code will clear after active work finishes.") |> redirect(to: ~p"/addons/install")
@@ -32,7 +33,7 @@ defmodule PosServerWeb.AddonController do
 
   # The static Phoenix route ends here. Runtime registry lookup selects the add-on.
   def show(%{assigns: %{current_scope: %{actor: :admin} = scope}} = conn, %{"identifier" => identifier}) do
-    with addon when not is_nil(addon) <- Addons.get_enabled(identifier),
+    with addon when not is_nil(addon) <- Addons.get_enabled_for(identifier, scope.tenant),
          {:ok, handler} <- Installer.handler(addon) do
       render(conn, :show, addon: addon, entrypoint: handler, context: addon_context(scope, addon, conn.params))
     else

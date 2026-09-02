@@ -2,9 +2,10 @@ defmodule PosServerWeb.DashboardComponents do
   use PosServerWeb, :html
 
   attr :active, :any, required: true
+  attr :tenant, :string, default: nil
 
   def dashboard_sidebar(assigns) do
-    assigns = assign(assigns, :addons, PosServer.Addons.enabled())
+    assigns = assign(assigns, :addons, PosServer.Addons.enabled_for(assigns.tenant))
 
     ~H"""
     <aside class="dashboard-sidebar" aria-label="Primary navigation">
