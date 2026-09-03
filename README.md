@@ -17,14 +17,14 @@ PostgreSQL
 ## Responsibilities
 
 - JavaScript renders the POS UI, owns temporary cart state, and invokes client/server boundaries.
-- Rust owns native device access, including USB transport and ESC/POS receipt encoding.
+- Rust owns native device access, including isolated CUPS/USB transports and ESC/POS receipt encoding.
 - Elixir/Phoenix will own business rules, authorization, sales, inventory, realtime events, and integrations.
 - PostgreSQL will hold persistent application state.
 
 ## Current status
 
 - The Tauri desktop PoC is validated on macOS Apple Silicon.
-- Epson TM-T20II direct USB ESC/POS printing is validated on macOS.
+- Epson TM-T20II direct USB ESC/POS printing is validated on macOS. Any CUPS printer queue can also be used, including a Bluetooth printer installed by its vendor driver. Set `POS_PRINTER_QUEUE` to select a named queue; otherwise the macOS default queue is used.
 - The Phoenix server foundation includes PostgreSQL repository configuration, PubSub, Channels, Triplex wiring, public identity migrations, tenant company migrations, and `GET /api/health`.
 - POS business-domain migration has not started.
 - Windows, Android, and iOS printer support have not been validated.

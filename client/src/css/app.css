@@ -260,7 +260,16 @@ button {
 }
 .sidebar-store-selector {
   position: relative;
-  display: grid;
+  display: block;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid transparent;
+  color: var(--sidebar-foreground);
+}
+.sidebar-theme-selector {
+  position: relative;
+  display: block;
   width: 40px;
   height: 40px;
   margin-top: auto;
@@ -268,28 +277,42 @@ button {
   border: 1px solid transparent;
   color: var(--sidebar-foreground);
 }
-.sidebar-store-selector:hover {
+.sidebar-menu-trigger {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  cursor: pointer;
+  list-style: none;
+}
+.sidebar-menu-trigger::-webkit-details-marker { display: none; }
+.sidebar-menu-trigger:hover,
+.sidebar-menu[open] .sidebar-menu-trigger {
   border-color: color-mix(in oklch, var(--sidebar-foreground) 18%, transparent);
   background: var(--sidebar-accent);
   color: var(--sidebar-accent-foreground);
 }
+.sidebar-theme-icon { width: 19px; height: 19px; }
+.sidebar-menu-trigger:focus-visible { outline: 2px solid var(--sidebar-ring); outline-offset: 2px; }
+.sidebar-menu-content { bottom: 0; left: calc(100% + 8px); }
+.sidebar-menu-action { display: flex; width: 100%; min-height: 32px; align-items: center; padding: 6px 8px; border: 0; border-radius: calc(var(--radius-md) - 3px); background: transparent; color: inherit; font: inherit; font-size: .8125rem; font-weight: 600; text-align: left; cursor: pointer; }
+.sidebar-menu-action:hover, .sidebar-menu-action[aria-current="true"] { background: var(--accent); color: var(--accent-foreground); }
+
+/* These legacy neutral surfaces stay untouched for Default; Nature maps them to its semantic background. */
+.theme-nature .application-screen,
+.theme-nature .users-header,
+.theme-nature .pos-shell,
+.theme-nature .topbar,
+.theme-nature .checkout-flow,
+.theme-nature .operations-topbar,
+.theme-nature .operations-table thead,
+.theme-nature .company-settings-topbar,
+.theme-nature .invoice-report-fixed,
+.theme-nature .invoice-table thead,
+.theme-nature .screen-loading-header { background: var(--background); }
 .sidebar-store-icon {
   width: 19px;
   height: 19px;
-}
-.sidebar-store-selector .select {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  padding: 0;
-  border: 0;
-  opacity: 0;
-  cursor: pointer;
-}
-.sidebar-store-selector:focus-within {
-  outline: 2px solid var(--sidebar-ring);
-  outline-offset: 2px;
 }
 .avatar {
   display: inline-grid;
@@ -3986,4 +4009,25 @@ dialog#customer-purchases-dialog .dialog-content {
     from { background-position: 100% 0; }
     to { background-position: -120% 0; }
   }
+}
+
+/* The legacy app shell predates the semantic token layer and uses this light
+ * neutral directly. Override only in dark mode so Default Light remains pixel
+ * unchanged while Default Dark can use the existing shadcn dark tokens. */
+html.dark,
+html.dark body,
+.dark .application-screen,
+.dark .users-header,
+.dark .pos-shell,
+.dark .topbar,
+.dark .checkout-flow,
+.dark .operations-topbar,
+.dark .operations-fixed,
+.dark .operations-table > thead > .table-row > .table-head,
+.dark .purchase-order-lines-table > thead > .table-row > .table-head,
+.dark .invoice-report-fixed,
+.dark .company-settings-fixed,
+.dark .invoice-table > thead > .table-row > .table-head,
+.dark .screen-loading-header {
+  background: var(--background);
 }

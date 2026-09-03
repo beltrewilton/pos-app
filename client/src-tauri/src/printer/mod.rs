@@ -1,6 +1,10 @@
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod device;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
+mod cups;
+#[cfg(target_os = "macos")]
+mod bluetooth;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 #[path = "escpos_new.rs"]
 mod escpos;
 
@@ -47,6 +51,7 @@ pub struct PrinterStatus {
     pub vendor_id: String,
     pub product_id: String,
     pub model: String,
+    pub transport: String,
 }
 
 pub fn print(receipt: Receipt) -> Result<String, String> {
@@ -59,6 +64,17 @@ pub fn print(receipt: Receipt) -> Result<String, String> {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
     let data = escpos::receipt(&receipt);
+    if let Some(queue) = cups::selected_queue()? {
+        let written = cups::print(&queue, &data)?;
+        return Ok(format!("Receipt {} sent to {}: {written} bytes written", receipt.number, queue.name));
+    }
+    #[cfg(target_os = "macos")]
+    if let Some(device) = bluetooth::connected_printer()? {
+        return Err(format!(
+            "{} is connected through Bluetooth, but it has no macOS printer queue. Install its macOS driver, add the queue in Printers & Scanners, then restart the POS.",
+            device.name
+        ));
+    }
     device::write(&data).map(|written| {
         format!(
             "Receipt {} printed: {written} bytes written",
@@ -76,16 +92,25 @@ pub fn status() -> Result<PrinterStatus, String> {
             vendor_id: String::new(),
             product_id: String::new(),
             model: "Direct USB printing is unavailable on mobile".to_string(),
+            transport: "unavailable".to_string(),
         });
     }
 
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
+    if let Some(queue) = cups::selected_queue()? {
+        return Ok(PrinterStatus { connected: true, vendor_id: String::new(), product_id: String::new(), model: queue.model, transport: "cups".to_string() });
+    }
+    #[cfg(target_os = "macos")]
+    if let Some(device) = bluetooth::connected_printer()? {
+        return Ok(PrinterStatus { connected: true, vendor_id: String::new(), product_id: String::new(), model: device.name, transport: "bluetooth".to_string() });
+    }
     Ok(PrinterStatus {
         connected: device::connected()?,
         vendor_id: format!("0x{:04x}", device::EPSON_VENDOR_ID),
         product_id: format!("0x{:04x}", device::TM_T20II_PRODUCT_ID),
         model: "EPSON TM-T20II".to_string(),
+        transport: "usb".to_string(),
     })
     }
 }

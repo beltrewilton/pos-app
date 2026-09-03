@@ -6,6 +6,7 @@
     <title>Tigoo POS</title>
     <link rel="stylesheet" href="./vendor/ui/default-semantic-tokens.css" />
     <link rel="stylesheet" href="./vendor/ui/fonts/inter.css" />
+    <link rel="stylesheet" href="./vendor/ui/nature-semantic-tokens.css" />
     <link
       rel="stylesheet"
       href="./vendor/ui/components/typography/typography.css"
@@ -26,6 +27,7 @@
     <link rel="stylesheet" href="./vendor/ui/components/select/select.css" />
     <link rel="stylesheet" href="./css/app.css" />
     <link rel="stylesheet" href="./css/login.css" />
+    <script>try { if (localStorage.getItem("pos-theme") === "nature-dark") document.documentElement.classList.add("theme-nature", "dark"); } catch {}</script>
   </head>
   <body>
     <svg class="navigation-icon-sprite" aria-hidden="true" focusable="false">
@@ -66,11 +68,14 @@
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 3 2 2 2.4 10.2a2 2 0 0 0 2 1.6h7.8a2 2 0 0 0 1.9-1.4L21 8H7"/><circle cx="10" cy="21" r="1"/><circle cx="18" cy="21" r="1"/></svg>
           <span>Sale</span>
         </button>
-        <div class="sidebar-store-selector">
-          <label class="sr-only" for="sidebar-store">Active store</label>
-          <svg class="sidebar-store-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 2-5h14l2 5"/><path d="M3 9h18v11H3z"/><path d="M7 20v-6h4v6"/><path d="M3 9c0 2 2 3 4 3s4-1 4-3c0 2 2 3 4 3s4-1 4-3"/></svg>
-          <select id="sidebar-store" class="select" aria-label="Active store"></select>
-        </div>
+        <details id="sidebar-theme" class="sidebar-menu sidebar-theme-selector">
+          <summary class="sidebar-menu-trigger" aria-label="Choose theme"><svg class="sidebar-theme-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 3a9 9 0 1 0 0 18 1.5 1.5 0 0 0 1.5-1.5c0-.4-.16-.78-.44-1.06a1.5 1.5 0 0 1 1.06-2.56H16a5 5 0 0 0 0-10Z"/></svg></summary>
+          <div class="user-menu-content sidebar-menu-content" role="group" aria-label="Theme"><button class="sidebar-menu-action" type="button" data-theme="default-light">Default Light</button><button class="sidebar-menu-action" type="button" data-theme="nature-dark">Nature Dark</button></div>
+        </details>
+        <details id="sidebar-store" class="sidebar-menu sidebar-store-selector">
+          <summary class="sidebar-menu-trigger" aria-label="Choose active store"><svg class="sidebar-store-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 2-5h14l2 5"/><path d="M3 9h18v11H3z"/><path d="M7 20v-6h4v6"/><path d="M3 9c0 2 2 3 4 3s4-1 4-3c0 2 2 3 4 3s4-1 4-3"/></svg></summary>
+          <div class="user-menu-content sidebar-menu-content" role="group" aria-label="Active store"></div>
+        </details>
         <details class="user-menu sidebar-user-menu">
           <summary class="avatar avatar-trigger" aria-label="Open user menu">
             <img class="avatar-image" data-avatar-image alt="" hidden />

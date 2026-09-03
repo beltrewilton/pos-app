@@ -6,6 +6,7 @@ import { createPos } from "./pos.js";
 import { buildReceiptData } from "./receipt.js";
 import { formatCurrency, getLanguage, onLanguageChange, setLanguage, t, translateDocument } from "./i18n.js";
 import { createLanguageSwitcher } from "./language-switcher.js";
+import { initializeThemePicker } from "./theme.js";
 
 const printerStatus = document.querySelector("#printer-status");
 const printButton = document.querySelector("#print-test");
@@ -64,7 +65,8 @@ let mobileNavigationTrigger = null;
 let mobileNavigationRestoreFocus = true;
 const languageSwitcher = createLanguageSwitcher(document.querySelector("#language-switcher"));
 const userMenus = document.querySelectorAll(".user-menu");
-const sidebarStoreSelect = document.querySelector("#sidebar-store");
+const sidebarStoreMenu = document.querySelector("#sidebar-store");
+initializeThemePicker(document.querySelector("#sidebar-theme"));
 const sessionStoreStatus = document.querySelector("#session-store-status");
 let storeId = null;
 let availableStores = [];
@@ -262,13 +264,17 @@ function createMobilePullToRefresh({ screen, onRefresh, isActive = () => !screen
 }
 
 function populateStoreOptions() {
-  document.querySelectorAll("#inventory-store, #inventory-form-store, #order-destination, #sidebar-store").forEach((select) => {
+  document.querySelectorAll("#inventory-store, #inventory-form-store, #order-destination").forEach((select) => {
     const selected = String(storeId);
     select.replaceChildren(...availableStores.map((store) => {
       const option = document.createElement("option"); option.value = store.id; option.textContent = store.name; return option;
     }));
     select.value = selected;
   });
+  const storeMenuContent = sidebarStoreMenu.querySelector(".sidebar-menu-content");
+  storeMenuContent.replaceChildren(...availableStores.map((store) => {
+    const button = document.createElement("button"); button.type = "button"; button.className = "sidebar-menu-action"; button.dataset.storeId = store.id; button.textContent = store.name; button.setAttribute("aria-current", String(Number(store.id) === Number(storeId))); return button;
+  }));
 }
 
 function selectedStore() { return availableStores.find((store) => Number(store.id) === Number(storeId)); }
@@ -1910,6 +1916,7 @@ function subscribeToInventory() {
 }
 
 const isDesktopTauri = Boolean(window.__TAURI__) && !/Android|iPhone|iPad/i.test(navigator.userAgent);
+const errorMessage = (error) => error instanceof Error ? error.message : String(error || "Printer failed.");
 function renderPrintTargets() {
   const button = document.querySelector("#print-receipt"), field = document.querySelector("#print-target-field"), select = document.querySelector("#print-target");
   if (isDesktopTauri) { button.hidden = false; field.hidden = true; return; }
@@ -1926,7 +1933,7 @@ function startPrintRelay() {
       if (printedRelayRequests.has(request_id)) return;
       printedRelayRequests.add(request_id);
       try { printRelay.reportResult({ request_id, status: "success", message: await printer.print(receipt) }); }
-      catch (error) { printRelay.reportResult({ request_id, status: "failed", message: error.message || "Printer failed." }); }
+      catch (error) { printRelay.reportResult({ request_id, status: "failed", message: errorMessage(error) }); }
       finally { setTimeout(() => printedRelayRequests.delete(request_id), 300_000); printRelay.updatePrinter(); }
     },
     onResult: (result) => { clearTimeout(pendingPrintTimeout); const status = document.querySelector("#receipt-print-status"); status.textContent = result.status === "success" ? t("ui.receiptPrinted") : t("payment.printFailed", { error: result.message || t("payment.desktopUnavailable") }); if (result.status === "success") setTimeout(() => { document.querySelector("#receipt-dialog").close(); completedReceipt = null; }, 700); },
@@ -2041,7 +2048,12 @@ document.querySelector("#inventory-screen thead").addEventListener("click", (eve
 document.querySelector("#orders-screen thead").addEventListener("click", (event) => { const button = event.target.closest("[data-order-sort]"); if (!button) return; const key = button.dataset.orderSort; purchaseOrderSort = { key, direction: purchaseOrderSort.key === key && purchaseOrderSort.direction === "asc" ? "desc" : "asc" }; document.querySelectorAll("[data-order-sort]").forEach((item) => item.parentElement.setAttribute("aria-sort", item === button ? (purchaseOrderSort.direction === "asc" ? "ascending" : "descending") : "none")); renderOrders(); });
 inventorySearchInput.addEventListener("input", renderInventory);
 document.querySelector("#inventory-store").addEventListener("change", (event) => selectStore(event.currentTarget.value));
-sidebarStoreSelect.addEventListener("change", (event) => selectStore(event.currentTarget.value));
+sidebarStoreMenu.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-store-id]");
+  if (!button) return;
+  sidebarStoreMenu.open = false;
+  selectStore(button.dataset.storeId);
+});
 document.querySelector("#inventory-kpis-toggle").addEventListener("click", (event) => {
   const expanded = event.currentTarget.getAttribute("aria-expanded") !== "true";
   inventorySummaryGrid.classList.toggle("is-collapsed", !expanded);
@@ -2655,7 +2667,7 @@ document.querySelector("#print-receipt").addEventListener("click", async () => {
   try {
     if (isDesktopTauri) { await printer.print(completedReceipt); status.textContent = t("ui.receiptPrinted"); setTimeout(() => document.querySelector("#receipt-dialog").close(), 500); completedReceipt = null; }
     else { const target = document.querySelector("#print-target").value; if (!target) throw new Error(t("ui.noDesktopPrinter")); await printRelay.requestPrint(crypto.randomUUID(), target, completedReceipt); pendingPrintTimeout = setTimeout(() => { status.textContent = t("ui.noDesktopPrinter"); }, 20_000); }
-  } catch (error) { status.textContent = t("payment.printFailed", { error: error.message }); }
+  } catch (error) { status.textContent = t("payment.printFailed", { error: errorMessage(error) }); }
   finally { button.disabled = false; }
 });
 
