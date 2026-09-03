@@ -22,7 +22,10 @@ defmodule PosServer.Retaily.Store do
     |> cast(attrs, [:name, :company_id, :slogan, :logo, :address, :date_create])
     |> validate_required([:name])
     |> validate_length(:name, max: 50)
+    |> validate_length(:slogan, max: 120)
     |> validate_length(:address, max: 200)
+    |> validate_length(:logo, max: 1_000_000)
+    |> validate_format(:logo, ~r/^data:image\/[a-zA-Z0-9.+-]+;base64,/, message: "must be an image encoded as Base64")
     |> unique_constraint(:name)
   end
 end

@@ -96,7 +96,7 @@ defmodule PosServer.Retaily.CompanySettings do
 
   defp save_store(scope, store, attrs) do
     company_id = company(scope).id
-    values = Map.take(attrs, ["name", "address", "slogan"])
+    values = Map.take(attrs, ["name", "address", "slogan", "logo"])
       |> Map.merge(%{"company_id" => to_string(company_id), "date_create" => store.date_create || NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)})
 
     tenant = TenantContext.tenant!()
@@ -157,7 +157,7 @@ defmodule PosServer.Retaily.CompanySettings do
   end
 
   defp list_price_lists(tenant), do: Repo.all(from(pricing in Pricing, order_by: [asc: pricing.label], select: %{id: pricing.id, label: pricing.label, price_key: pricing.price_key, status: pricing.status}), prefix: tenant)
-  defp list_stores(tenant), do: Repo.all(from(store in Store, order_by: [asc: store.name], select: %{id: store.id, name: store.name, address: store.address, slogan: store.slogan, company_id: store.company_id}), prefix: tenant)
+  defp list_stores(tenant), do: Repo.all(from(store in Store, order_by: [asc: store.name], select: %{id: store.id, name: store.name, address: store.address, slogan: store.slogan, logo: store.logo, company_id: store.company_id}), prefix: tenant)
   defp list_sequence_sets(tenant), do: Repo.all(from(sequence in Sequence, order_by: [asc: sequence.code], select: %{id: sequence.id, name: sequence.name, code: sequence.code, prefix: sequence.prefix, fill: sequence.fill, increment_by: sequence.increment_by, current_seq: sequence.current_seq}), prefix: tenant)
   defp list_providers(tenant), do: Repo.all(from(provider in Provider, order_by: [asc: provider.name], select: %{id: provider.id, name: provider.name}), prefix: tenant)
 

@@ -174,6 +174,9 @@ let editingProductId = null;
 let preparedProductImage = null;
 let imagePreparationTask = null;
 let selectedProductImageFile = null;
+let preparedStoreLogo = null;
+let storeLogoPreparationTask = null;
+let selectedStoreLogoFile = null;
 let purchaseOrderSort = { key: "last_updated", direction: "desc" };
 let purchaseOrderStatusFilter = "";
 let companySettingsData = { company: null, price_lists: [], stores: [], sequence_sets: [], providers: [] };
@@ -1317,17 +1320,30 @@ function formatOperationDate(value) { return dateTimeMarkup(value); }
 function closeOperations() { inventoryScreen.hidden = true; ordersScreen.hidden = true; purchaseOrderScreen.hidden = true; companySettingsScreen.hidden = true; }
 function openInventory() { openPos(); closeOperations(); catalogPanel.dataset.view = "inventory"; appShell.classList.add("invoice-view"); inventoryScreen.hidden = false; selectSidebar("inventory-nav"); loadInventory(); requestAnimationFrame(() => document.querySelector("#inventory-title").focus()); }
 function openOrders() { openPos(); closeOperations(); catalogPanel.dataset.view = "orders"; appShell.classList.add("invoice-view"); ordersScreen.hidden = false; selectSidebar("orders-nav"); loadOrders(); requestAnimationFrame(() => document.querySelector("#orders-title").focus()); }
-function companySettingField(labelText, name, value = "", { required = false, type = "text" } = {}) {
+function companySettingField(labelText, name, value = "", { required = false, type = "text", multiline = false } = {}) {
   const field = document.createElement("div"); field.className = "form-field";
   const id = `company-setting-${name}-${crypto.randomUUID()}`;
   const label = document.createElement("label"); label.className = "label"; label.htmlFor = id; label.textContent = labelText;
-  const input = document.createElement("input"); input.className = "input"; input.id = id; input.name = name; input.type = type; input.value = value || ""; input.required = required;
+  const input = multiline ? document.createElement("textarea") : document.createElement("input"); input.className = "input"; input.id = id; input.name = name; if (!multiline) input.type = type; input.value = value || ""; input.required = required;
   field.append(label, input); return field;
+}
+function storeLogoField(entry = null) {
+  const field = document.createElement("div"); field.className = "form-field store-logo-field";
+  const dropzone = document.createElement("div"); dropzone.className = "product-image-dropzone store-logo-dropzone"; dropzone.tabIndex = 0; dropzone.setAttribute("role", "button");
+  const id = `store-logo-${crypto.randomUUID()}`;
+  dropzone.innerHTML = `<label class="label" for="${id}">Store logo</label><p class="field-description">Drop an image here or choose a file (max 10 MB). It will be resized and stored as Base64.</p><input id="${id}" class="input" name="store-logo-file" type="file" accept="image/*" />`;
+  const preview = document.createElement("img"); preview.className = "product-image-preview store-logo-preview"; preview.alt = "Store logo preview"; preview.hidden = !entry?.logo; if (entry?.logo) preview.src = entry.logo;
+  dropzone.prepend(preview); field.append(dropzone);
+  if (entry?.logo) { const remove = document.createElement("button"); remove.type = "button"; remove.className = "btn store-logo-remove"; remove.dataset.variant = "outline"; remove.dataset.removeStoreLogo = ""; remove.textContent = "Remove logo"; field.append(remove); }
+  return field;
 }
 function companySettingForm(kind, entry = null) {
   const form = document.createElement("form"); form.className = "form company-setting-form"; form.dataset.kind = kind;
   form.appendChild(companySettingField(kind === "price-list" ? "Price list label" : kind === "provider" ? "Provider name" : "Store name", "name", entry?.label || entry?.name, { required: true }));
-  if (kind === "store") form.appendChild(companySettingField("Address", "address", entry?.address));
+  if (kind === "store") {
+    const company = document.createElement("p"); company.className = "field-description store-company-context"; company.textContent = `Company: ${companySettingsData.company?.name || "Current company"}`; form.append(company, companySettingField("Slogan", "slogan", entry?.slogan), companySettingField("Address", "address", entry?.address, { multiline: true }), storeLogoField(entry));
+    preparedStoreLogo = entry?.logo || null; selectedStoreLogoFile = null; storeLogoPreparationTask = null;
+  }
   const actions = document.createElement("div"); actions.className = "form-actions";
   const cancel = document.createElement("button"); cancel.className = "btn"; cancel.type = "button"; cancel.dataset.variant = "outline"; cancel.dataset.companySettingCancel = ""; cancel.textContent = "Cancel";
   const save = document.createElement("button"); save.className = "btn"; save.type = "submit"; save.dataset.variant = "default"; save.textContent = entry ? "Save" : "Create";
@@ -1336,8 +1352,9 @@ function companySettingForm(kind, entry = null) {
 function companySettingRow(kind, entry) {
   const row = document.createElement("div"); row.className = "company-setting-row";
   const copy = document.createElement("div");
+  if (kind === "store" && entry.logo) { const logo = document.createElement("img"); logo.className = "store-logo-thumbnail"; logo.src = entry.logo; logo.alt = ""; copy.appendChild(logo); }
   const title = document.createElement("strong"); title.textContent = entry.label || entry.name;
-  const description = document.createElement("p"); description.className = "field-description"; description.textContent = kind === "store" ? entry.address || "No address provided" : entry.price_key || "";
+  const description = document.createElement("p"); description.className = "field-description"; description.textContent = kind === "store" ? [entry.slogan, entry.address].filter(Boolean).join(" · ") || "No store details provided" : entry.price_key || "";
   copy.append(title, description);
   const actions = document.createElement("div"); actions.className = "company-setting-actions";
   [["Edit", "outline", "edit"], ["Delete", "destructive", "delete"]].forEach(([text, variant, action]) => { const button = document.createElement("button"); button.className = "btn"; button.type = "button"; button.dataset.variant = variant; button.dataset.size = "sm"; button.dataset.companySettingAction = action; button.dataset.kind = kind; button.dataset.id = entry.id; button.textContent = text; actions.appendChild(button); });
@@ -1969,6 +1986,7 @@ document.querySelector("#add-provider").addEventListener("click", () => { editin
 [priceListsContent, storesContent, providersContent].forEach((container) => {
   container.addEventListener("click", async (event) => {
     if (event.target.closest("[data-company-setting-cancel]")) { editingCompanySetting = null; renderCompanySettings(); return; }
+    if (event.target.closest("[data-remove-store-logo]")) { preparedStoreLogo = ""; selectedStoreLogoFile = null; setStoreLogoPreview(null); storesContent.querySelector(".store-logo-dropzone .field-description").textContent = "Logo will be removed when you save."; event.target.closest("[data-remove-store-logo]").remove(); return; }
     const button = event.target.closest("[data-company-setting-action]"); if (!button) return;
     const kind = button.dataset.kind; const id = Number(button.dataset.id);
     if (button.dataset.companySettingAction === "edit") { editingCompanySetting = { kind, id }; renderCompanySettings(); container.querySelector("input")?.focus(); return; }
@@ -1979,10 +1997,17 @@ document.querySelector("#add-provider").addEventListener("click", () => { editin
   container.addEventListener("submit", async (event) => {
     event.preventDefault(); const form = event.target; if (!form.matches(".company-setting-form") || !form.reportValidity()) return;
     const kind = form.dataset.kind; const attrs = Object.fromEntries(new FormData(form)); const current = editingCompanySetting; const submit = form.querySelector('[type="submit"]');
+    if (kind === "store") { if (storeLogoPreparationTask) await storeLogoPreparationTask; if (selectedStoreLogoFile && !preparedStoreLogo) { companySettingsStatus.textContent = "Choose a valid logo or remove it before saving."; return; } attrs.logo = preparedStoreLogo || ""; delete attrs["store-logo-file"]; }
     try { submit.disabled = true; if (kind === "store") current?.id === "new" ? await createStore(attrs) : await updateStore(current.id, attrs); else if (kind === "provider") current?.id === "new" ? await createProvider(attrs) : await updateProvider(current.id, attrs); else current?.id === "new" ? await createPriceList({ label: attrs.name }) : await updatePriceList(current.id, { label: attrs.name }); editingCompanySetting = null; await loadCompanySettings(); }
     catch (error) { companySettingsStatus.textContent = error.message; submit.disabled = false; }
   });
 });
+storesContent.addEventListener("change", (event) => { const input = event.target.closest(".store-logo-dropzone input[type='file']"); if (input) storeLogoPreparationTask = setStoreLogo(input.files?.[0]); });
+storesContent.addEventListener("dragenter", (event) => { const dropzone = event.target.closest(".store-logo-dropzone"); if (dropzone) { event.preventDefault(); dropzone.dataset.dragging = "true"; } });
+storesContent.addEventListener("dragover", (event) => { const dropzone = event.target.closest(".store-logo-dropzone"); if (dropzone) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; dropzone.dataset.dragging = "true"; } });
+storesContent.addEventListener("dragleave", (event) => { const dropzone = event.target.closest(".store-logo-dropzone"); if (dropzone) delete dropzone.dataset.dragging; });
+storesContent.addEventListener("drop", (event) => { const dropzone = event.target.closest(".store-logo-dropzone"); if (dropzone) { event.preventDefault(); delete dropzone.dataset.dragging; storeLogoPreparationTask = setStoreLogo(event.dataTransfer?.files?.[0]); } });
+storesContent.addEventListener("keydown", (event) => { const dropzone = event.target.closest(".store-logo-dropzone"); if (dropzone && ["Enter", " "].includes(event.key)) { event.preventDefault(); dropzone.querySelector("input[type='file']").click(); } });
 sequenceSetsContent.addEventListener("click", async (event) => {
   if (event.target.closest("[data-sequence-cancel]")) { editingCompanySetting = null; renderCompanySettings(); return; }
   const button = event.target.closest("[data-sequence-action]"); if (!button) return;
@@ -2176,6 +2201,29 @@ function imageMimeType(name) {
   const extension = name.split(".").pop()?.toLowerCase();
   return ({ jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif", bmp: "image/bmp" })[extension] || "application/octet-stream";
 }
+function setStoreLogoPreview(source) {
+  const preview = storesContent.querySelector(".store-logo-preview");
+  if (!preview) return;
+  preview.hidden = !source;
+  if (source) preview.src = source;
+  else preview.removeAttribute("src");
+}
+async function setStoreLogo(file) {
+  const dropzone = storesContent.querySelector(".store-logo-dropzone");
+  if (!dropzone || !file || !file.type.startsWith("image/")) return;
+  const help = dropzone.querySelector(".field-description");
+  if (file.size > MAX_PRODUCT_IMAGE_BYTES) { selectedStoreLogoFile = null; preparedStoreLogo = null; setStoreLogoPreview(null); help.textContent = t("ui.imageTooLarge"); return; }
+  selectedStoreLogoFile = file;
+  help.textContent = t("ui.resizingImage");
+  try {
+    const source = new Image(), objectUrl = URL.createObjectURL(file); source.src = objectUrl; await source.decode();
+    const width = 100, height = Math.max(1, Math.round(source.naturalHeight * (width / source.naturalWidth)));
+    const canvas = document.createElement("canvas"); canvas.width = width; canvas.height = height;
+    await imageResizer.resize(source, canvas); const blob = await imageResizer.toBlob(canvas, "image/jpeg", 0.82); URL.revokeObjectURL(objectUrl);
+    preparedStoreLogo = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(blob); });
+    setStoreLogoPreview(preparedStoreLogo); help.textContent = `${file.name} resized to ${width} × ${height}px and ready as Base64.`;
+  } catch (error) { preparedStoreLogo = null; help.textContent = `Image could not be prepared: ${error.message}`; }
+}
 productImageDropzone.addEventListener("dragenter", (event) => { event.preventDefault(); event.stopPropagation(); productImageDropzone.dataset.dragging = "true"; });
 productImageDropzone.addEventListener("dragover", (event) => { event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = "copy"; productImageDropzone.dataset.dragging = "true"; });
 productImageDropzone.addEventListener("dragleave", (event) => { event.preventDefault(); delete productImageDropzone.dataset.dragging; });
@@ -2186,18 +2234,21 @@ window.addEventListener("dragover", (event) => { if (document.querySelector("#pr
 window.addEventListener("drop", (event) => { if (document.querySelector("#product-dialog").open) event.preventDefault(); });
 window.__TAURI__?.webview?.getCurrentWebview?.().onDragDropEvent(async ({ payload }) => {
   const dialog = document.querySelector("#product-dialog");
-  if (!dialog.open) return;
-  if (payload.type === "over") { productImageDropzone.dataset.dragging = "true"; return; }
-  if (payload.type === "leave") { delete productImageDropzone.dataset.dragging; return; }
+  const storeDropzone = storesContent.querySelector(".store-logo-dropzone");
+  if (!dialog.open && !storeDropzone) return;
+  const dropzone = dialog.open ? productImageDropzone : storeDropzone;
+  if (payload.type === "over") { dropzone.dataset.dragging = "true"; return; }
+  if (payload.type === "leave") { delete dropzone.dataset.dragging; return; }
   if (payload.type !== "drop" || !payload.paths?.[0]) return;
-  delete productImageDropzone.dataset.dragging;
-  const help = productImageDropzone.querySelector(".field-description");
+  delete dropzone.dataset.dragging;
+  const help = dropzone.querySelector(".field-description");
   help.textContent = t("ui.readingImage");
   try {
     const bytes = await window.__TAURI__.core.invoke("read_dropped_image", { path: payload.paths[0] });
     const name = String(payload.paths[0]).split(/[\\/]/).pop() || "dropped-image";
     const file = new File([new Uint8Array(bytes)], name, { type: imageMimeType(name) });
-    imagePreparationTask = setProductImage(file);
+    if (dialog.open) imagePreparationTask = setProductImage(file);
+    else storeLogoPreparationTask = setStoreLogo(file);
   } catch (error) { help.textContent = `Image could not be read: ${error}`; }
 });
 document.querySelector("#product-form").addEventListener("submit", async (event) => {

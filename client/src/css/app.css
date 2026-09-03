@@ -1731,6 +1731,29 @@ button {
   overflow-wrap: anywhere;
   font-size: 0.875rem;
 }
+.store-logo-thumbnail {
+  float: left;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin: 0 9px 2px 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+}
+.store-company-context {
+  margin: -2px 0 8px;
+}
+.store-logo-field {
+  display: grid;
+  gap: 6px;
+}
+.store-logo-remove {
+  justify-self: start;
+}
+.company-setting-form textarea.input {
+  min-height: 4.5rem;
+  resize: vertical;
+}
 .company-setting-row .field-description {
   margin: 2px 0 0;
 }
