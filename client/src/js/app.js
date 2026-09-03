@@ -1357,7 +1357,7 @@ function companySettingRow(kind, entry) {
   const description = document.createElement("p"); description.className = "field-description"; description.textContent = kind === "store" ? [entry.slogan, entry.address].filter(Boolean).join(" · ") || "No store details provided" : entry.price_key || "";
   copy.append(title, description);
   const actions = document.createElement("div"); actions.className = "company-setting-actions";
-  [["Edit", "outline", "edit"], ["Delete", "destructive", "delete"]].forEach(([text, variant, action]) => { const button = document.createElement("button"); button.className = "btn"; button.type = "button"; button.dataset.variant = variant; button.dataset.size = "sm"; button.dataset.companySettingAction = action; button.dataset.kind = kind; button.dataset.id = entry.id; button.textContent = text; actions.appendChild(button); });
+  [["Edit", "outline", "edit"], ...(kind === "store" ? [] : [["Delete", "destructive", "delete"]])].forEach(([text, variant, action]) => { const button = document.createElement("button"); button.className = "btn"; button.type = "button"; button.dataset.variant = variant; button.dataset.size = "sm"; button.dataset.companySettingAction = action; button.dataset.kind = kind; button.dataset.id = entry.id; button.textContent = text; actions.appendChild(button); });
   row.append(copy, actions); return row;
 }
 function sequenceSetForm(entry = null) {
