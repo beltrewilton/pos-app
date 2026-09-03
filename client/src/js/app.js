@@ -3,7 +3,7 @@ import { createPrintRelay } from "./print-relay.js";
 import Pica from "../vendor/pica/pica.mjs";
 import { API_BASE_URL, activeProducts, addSalePayment, adjustInventory, cancelSale, clearSession, companySettings, createCustomer, createPriceList, createProduct, createProductOrder, createProvider, createSale, createSequenceSet, createStore, createTauriGoogleAttempt, createUser, customerDetail, customerPurchases, customers, deactivateUser, deletePriceList, deleteProvider, deleteSequenceSet, deleteStore, exchangeTauriGoogleCode, inventoryQuantities, inventoryStoreQuantities, inventorySummary, login, moveInventory, pricingLists, product, productOrders, productTraces, purchaseSources, receiveProductOrder, saleDetails, salesReport, saveSession, session, setProductPrices, stores, tauriGoogleAuthorizationUrl, updatePriceList, updateProduct, updateProvider, updateSequenceSet, updateStore, updateUser, userOptions, users } from "./api.js";
 import { createPos } from "./pos.js";
-import { buildReceiptData } from "./receipt.js";
+import { buildPaymentReceiptData, buildReceiptData } from "./receipt.js";
 import { formatCurrency, getLanguage, onLanguageChange, setLanguage, t, translateDocument } from "./i18n.js";
 import { createLanguageSwitcher } from "./language-switcher.js";
 import { initializeThemePicker } from "./theme.js";
@@ -972,7 +972,7 @@ function invoiceDetailsRow(invoice) {
     const paymentHead = document.createElement("thead");
     const paymentColumns = document.createElement("tr");
     paymentColumns.className = "table-row invoice-payment-columns";
-    [t("invoice.payment"), t("ui.date"), t("invoice.user"), t("invoice.method"), t("checkout.amount"), t("ui.status")].forEach((label) => {
+    [t("invoice.payment"), t("ui.date"), t("invoice.user"), t("invoice.method"), t("checkout.amount"), t("ui.status"), t("ui.action")].forEach((label) => {
       const th = document.createElement("th");
       th.className = "table-head";
       th.scope = "col";
@@ -986,7 +986,7 @@ function invoiceDetailsRow(invoice) {
       emptyRow.className = "table-row";
       const emptyCell = document.createElement("td");
       emptyCell.className = "table-cell muted";
-      emptyCell.colSpan = 6;
+      emptyCell.colSpan = 7;
       emptyCell.textContent = t("invoice.noPayments");
       emptyRow.appendChild(emptyCell);
       paymentBody.appendChild(emptyRow);
@@ -1001,6 +1001,13 @@ function invoiceDetailsRow(invoice) {
         paymentCell.textContent = value;
         paymentRow.appendChild(paymentCell);
       });
+      const actionCell = document.createElement("td");
+      actionCell.className = "table-cell invoice-payment-actions";
+      const printPayment = document.createElement("button");
+      printPayment.className = "btn"; printPayment.type = "button"; printPayment.dataset.variant = "outline"; printPayment.dataset.size = "sm";
+      printPayment.dataset.printPayment = payment.id; printPayment.dataset.invoiceId = detail.id; printPayment.textContent = t("receipt.printPayment");
+      actionCell.appendChild(printPayment);
+      paymentRow.appendChild(actionCell);
       paymentBody.appendChild(paymentRow);
     });
     if (Number(detail.change_amount || 0) > 0) {
@@ -1013,6 +1020,7 @@ function invoiceDetailsRow(invoice) {
         changeCell.textContent = value;
         changeRow.appendChild(changeCell);
       });
+      changeRow.appendChild(document.createElement("td")).className = "table-cell";
       paymentBody.appendChild(changeRow);
     }
     paymentTable.append(paymentCaption, paymentHead, paymentBody);
@@ -1059,6 +1067,10 @@ function invoiceDetailsRow(invoice) {
         paymentDetails.appendChild(detailRow);
       });
       paymentCard.append(paymentCardHeader, paymentDetails);
+      const printPayment = document.createElement("button");
+      printPayment.className = "btn invoice-payment-mobile-action"; printPayment.type = "button"; printPayment.dataset.variant = "outline"; printPayment.dataset.size = "sm";
+      printPayment.dataset.printPayment = payment.id; printPayment.dataset.invoiceId = detail.id; printPayment.textContent = t("receipt.printPayment");
+      paymentCard.appendChild(printPayment);
       paymentMobileList.appendChild(paymentCard);
     });
     if (Number(detail.change_amount || 0) > 0) {
@@ -2366,6 +2378,13 @@ document.querySelector("#invoice-filters-clear").addEventListener("click", () =>
   loadInvoices({ reset: true });
 });
 invoiceTableBody.addEventListener("click", async (event) => {
+  const paymentPrint = event.target.closest("[data-print-payment]");
+  if (paymentPrint) {
+    const invoice = invoiceDetails.get(Number(paymentPrint.dataset.invoiceId));
+    const payment = invoice?.payments?.find((entry) => String(entry.id) === paymentPrint.dataset.printPayment);
+    if (invoice && payment) openPaymentReceiptPrint(invoice, payment);
+    return;
+  }
   const print = event.target.closest("[data-print-invoice]");
   if (print) {
     const invoice = invoiceDetails.get(Number(print.dataset.printInvoice));
@@ -2656,6 +2675,15 @@ function openReceiptPrint(invoice, copy = false) {
   document.querySelector("#receipt-print-status").textContent = "";
   document.querySelector("#receipt-dialog-title").textContent = copy ? t("receipt.printCopy") : t("receipt.saleCompleted");
   document.querySelector("#receipt-print-description").textContent = t("receipt.printDescription");
+  renderPrintTargets(); document.querySelector("#receipt-dialog").showModal();
+}
+
+function openPaymentReceiptPrint(invoice, payment) {
+  const store = (companySettingsData.stores || []).find((entry) => Number(entry.id) === Number(invoice.store_id));
+  completedReceipt = buildPaymentReceiptData(invoice, payment, { company: companySettingsData.company, store, sequences: companySettingsData.sequence_sets, language: getLanguage(), t });
+  document.querySelector("#receipt-print-status").textContent = "";
+  document.querySelector("#receipt-dialog-title").textContent = t("receipt.printPayment");
+  document.querySelector("#receipt-print-description").textContent = t("receipt.paymentPrintDescription");
   renderPrintTargets(); document.querySelector("#receipt-dialog").showModal();
 }
 

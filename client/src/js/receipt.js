@@ -129,3 +129,21 @@ export function buildReceiptData(invoice, { company, store, sequences = [], lang
     change: value(invoice.change_amount),
   };
 }
+
+// This deliberately serializes only the selected persisted payment. It uses
+// the established receipt transport and native printer adapter.
+export function buildPaymentReceiptData(invoice, payment, { company, store, sequences = [], language, t } = {}) {
+  const paymentIndex = (invoice.payments || []).findIndex((entry) => String(entry.id) === String(payment.id));
+  const paymentsThroughThisOne = (invoice.payments || []).slice(0, paymentIndex + 1);
+  const balance = paymentIndex < 0 ? Math.max(value(invoice.due_balance), 0) : Math.max(value(invoice.amount) - paymentsThroughThisOne.reduce((sum, entry) => sum + value(entry.amount), 0), 0);
+  const sequence = sequences.find((entry) => entry.code === invoice.sequence_type);
+  return {
+    payment_receipt: true,
+    number: invoice.sequence || String(invoice.id), sequence_description: sequence?.name || "", language,
+    labels: { receipt: t("receipt.receipt"), payment: t("receipt.paymentReceipt"), fiscal_sequence: t("receipt.fiscalSequence"), date: t("ui.date"), customer: t("ui.customer"), cashier: t("ui.salesPerson"), method: t("invoice.method"), amount: t("checkout.amount"), balance: t("ui.pendingBalance"), thank_you: t("receipt.thankYou"), rnc: t("receipt.rnc") },
+    company: company?.name || "", company_id: company?.rnc || "", store: store?.name || "", logo: store?.logo || "", store_address: store?.address || "", store_slogan: store?.slogan || "",
+    date_time: dateTime(payment.date_create), customer: invoice.client?.name || "", cashier: payment.login || invoice.login || "",
+    payment_method: payment.type === "CC" ? t("checkout.card") : payment.type === "CASH" ? t("checkout.cash") : payment.type || "", payment_amount: value(payment.amount), balance,
+    items: [], total: 0, payments: [], paid: 0, change: 0,
+  };
+}

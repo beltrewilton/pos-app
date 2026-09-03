@@ -399,7 +399,9 @@ defmodule PosServer.Retaily.Sales do
       additional_info: sale.additional_info,
       client: serialize_client(sale.client),
       lines: Enum.map(sale.sale_lines, &serialize_line/1),
-      payments: Enum.map(sale.sale_paids, &serialize_payment/1),
+      # Stable chronological ordering makes each payment's running balance
+      # deterministic for the payment receipt without changing sale data.
+      payments: sale.sale_paids |> Enum.sort_by(&{&1.date_create, &1.id}) |> Enum.map(&serialize_payment/1),
       total_paid: paid,
       change_amount: change,
       due_balance: due,

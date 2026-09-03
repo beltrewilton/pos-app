@@ -23,7 +23,7 @@ pub struct ReceiptItem {
 
 #[derive(Debug, Deserialize, Default)]
 pub struct ReceiptLabels {
-    #[serde(default)] pub receipt: String, #[serde(default)] pub copy: String, #[serde(default)] pub invoice: String, #[serde(default)] pub fiscal_sequence: String, #[serde(default)] pub rnc: String, #[serde(default)] pub date: String, #[serde(default)] pub store: String, #[serde(default)] pub customer: String, #[serde(default)] pub document: String, #[serde(default)] pub cashier: String, #[serde(default)] pub sku: String, #[serde(default)] pub discount: String, #[serde(default)] pub tax: String, #[serde(default)] pub subtotal: String, #[serde(default)] pub delivery: String, #[serde(default)] pub total: String, #[serde(default)] pub paid: String, #[serde(default)] pub balance: String, #[serde(default)] pub change: String, #[serde(default)] pub memo: String, #[serde(default)] pub thank_you: String, #[serde(default)] pub item_header: String, #[serde(default)] pub savings: String, #[serde(default)] pub items: String,
+    #[serde(default)] pub receipt: String, #[serde(default)] pub payment: String, #[serde(default)] pub copy: String, #[serde(default)] pub invoice: String, #[serde(default)] pub fiscal_sequence: String, #[serde(default)] pub rnc: String, #[serde(default)] pub date: String, #[serde(default)] pub store: String, #[serde(default)] pub customer: String, #[serde(default)] pub document: String, #[serde(default)] pub cashier: String, #[serde(default)] pub method: String, #[serde(default)] pub amount: String, #[serde(default)] pub sku: String, #[serde(default)] pub discount: String, #[serde(default)] pub tax: String, #[serde(default)] pub subtotal: String, #[serde(default)] pub delivery: String, #[serde(default)] pub total: String, #[serde(default)] pub paid: String, #[serde(default)] pub balance: String, #[serde(default)] pub change: String, #[serde(default)] pub memo: String, #[serde(default)] pub thank_you: String, #[serde(default)] pub item_header: String, #[serde(default)] pub savings: String, #[serde(default)] pub items: String,
 }
 #[derive(Debug, Deserialize)] pub struct ReceiptPayment { pub method: String, pub amount: f64 }
 
@@ -35,12 +35,13 @@ pub struct Receipt {
     pub total: f64,
     #[serde(default)]
     pub language: String,
+    #[serde(default)] pub payment_receipt: bool,
     #[serde(default)] pub copy: bool,
     #[serde(default)] pub labels: ReceiptLabels,
     #[serde(default)] pub company: String, #[serde(default)] pub company_id: String,
     #[serde(default)] pub store: String, #[serde(default)] pub logo: String, #[serde(default)] pub store_address: String, #[serde(default)] pub store_slogan: String,
     #[serde(default)] pub date_time: String, #[serde(default)] pub customer: String, #[serde(default)] pub customer_document: String,
-    #[serde(default)] pub cashier: String, #[serde(default)] pub memo: String,
+    #[serde(default)] pub cashier: String, #[serde(default)] pub memo: String, #[serde(default)] pub payment_method: String, #[serde(default)] pub payment_amount: f64,
     #[serde(default)] pub subtotal: f64, #[serde(default)] pub tax: f64, #[serde(default)] pub discount: f64, #[serde(default)] pub line_discount: f64, #[serde(default)] pub discount_total: f64, #[serde(default)] pub delivery: f64,
     #[serde(default)] pub payments: Vec<ReceiptPayment>, #[serde(default)] pub paid: f64, #[serde(default)] pub balance: f64, #[serde(default)] pub change: f64,
 }

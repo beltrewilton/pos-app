@@ -2030,6 +2030,9 @@ dialog#customer-purchases-dialog .dialog-content {
 .invoice-payment-history {
   margin-bottom: 10px;
 }
+.invoice-payment-actions {
+  white-space: nowrap;
+}
 .checkout-memo {
   margin: 12px 0 0;
 }
@@ -3524,6 +3527,11 @@ dialog#customer-purchases-dialog .dialog-content {
     overflow-wrap: anywhere;
     text-align: right;
   }
+  .invoice-payment-mobile-action {
+    width: 100%;
+    min-height: 2.5rem;
+    margin-top: 10px;
+  }
   .invoice-payment-mobile-change {
     padding-block: 12px;
   }
@@ -3592,6 +3600,9 @@ dialog#customer-purchases-dialog .dialog-content {
   }
   .invoice-payment-history tbody .table-cell:nth-child(6)::before {
     content: "Status";
+  }
+  .invoice-payment-history tbody .table-cell:nth-child(7)::before {
+    content: "Action";
   }
   .invoice-detail-lines tbody .table-cell:nth-child(1)::before {
     content: "Product";
