@@ -10,13 +10,39 @@ defmodule PosServer.Addons.Installer do
   alias PosServer.Addons
 
   @catalog %{
-    "simply_print" => Path.expand("../../../../../addons-pos-app/simply_print/addon.ex", __DIR__),
-    "simply_print_copy" => "/tmp/simply_print_copy/addon.ex",
-    "sales_report_evofit" => Path.expand("../../../../../addons-pos-app/sales_report_evofit/addon.ex", __DIR__),
-    "sales_summary_report" => Path.expand("../../../../../addons-pos-app/sales_summary_report/addon.ex", __DIR__)
+    "simply_print" => %{
+      path: Path.expand("../../../../../addons-pos-app/simply_print/addon.ex", __DIR__),
+      name: "Simply Print",
+      icon: "🖨️",
+      description: "Print and review the company record connected to this workspace."
+    },
+    "simply_print_copy" => %{
+      path: "/tmp/simply_print_copy/addon.ex",
+      name: "Copy of Simply Print",
+      icon: "🖨️",
+      description: "A separate Simply Print workspace connection for testing and operations."
+    },
+    "sales_report_evofit" => %{
+      path: Path.expand("../../../../../addons-pos-app/sales_report_evofit/addon.ex", __DIR__),
+      name: "Sales Report Evofit",
+      icon: "📈",
+      description: "Analyze sales by representative, product, customer, and store."
+    },
+    "sales_summary_report" => %{
+      path: Path.expand("../../../../../addons-pos-app/sales_summary_report/addon.ex", __DIR__),
+      name: "Sales Summary Report",
+      icon: "📊",
+      description: "Review sales totals and payment-card fees by representative."
+    }
   }
 
   def available, do: Map.keys(@catalog)
+
+  def catalog do
+    @catalog
+    |> Enum.map(fn {identifier, addon} -> Map.put(addon, :identifier, identifier) end)
+    |> Enum.sort_by(& &1.name)
+  end
 
   def install(identifier, tenant) when is_binary(tenant) and tenant != "" do
     if Addons.installed?(identifier, tenant), do: :ok, else: discover_load_and_register(identifier, tenant)
@@ -173,7 +199,7 @@ defmodule PosServer.Addons.Installer do
 
   defp source_path(identifier) do
     case Map.fetch(@catalog, identifier) do
-      {:ok, path} -> {:ok, path}
+      {:ok, %{path: path}} -> {:ok, path}
       :error -> {:error, :unknown_addon}
     end
   end

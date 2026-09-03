@@ -6,7 +6,7 @@ defmodule PosServerWeb.AddonController do
 
   def install_index(%{assigns: %{current_scope: %{actor: :admin}}} = conn, _params) do
     tenant = conn.assigns.current_scope.tenant
-    render(conn, :install, available: Installer.available(), installed: Addons.enabled_for(tenant), tenant: tenant)
+    render(conn, :install, catalog: Installer.catalog(), installed: Addons.enabled_for(tenant), tenant: tenant)
   end
 
   def install_index(conn, _params), do: redirect(conn, to: ~p"/")
