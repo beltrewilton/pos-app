@@ -43,6 +43,19 @@ mkdir -p "$ROOT/ui/fonts" "$ROOT/ui/icons"
 # This revisioned gstatic URL is intentionally pinned and recorded in the manifest.
 INTER_URL="https://fonts.gstatic.com/s/inter/v20/UcCo3FwrK3iLTcviYwY.woff2"
 curl --fail --location --silent --show-error "$INTER_URL" --output "$ROOT/ui/fonts/inter-latin-variable.woff2"
+NATURE_FONT_URLS=(
+  "https://fonts.gstatic.com/s/montserrat/v31/JTUSjIg1_i6t8kCHKm459WlhyyTh89Y.woff2"
+  "https://fonts.gstatic.com/s/merriweather/v33/u-4e0qyriQwlOrhSvowK_l5UcA6zuSYEqOzpPe3HOZJ5eX1WtLaQwmYiSeqqJ-mXq1Gi.woff2"
+  "https://fonts.gstatic.com/s/sourcecodepro/v31/HI_SiYsKILxRpg3hIP6sJ7fM7PqlPevWnsUnxg.woff2"
+)
+NATURE_FONT_FILES=(montserrat-latin-variable.woff2 merriweather-latin-variable.woff2 source-code-pro-latin-variable.woff2)
+for index in "${!NATURE_FONT_URLS[@]}"; do
+  curl --fail --location --silent --show-error "${NATURE_FONT_URLS[$index]}" --output "$ROOT/ui/fonts/${NATURE_FONT_FILES[$index]}"
+done
+# Doom 64's display face; this revisioned gstatic URL contains the Latin
+# variable range used by the opt-in theme.
+OXANIUM_URL="https://fonts.gstatic.com/s/oxanium/v21/RrQQboN_4yJ0JmiMe2LE0ZJCZ4c.woff2"
+curl --fail --location --silent --show-error "$OXANIUM_URL" --output "$ROOT/ui/fonts/oxanium-latin-variable.woff2"
 curl --fail --location --silent --show-error \
   "https://unpkg.com/lucide@${LUCIDE_VERSION}/dist/umd/lucide.min.js" \
   --output "$ROOT/ui/icons/lucide-${LUCIDE_VERSION}.min.js"
@@ -54,8 +67,16 @@ cp -R "$ROOT/ui/shadcn-html/." "$ROOT/server/priv/static/assets/ui/"
 mkdir -p "$ROOT/client/src/vendor/ui/fonts" "$ROOT/client/src/vendor/ui/icons" "$ROOT/server/priv/static/assets/ui/fonts" "$ROOT/server/priv/static/assets/ui/icons"
 cp "$ROOT/ui/fonts/inter-latin-variable.woff2" "$ROOT/client/src/vendor/ui/fonts/"
 cp "$ROOT/ui/fonts/inter-latin-variable.woff2" "$ROOT/server/priv/static/assets/ui/fonts/"
+cp "$ROOT/ui/fonts/montserrat-latin-variable.woff2" "$ROOT/ui/fonts/merriweather-latin-variable.woff2" "$ROOT/ui/fonts/source-code-pro-latin-variable.woff2" "$ROOT/client/src/vendor/ui/fonts/"
+cp "$ROOT/ui/fonts/montserrat-latin-variable.woff2" "$ROOT/ui/fonts/merriweather-latin-variable.woff2" "$ROOT/ui/fonts/source-code-pro-latin-variable.woff2" "$ROOT/server/priv/static/assets/ui/fonts/"
+cp "$ROOT/ui/fonts/oxanium-latin-variable.woff2" "$ROOT/client/src/vendor/ui/fonts/"
+cp "$ROOT/ui/fonts/oxanium-latin-variable.woff2" "$ROOT/server/priv/static/assets/ui/fonts/"
 cp "$ROOT/ui/fonts/inter.css" "$ROOT/client/src/vendor/ui/fonts/"
 cp "$ROOT/ui/fonts/inter.css" "$ROOT/server/priv/static/assets/ui/fonts/"
+cp "$ROOT/ui/fonts/nature.css" "$ROOT/client/src/vendor/ui/fonts/"
+cp "$ROOT/ui/fonts/nature.css" "$ROOT/server/priv/static/assets/ui/fonts/"
+cp "$ROOT/ui/fonts/doom-64.css" "$ROOT/client/src/vendor/ui/fonts/"
+cp "$ROOT/ui/fonts/doom-64.css" "$ROOT/server/priv/static/assets/ui/fonts/"
 cp "$ROOT/ui/icons/lucide-${LUCIDE_VERSION}.min.js" "$ROOT/client/src/vendor/ui/icons/"
 cp "$ROOT/ui/icons/lucide-${LUCIDE_VERSION}.min.js" "$ROOT/server/priv/static/assets/ui/icons/"
 

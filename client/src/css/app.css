@@ -449,7 +449,7 @@ button {
   color: var(--muted-foreground);
   font-family: Inter, var(--font-sans);
   font-size: 0.75rem;
-  font-weight: 200;
+  font-weight: 700;
   line-height: 19px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -467,6 +467,7 @@ button {
 .network-status {
   right: 11px;
   opacity: 0.55;
+  color: var(--muted-foreground);
 }
 .printer-status.connected {
   filter: invert(37%) sepia(35%) saturate(982%) hue-rotate(94deg)
@@ -575,7 +576,7 @@ button {
   height: 2.9rem;
   width: 2.9rem;
 }
-.topbar-search > .btn img {
+.topbar-search > .btn svg {
   width: 18px;
   height: 18px;
 }
@@ -597,7 +598,7 @@ button {
 .language-switcher > summary::-webkit-details-marker {
   display: none;
 }
-.language-switcher img {
+.language-switcher svg {
   width: 15px;
   height: 15px;
 }
@@ -4031,3 +4032,19 @@ html.dark body,
 .dark .screen-loading-header {
   background: var(--background);
 }
+
+/* Apply semantic surfaces to the opt-in theme families without touching the
+ * default light layout's established neutral background. */
+:is(.theme-nature, .theme-caffeine, .theme-bold-tech, .theme-doom-64):not(.dark) .application-screen,
+:is(.theme-nature, .theme-caffeine, .theme-bold-tech, .theme-doom-64):not(.dark) .users-header,
+:is(.theme-nature, .theme-caffeine, .theme-bold-tech, .theme-doom-64):not(.dark) .pos-shell,
+:is(.theme-nature, .theme-caffeine, .theme-bold-tech, .theme-doom-64):not(.dark) .topbar,
+:is(.theme-nature, .theme-caffeine, .theme-bold-tech, .theme-doom-64):not(.dark) .checkout-flow,
+:is(.theme-nature, .theme-caffeine, .theme-bold-tech, .theme-doom-64):not(.dark) .operations-topbar,
+:is(.theme-nature, .theme-caffeine, .theme-bold-tech, .theme-doom-64):not(.dark) .operations-fixed,
+:is(.theme-nature, .theme-caffeine, .theme-bold-tech, .theme-doom-64):not(.dark) .operations-table > thead > .table-row > .table-head,
+:is(.theme-nature, .theme-caffeine, .theme-bold-tech, .theme-doom-64):not(.dark) .purchase-order-lines-table > thead > .table-row > .table-head,
+:is(.theme-nature, .theme-caffeine, .theme-bold-tech, .theme-doom-64):not(.dark) .invoice-report-fixed,
+:is(.theme-nature, .theme-caffeine, .theme-bold-tech, .theme-doom-64):not(.dark) .company-settings-fixed,
+:is(.theme-nature, .theme-caffeine, .theme-bold-tech, .theme-doom-64):not(.dark) .invoice-table > thead > .table-row > .table-head,
+:is(.theme-nature, .theme-caffeine, .theme-bold-tech, .theme-doom-64):not(.dark) .screen-loading-header { background: var(--background); }

@@ -6,7 +6,12 @@
     <title>Tigoo POS</title>
     <link rel="stylesheet" href="./vendor/ui/default-semantic-tokens.css" />
     <link rel="stylesheet" href="./vendor/ui/fonts/inter.css" />
+    <link rel="stylesheet" href="./vendor/ui/fonts/nature.css" />
+    <link rel="stylesheet" href="./vendor/ui/fonts/doom-64.css" />
     <link rel="stylesheet" href="./vendor/ui/nature-semantic-tokens.css" />
+    <link rel="stylesheet" href="./vendor/ui/caffeine-semantic-tokens.css" />
+    <link rel="stylesheet" href="./vendor/ui/bold-tech-semantic-tokens.css" />
+    <link rel="stylesheet" href="./vendor/ui/doom-64-semantic-tokens.css" />
     <link
       rel="stylesheet"
       href="./vendor/ui/components/typography/typography.css"
@@ -27,7 +32,7 @@
     <link rel="stylesheet" href="./vendor/ui/components/select/select.css" />
     <link rel="stylesheet" href="./css/app.css" />
     <link rel="stylesheet" href="./css/login.css" />
-    <script>try { if (localStorage.getItem("pos-theme") === "nature-dark") document.documentElement.classList.add("theme-nature", "dark"); } catch {}</script>
+    <script>try { const theme = localStorage.getItem("pos-theme"); if (theme === "nature-light" || theme === "nature-dark") document.documentElement.classList.add("theme-nature"); if (theme === "caffeine-light" || theme === "caffeine-dark") document.documentElement.classList.add("theme-caffeine"); if (theme === "bold-tech-light" || theme === "bold-tech-dark") document.documentElement.classList.add("theme-bold-tech"); if (theme === "doom-64-light" || theme === "doom-64-dark") document.documentElement.classList.add("theme-doom-64"); if (theme === "nature-dark" || theme === "caffeine-dark" || theme === "bold-tech-dark" || theme === "doom-64-dark") document.documentElement.classList.add("dark"); } catch {}</script>
   </head>
   <body>
     <svg class="navigation-icon-sprite" aria-hidden="true" focusable="false">
@@ -39,6 +44,9 @@
       <symbol id="nav-icon-orders" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l3 3v17H6z"/><path d="M15 2v4h4M9 12h6M9 16h6"/></symbol>
       <symbol id="nav-icon-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.12 2.12-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.55V20h-3v-.09A1.7 1.7 0 0 0 10.68 18.36a1.7 1.7 0 0 0-1.88.34l-.06.06-2.12-2.12.06-.06A1.7 1.7 0 0 0 7.02 14.7 1.7 1.7 0 0 0 5.47 13.67H5.4v-3h.07A1.7 1.7 0 0 0 7.02 9.64a1.7 1.7 0 0 0-.34-1.88l-.06-.06L8.74 5.6l.06.06a1.7 1.7 0 0 0 1.88.34 1.7 1.7 0 0 0 1.03-1.55V4.4h3v.05a1.7 1.7 0 0 0 1.03 1.55 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.12 2.12-.06.06a1.7 1.7 0 0 0-.34 1.88 1.7 1.7 0 0 0 1.55 1.03H21v3h-.05A1.7 1.7 0 0 0 19.4 15Z"/></symbol>
       <symbol id="nav-icon-company" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 2-5h14l2 5"/><path d="M3 9h18v11H3z"/><path d="M7 20v-6h4v6"/><path d="M3 9c0 2 2 3 4 3s4-1 4-3c0 2 2 3 4 3s4-1 4-3"/></symbol>
+      <symbol id="ui-icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></symbol>
+      <symbol id="ui-icon-language" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 3.7 5.5 3.7 9S14.5 18.5 12 21c-2.5-2.5-3.7-5.5-3.7-9S9.5 5.5 12 3Z"/></symbol>
+      <symbol id="ui-icon-network" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/></symbol>
     </svg>
     <main class="pos-shell" id="app-shell" hidden>
       <nav class="sidebar-rail" aria-label="Primary navigation" data-i18n-aria-label="nav.primary">
@@ -70,7 +78,7 @@
         </button>
         <details id="sidebar-theme" class="sidebar-menu sidebar-theme-selector">
           <summary class="sidebar-menu-trigger" aria-label="Choose theme"><svg class="sidebar-theme-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 3a9 9 0 1 0 0 18 1.5 1.5 0 0 0 1.5-1.5c0-.4-.16-.78-.44-1.06a1.5 1.5 0 0 1 1.06-2.56H16a5 5 0 0 0 0-10Z"/></svg></summary>
-          <div class="user-menu-content sidebar-menu-content" role="group" aria-label="Theme"><button class="sidebar-menu-action" type="button" data-theme="default-light">Default Light</button><button class="sidebar-menu-action" type="button" data-theme="nature-dark">Nature Dark</button></div>
+          <div class="user-menu-content sidebar-menu-content" role="group" aria-label="Theme"><button class="sidebar-menu-action" type="button" data-theme="default-light">Default Light</button><button class="sidebar-menu-action" type="button" data-theme="nature-light">Nature Light</button><button class="sidebar-menu-action" type="button" data-theme="nature-dark">Nature Dark</button><button class="sidebar-menu-action" type="button" data-theme="caffeine-light">Caffeine Light</button><button class="sidebar-menu-action" type="button" data-theme="caffeine-dark">Caffeine Dark</button><button class="sidebar-menu-action" type="button" data-theme="bold-tech-light">Bold Tech Light</button><button class="sidebar-menu-action" type="button" data-theme="bold-tech-dark">Bold Tech Dark</button><button class="sidebar-menu-action" type="button" data-theme="doom-64-light">Doom 64 Light</button><button class="sidebar-menu-action" type="button" data-theme="doom-64-dark">Doom 64 Dark</button></div>
         </details>
         <details id="sidebar-store" class="sidebar-menu sidebar-store-selector">
           <summary class="sidebar-menu-trigger" aria-label="Choose active store"><svg class="sidebar-store-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 2-5h14l2 5"/><path d="M3 9h18v11H3z"/><path d="M7 20v-6h4v6"/><path d="M3 9c0 2 2 3 4 3s4-1 4-3c0 2 2 3 4 3s4-1 4-3"/></svg></summary>
@@ -100,15 +108,11 @@
           class="printer-status"
           src="./assets/icons/printer.svg"
           alt="Checking printer status" data-i18n-alt="status.printerChecking"
-        /><img
-          class="network-status"
-          src="./assets/icons/network.svg"
-          alt="Network status unavailable" data-i18n-alt="status.networkUnavailable"
-        />
+        /><svg class="network-status" role="img" aria-label="Network status unavailable" data-i18n-aria-label="status.networkUnavailable"><use href="#ui-icon-network"/></svg>
         <span id="session-store-status" class="session-store-status" aria-live="polite"></span>
         <details class="language-switcher" id="language-switcher">
           <summary aria-label="Change display language">
-            <img src="./assets/icons/language.svg" alt="" />
+            <svg aria-hidden="true"><use href="#ui-icon-language"/></svg>
           </summary>
           <div class="language-menu" role="group" aria-label="Language" data-i18n-aria-label="language.menu">
             <button type="button" data-language="eng">English</button>
@@ -133,11 +137,7 @@
           </button>
           <div class="topbar-search">
             <div class="search-field">
-              <img
-                class="search-icon"
-                src="./assets/icons/search.svg"
-                alt=""
-              /><input
+              <svg class="search-icon" aria-hidden="true"><use href="#ui-icon-search"/></svg><input
                 id="product-search"
                 class="input"
                 type="search"
@@ -154,7 +154,7 @@
               aria-label="Focus product search" data-i18n-aria-label="search.focus"
               id="search-focus"
             >
-              <img src="./assets/icons/search.svg" alt="" />
+              <svg aria-hidden="true"><use href="#ui-icon-search"/></svg>
             </button>
           </div>
         </header>
@@ -215,7 +215,7 @@
               </div>
               <form id="invoice-filters" class="invoice-filters" novalidate>
                 <div class="search-field">
-                  <img class="search-icon" src="./assets/icons/search.svg" alt="" />
+                  <svg class="search-icon" aria-hidden="true"><use href="#ui-icon-search"/></svg>
                   <input id="invoice-search" class="input" type="search" aria-label="Search invoices by customer" data-i18n-aria-label="ui.searchInvoices" autocomplete="off" placeholder="Search by customer name" data-i18n-placeholder="ui.searchCustomer" />
                 </div>
                 <input id="invoice-date-from" type="hidden" />
@@ -242,7 +242,7 @@
           <div id="invoice-sentinel" aria-hidden="true"></div>
         </section>
         <section id="inventory-screen" class="operations-screen" aria-labelledby="inventory-title" hidden>
-          <div class="operations-fixed"><header class="topbar operations-topbar"><div class="brand-lockup"><span class="brand-mark" aria-hidden="true">E</span><div><p class="eyebrow">Operations</p><h2 id="inventory-title" tabindex="-1">Inventory</h2></div></div><form id="inventory-filters" class="operations-filters"><div class="search-field"><img class="search-icon" src="./assets/icons/search.svg" alt=""/><input id="inventory-search" class="input" type="search" placeholder="Search product" autocomplete="off" /></div><select id="inventory-store" class="select" aria-label="Store or warehouse"><option value="2">Current store</option></select><button id="create-product" class="btn" type="button" data-variant="default" aria-haspopup="dialog">Create product</button></form></header>
+          <div class="operations-fixed"><header class="topbar operations-topbar"><div class="brand-lockup"><span class="brand-mark" aria-hidden="true">E</span><div><p class="eyebrow">Operations</p><h2 id="inventory-title" tabindex="-1">Inventory</h2></div></div><form id="inventory-filters" class="operations-filters"><div class="search-field"><svg class="search-icon" aria-hidden="true"><use href="#ui-icon-search"/></svg><input id="inventory-search" class="input" type="search" placeholder="Search product" autocomplete="off" /></div><select id="inventory-store" class="select" aria-label="Store or warehouse"><option value="2">Current store</option></select><button id="create-product" class="btn" type="button" data-variant="default" aria-haspopup="dialog">Create product</button></form></header>
           <p id="inventory-status" class="operations-status" role="status"></p>
           </div><section class="inventory-summary-section" aria-label="Inventory and operations KPIs"><section id="inventory-summary" class="inventory-summary is-collapsed" aria-live="polite"></section><button id="inventory-kpis-toggle" class="btn inventory-kpis-toggle" type="button" data-variant="ghost" aria-expanded="false" aria-controls="inventory-summary">Show more KPIs <span aria-hidden="true">⌄</span></button></section><div class="table-container operations-table-container"><table class="table operations-table"><caption class="table-caption">Inventory by store.</caption><thead><tr class="table-row"><th class="table-head" scope="col" aria-sort="none"><button class="btn operations-sort" type="button" data-variant="ghost" data-inventory-sort="product_name">Product</button></th><th class="table-head" scope="col" aria-sort="none"><button class="btn operations-sort" type="button" data-variant="ghost" data-inventory-sort="product_code">SKU</button></th><th class="table-head" scope="col" aria-sort="none"><button class="btn operations-sort" type="button" data-variant="ghost" data-inventory-sort="store_name">Store</button></th><th class="table-head" scope="col" aria-sort="none"><button class="btn operations-sort" type="button" data-variant="ghost" data-inventory-sort="product_cost">Cost</button></th><th class="table-head" scope="col" aria-sort="none"><button class="btn operations-sort" type="button" data-variant="ghost" data-inventory-sort="product_price">Price</button></th><th class="table-head" scope="col" aria-sort="none"><button class="btn operations-sort" type="button" data-variant="ghost" data-inventory-sort="quantity">Current quantity</button></th><th class="table-head" scope="col" aria-sort="none"><button class="btn operations-sort" type="button" data-variant="ghost" data-inventory-sort="prev_quantity">Previous quantity</button></th><th class="table-head" scope="col" aria-sort="descending"><button class="btn operations-sort" type="button" data-variant="ghost" data-inventory-sort="last_update">Last updated</button></th><th class="table-head" scope="col" aria-sort="none"><button class="btn operations-sort" type="button" data-variant="ghost" data-inventory-sort="user_updated">Updated by</button></th><th class="table-head" scope="col"><span class="sr-only">Action</span></th></tr></thead><tbody id="inventory-table-body"></tbody></table></div>
         </section>
