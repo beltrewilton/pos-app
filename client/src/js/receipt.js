@@ -99,6 +99,7 @@ export function buildReceiptData(invoice, { company, store, sequences = [], lang
     company: company?.name || "",
     company_id: company?.rnc || "",
     store: store?.name || "",
+    logo: store?.logo || "",
     store_address: store?.address || "",
     store_slogan: store?.slogan || "",
     date_time: dateTime(invoice.date_create),

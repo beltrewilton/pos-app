@@ -34,7 +34,7 @@ pub struct Receipt {
     #[serde(default)] pub copy: bool,
     #[serde(default)] pub labels: ReceiptLabels,
     #[serde(default)] pub company: String, #[serde(default)] pub company_id: String,
-    #[serde(default)] pub store: String, #[serde(default)] pub store_address: String, #[serde(default)] pub store_slogan: String,
+    #[serde(default)] pub store: String, #[serde(default)] pub logo: String, #[serde(default)] pub store_address: String, #[serde(default)] pub store_slogan: String,
     #[serde(default)] pub date_time: String, #[serde(default)] pub customer: String, #[serde(default)] pub customer_document: String,
     #[serde(default)] pub cashier: String, #[serde(default)] pub memo: String,
     #[serde(default)] pub subtotal: f64, #[serde(default)] pub tax: f64, #[serde(default)] pub discount: f64, #[serde(default)] pub line_discount: f64, #[serde(default)] pub discount_total: f64, #[serde(default)] pub delivery: f64,
