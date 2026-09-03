@@ -22,6 +22,7 @@
 
 @layer components {
   .brand { align-items: center; display: inline-flex; font-size: 1rem; font-weight: 700; gap: .5rem; letter-spacing: -.04em; text-decoration: none; }
+  .brand img { display: block; height: auto; width: 76px; }
   .brand-mark { align-items: center; background: var(--foreground); border-radius: 50%; color: var(--background); display: inline-flex; font-family: Georgia, serif; font-size: .82rem; font-style: italic; font-weight: 600; height: 1.5rem; justify-content: center; width: 1.5rem; }
   .landing-shell { max-width: 1440px; margin: auto; overflow: hidden; padding: 0 clamp(1.25rem, 4vw, 4.5rem); }
   .landing-nav, .admin-topbar { align-items: center; border-bottom: 1px solid var(--border); display: flex; height: 5rem; justify-content: space-between; }

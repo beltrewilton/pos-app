@@ -10,7 +10,7 @@ defmodule PosServerWeb.DashboardComponents do
     ~H"""
     <aside class="dashboard-sidebar" aria-label="Primary navigation">
       <div class="dashboard-sidebar-brand">
-        <a class="brand" href={~p"/dash"}><span class="brand-mark" aria-hidden="true">T</span><span class="dashboard-sidebar-label">tigoo</span></a>
+        <a class="brand" href={~p"/dash"} aria-label="tigoo dashboard"><img src={~p"/images/tigoo.svg"} alt="tigoo" /></a>
         <button class="btn" data-variant="ghost" data-size="icon-sm" type="button" data-dashboard-sidebar-toggle aria-label="Collapse navigation" aria-expanded="true">
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
         </button>
