@@ -277,7 +277,7 @@ const settings = {
 };
 
 const grey = { r: 148, g: 151, b: 158 };
-const orange = { r: 59, g: 130, b: 247 };
+const primaryGreen = { r: 8, g: 134, b: 116 };
 const pointer = { x: -1000, y: -1000, active: false };
 
 let dots = [];
@@ -329,9 +329,9 @@ class Dot {
 
   draw() {
     const mix = this.highlight;
-    const red = Math.round(grey.r + (orange.r - grey.r) * mix);
-    const green = Math.round(grey.g + (orange.g - grey.g) * mix);
-    const blue = Math.round(grey.b + (orange.b - grey.b) * mix);
+    const red = Math.round(grey.r + (primaryGreen.r - grey.r) * mix);
+    const green = Math.round(grey.g + (primaryGreen.g - grey.g) * mix);
+    const blue = Math.round(grey.b + (primaryGreen.b - grey.b) * mix);
     const opacity =
       settings.idleOpacity +
       (settings.activeOpacity - settings.idleOpacity) * mix;
