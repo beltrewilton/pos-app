@@ -317,6 +317,15 @@ img {
   display: none;
 }
 
+.hero .inline-tigoo-logo {
+  display: inline-block;
+  width: 2.85em;
+  height: 1em;
+  margin: 0 0.08em 0 0;
+  object-fit: contain;
+  vertical-align: -0.13em;
+}
+
 .hero {
   min-height: 100vh;
   display: flex;
@@ -1125,6 +1134,16 @@ img {
 }
 
 @media (max-width: 768px) {
+  .navbar {
+    flex-wrap: nowrap;
+    width: calc(100% - 24px);
+    padding: 6px 8px;
+  }
+
+  .navbar.scrolled {
+    width: calc(100% - 24px) !important;
+  }
+
   .navbar .landing-brand {
     padding: 8px 10px;
   }
@@ -1135,19 +1154,51 @@ img {
 
   .navbar .nav-links {
     display: none;
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    left: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    padding: 6px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--bg);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.1);
+  }
+
+  .navbar.mobile-nav-open .nav-links {
+    display: flex;
+  }
+
+  .navbar .nav-links a,
+  .navbar.scrolled .nav-links a {
+    min-height: 42px;
+    padding: 11px 14px;
+    font-size: 14px;
   }
 
   .navbar .social-icons {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    width: 100%;
+    justify-content: flex-end;
+    width: auto;
     gap: 6px;
+    margin-left: auto;
   }
 
   .navbar .menu-toggle {
-    display: block;
-    margin-left: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: #52525c;
   }
 
   .hero {

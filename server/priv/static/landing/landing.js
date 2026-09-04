@@ -249,6 +249,25 @@ document.addEventListener("DOMContentLoaded", function () {
   const navbar = document.querySelector(".navbar");
   if (!navbar) return;
 
+  const menuToggle = navbar.querySelector(".menu-toggle");
+  const navLinks = navbar.querySelectorAll(".nav-links a");
+
+  if (menuToggle) {
+    menuToggle.addEventListener("click", function () {
+      const isOpen = navbar.classList.toggle("mobile-nav-open");
+      menuToggle.setAttribute("aria-expanded", String(isOpen));
+      menuToggle.setAttribute("aria-label", isOpen ? "Cerrar menú de navegación" : "Abrir menú de navegación");
+    });
+
+    navLinks.forEach((link) => {
+      link.addEventListener("click", function () {
+        navbar.classList.remove("mobile-nav-open");
+        menuToggle.setAttribute("aria-expanded", "false");
+        menuToggle.setAttribute("aria-label", "Abrir menú de navegación");
+      });
+    });
+  }
+
   function handleNavbarScroll() {
     if (window.scrollY > 24) {
       navbar.classList.add("scrolled");
