@@ -22,7 +22,7 @@ Usage: bash scripts/build-release.sh <platform> [platform ...]
 
 Platforms:
   windows  Build Windows x64 installer; non-Windows hosts produce NSIS only.
-  linux    Build Linux x64 AppImage, DEB, and RPM (uses Docker off Linux).
+  linux    Build Linux x64 DEB/RPM; native Linux also produces an AppImage.
   mac      Build macOS Apple Silicon and Intel DMGs (run on macOS).
   android  Build Android AAB and APK (requires Android project and signing).
 
@@ -63,6 +63,8 @@ build_linux() {
   docker run --rm \
     --platform linux/amd64 \
     --volume "${REPOSITORY_ROOT}:/work" \
+    --mount type=volume,source=tigoo-pos-linux-node-modules,target=/work/client/node_modules \
+    --mount type=volume,source=tigoo-pos-npm-cache,target=/root/.npm \
     --workdir /work/client \
     node:22-bookworm \
     bash -lc '
@@ -73,8 +75,14 @@ build_linux() {
         libappindicator3-dev librsvg2-dev patchelf pkg-config xdg-utils
       curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
       export PATH="$HOME/.cargo/bin:$PATH"
+      # node_modules and the npm cache are Docker volumes, not directories in
+      # the bind-mounted macOS project. This keeps Linux-only native npm
+      # packages from replacing the host macOS Tauri CLI binding.
       npm ci
-      npm run tauri -- prod --target x86_64-unknown-linux-gnu
+      # AppImage packaging uses linuxdeploy, which is unreliable under the
+      # x86_64 emulation Docker Desktop uses on Apple Silicon. DEB and RPM are
+      # portable package artifacts and build successfully in this environment.
+      npm run tauri -- prod --bundles deb,rpm --target x86_64-unknown-linux-gnu
     '
 }
 
@@ -135,6 +143,8 @@ for platform in "${platforms[@]}"; do
 done
 if [[ "${needs_local_tauri}" == true ]]; then
   [[ -x "${CLIENT_DIR}/node_modules/.bin/tauri" ]] || fail "Tauri dependencies are missing. Run: cd client && npm ci"
+  "${CLIENT_DIR}/node_modules/.bin/tauri" --version >/dev/null 2>&1 || \
+    fail "The local Tauri CLI has no native binding for this host. Run: rm -rf client/node_modules && (cd client && npm ci)"
 fi
 
 cd "${CLIENT_DIR}"

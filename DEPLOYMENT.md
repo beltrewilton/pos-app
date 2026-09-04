@@ -105,8 +105,11 @@ src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/rpm/*.rpm
 ```
 
 Publish the AppImage for portable downloads and the `.deb` for Ubuntu/Debian
-users. Include the RPM only if it was built and tested. Install each package in
-a clean matching VM, launch it, and verify the production endpoint.
+users. Include the RPM only if it was built and tested. When building Linux
+from macOS through Docker emulation, build and publish the `.deb` and `.rpm`
+only: `linuxdeploy` AppImage packaging is not reliable under that emulation.
+Build the AppImage on a native x86_64 Linux builder. Install each package in a
+clean matching VM, launch it, and verify the production endpoint.
 
 ## 5. Build macOS packages
 
