@@ -11,7 +11,7 @@ NODE_NAME="posserver@138.197.112.92"
 cd "$APP_DIR"
 
 # Load environment
-if [[ -f .env ]]; then
+if [[ -f .env-prod ]]; then
     set -a
     source .env-prod
     set +a
