@@ -11,7 +11,7 @@ in PostgreSQL.
 2. Run the application migrations from `server`:
 
    ```bash
-   ./sh/migrate.sh <tenant_schema>
+   ./sh/migrate.sh .env <tenant_schema>
    ```
 
 3. Create the destination tenant through the normal company/onboarding flow.

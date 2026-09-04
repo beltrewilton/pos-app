@@ -67,7 +67,7 @@ To run the public migrations after the database has been provisioned:
 
 ```bash
 cd server
-./sh/migrate.sh
+./sh/migrate.sh .env
 ```
 
 Run the server in terminal 1:

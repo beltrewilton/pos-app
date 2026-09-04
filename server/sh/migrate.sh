@@ -3,6 +3,19 @@ set -euo pipefail
 server_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$server_dir"
 
+if [[ $# -eq 0 ]]; then
+  echo "Usage: $0 <env_file> [tenant_schema] [ecto_migrate_options...]" >&2
+  exit 1
+fi
+
+env_file=$1
+shift
+
+if [[ ! -f "$env_file" ]]; then
+  echo "Environment file not found: $env_file" >&2
+  exit 1
+fi
+
 tenant_schema=''
 if [[ $# -gt 0 ]]; then
   tenant_schema=$1
@@ -10,7 +23,7 @@ if [[ $# -gt 0 ]]; then
 fi
 
 set -a
-[ -f .env ] && . ./.env
+. "$env_file"
 set +a
 
 if [[ -n "$tenant_schema" && ! "$tenant_schema" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
