@@ -1010,6 +1010,106 @@ img {
   color: var(--fg);
   text-decoration: underline;
 }
+
+.footer-legal-links,
+.legal-footer nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.footer-legal-links a:hover,
+.legal-footer a:hover {
+  color: var(--fg);
+  text-decoration: underline;
+}
+
+.legal-page {
+  min-height: 100vh;
+  padding: 120px 20px 32px;
+}
+
+.legal-navbar {
+  flex-wrap: nowrap;
+  justify-content: space-between;
+}
+
+.legal-navbar .legal-nav-links {
+  margin-left: auto;
+}
+
+.legal-content {
+  margin: 0 auto;
+  max-width: 760px;
+}
+
+.legal-header {
+  margin-bottom: 32px;
+  padding: 36px 0;
+}
+
+.legal-eyebrow {
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.legal-header h1 {
+  font-size: clamp(36px, 6vw, 56px);
+  letter-spacing: -0.06em;
+  line-height: 1;
+  margin: 12px 0;
+}
+
+.legal-header > p:last-child {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.legal-document {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+  padding: clamp(24px, 5vw, 48px);
+}
+
+.legal-document > p,
+.legal-document section + section {
+  margin-top: 24px;
+}
+
+.legal-document h2 {
+  font-size: 18px;
+  letter-spacing: -0.03em;
+  margin-bottom: 8px;
+}
+
+.legal-document p {
+  color: var(--muted-fg);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.legal-document a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.legal-footer {
+  align-items: center;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  display: flex;
+  font-size: 13px;
+  justify-content: space-between;
+  margin: 48px auto 0;
+  max-width: 760px;
+  padding-top: 20px;
+}
 .footer .blur-overlay {
   position: absolute;
   bottom: 0;
@@ -1081,6 +1181,22 @@ img {
     flex-wrap: wrap;
     justify-content: space-between;
     align-items: center;
+    gap: 12px;
+  }
+
+  .legal-page {
+    padding: 100px 16px 24px;
+  }
+
+  .legal-navbar .legal-nav-links {
+    display: flex;
+    font-size: 12px;
+    gap: 12px;
+  }
+
+  .legal-footer {
+    align-items: flex-start;
+    flex-direction: column;
     gap: 12px;
   }
 }

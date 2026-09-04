@@ -33,6 +33,8 @@ defmodule PosServerWeb.Router do
     pipe_through :browser
 
     get "/", LandingController, :index
+    get "/privacy-policy", LandingController, :privacy_policy
+    get "/terms-of-service", LandingController, :terms_of_service
     get "/google_auth_url", GoogleAuthController, :redirect_to
     get "/auth/google/tauri", GoogleAuthController, :tauri_redirect_to
     get "/auth/google/callback", GoogleAuthController, :callback
