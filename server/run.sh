@@ -32,6 +32,11 @@ mix deps.compile
 mix compile
 
 # Start distributed Elixir node
+if [[ "${1:-}" == "norun" ]]; then
+    echo "Just compiling and updating no run, bye ... "
+    exit 0
+fi
+
 exec elixir \
     --name "$NODE_NAME" \
     --cookie "$ERLANG_COOKIE" \
