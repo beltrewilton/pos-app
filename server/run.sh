@@ -13,7 +13,7 @@ cd "$APP_DIR"
 # Load environment
 if [[ -f .env ]]; then
     set -a
-    source .env
+    source .env-prod
     set +a
 fi
 
