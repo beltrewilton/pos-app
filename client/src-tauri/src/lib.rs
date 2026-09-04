@@ -1,12 +1,26 @@
 mod printer;
 
+use tauri::Manager;
 use tauri_plugin_opener::OpenerExt;
 
 #[tauri::command]
 fn phoenix_server_dns() -> Result<&'static str, String> {
     option_env!("PHOENIX_SERVER_DNS")
         .filter(|value| !value.trim().is_empty())
-        .ok_or_else(|| "PHOENIX_SERVER_DNS must be set in server/.env before building Tauri.".into())
+        .ok_or_else(|| {
+            "PHOENIX_SERVER_DNS must be set in server/.env-prod before building Tauri.".into()
+        })
+}
+
+fn window_title() -> Option<String> {
+    let endpoint = url::Url::parse(option_env!("PHOENIX_SERVER_DNS")?).ok()?;
+    let host = endpoint.host_str()?;
+    let authority = match endpoint.port() {
+        Some(port) => format!("{host}:{port}"),
+        None => host.to_owned(),
+    };
+
+    Some(format!("Tigoo POS @ {authority}"))
 }
 
 #[tauri::command]
@@ -47,7 +61,20 @@ fn printer_status() -> Result<printer::PrinterStatus, String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![phoenix_server_dns, open_external_url, print_receipt, printer_status, read_dropped_image])
+        .setup(|app| {
+            if let (Some(title), Some(window)) = (window_title(), app.get_webview_window("main")) {
+                window.set_title(&title)?;
+            }
+
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            phoenix_server_dns,
+            open_external_url,
+            print_receipt,
+            printer_status,
+            read_dropped_image
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

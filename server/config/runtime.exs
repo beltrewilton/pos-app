@@ -66,6 +66,15 @@ if config_env() == :prod do
   host = System.get_env("PHX_HOST") || "example.com"
   port = String.to_integer(System.get_env("PORT") || "4000")
 
+  # Tauri uses a custom origin in bundled apps and a loopback origin while
+  # running `tauri dev`. Keep Phoenix's origin check enabled, but allow those
+  # trusted desktop-client origins alongside the public web application.
+  allowed_socket_origins = [
+    "https://#{host}",
+    "tauri://localhost",
+    "http://127.0.0.1:1430"
+  ]
+
   config :pos_server, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
   config :pos_server, PosServerWeb.Endpoint,
@@ -78,6 +87,7 @@ if config_env() == :prod do
       ip: {0, 0, 0, 0, 0, 0, 0, 0},
       port: port
     ],
+    check_origin: allowed_socket_origins,
     secret_key_base: secret_key_base
 
   # ## SSL Support

@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "tauri": "tauri",
+    "tauri": "sh ./scripts/tauri.sh",
     "dev": "tauri dev"
   },
   "devDependencies": {
