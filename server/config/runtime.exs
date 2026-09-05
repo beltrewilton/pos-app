@@ -73,6 +73,7 @@ if config_env() == :prod do
     "https://#{host}",
     "tauri://localhost",
     "http://tauri.localhost",
+    "http://138.197.112.92:1430",
     "http://127.0.0.1:1430"
   ]
 
