@@ -3,8 +3,8 @@
 # Create/update a GitHub Release and upload Tauri package artifacts.
 #
 # Usage:
-#   bash scripts/release.sh 0.2.0
-#   bash scripts/release.sh 0.2.0 path/to/Tigoo.POS_0.2.0_amd64.deb
+#   bash scripts/release.sh 0.2.1
+#   bash scripts/release.sh 0.2.1 path/to/Tigoo.POS_0.2.1_amd64.deb
 
 set -euo pipefail
 
@@ -15,8 +15,8 @@ usage() {
 Usage: bash scripts/release.sh <version|vversion> [artifact ...]
 
 Examples:
-  bash scripts/release.sh 0.2.0
-  bash scripts/release.sh v0.2.0 client/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/deb/*.deb
+  bash scripts/release.sh 0.2.1
+  bash scripts/release.sh v0.2.1 client/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/deb/*.deb
 
 Without explicit artifact paths, the script uploads Tauri package files found
 under client/src-tauri/target/ and the generated Android output directory.

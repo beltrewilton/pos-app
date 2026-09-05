@@ -8,8 +8,8 @@ therefore a release must not be built with the development environment file.
 ## 1. Release preparation
 
 1. Start from a clean, reviewed commit on the release branch.
-2. Choose a SemVer version, for example `0.2.0`, and a matching tag,
-   `v0.2.0`.
+2. Choose a SemVer version, for example `0.2.1`, and a matching tag,
+   `v0.2.1`.
 3. Update the version in all three files, keeping them identical:
 
    - `client/package.json`
@@ -185,10 +185,10 @@ copying only the release-ready, signed/notarized artifacts into `release/`:
 ```sh
 mkdir -p release
 # Copy and rename each approved artifact, for example:
-# Tigoo-POS_0.2.0_windows_x64-setup.exe
-# Tigoo-POS_0.2.0_linux_amd64.AppImage
-# Tigoo-POS_0.2.0_macos_arm64.dmg
-# Tigoo-POS_0.2.0_android_universal.apk
+# Tigoo-POS_0.2.1_windows_x64-setup.exe
+# Tigoo-POS_0.2.1_linux_amd64.AppImage
+# Tigoo-POS_0.2.1_macos_arm64.dmg
+# Tigoo-POS_0.2.1_android_universal.apk
 
 cd release
 shasum -a 256 * > SHA256SUMS.txt
@@ -204,11 +204,11 @@ the staged artifacts. The GitHub CLI requires a token with repository contents
 write permission.
 
 ```sh
-git tag -a v0.2.0 -m "Tigoo POS v0.2.0"
-git push origin v0.2.0
+git tag -a v0.2.1 -m "Tigoo POS v0.2.1"
+git push origin v0.2.1
 
-gh release create v0.2.0 release/* \
-  --title "Tigoo POS v0.2.0" \
+gh release create v0.2.1 release/* \
+  --title "Tigoo POS v0.2.1" \
   --generate-notes
 ```
 

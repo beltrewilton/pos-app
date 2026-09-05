@@ -10,16 +10,20 @@ const WRITE_TIMEOUT: Duration = Duration::from_secs(3);
 pub struct SupportedPrinter {
     pub product_id: u16,
     pub model: &'static str,
+    pub receipt_columns: usize,
 }
 
 const TM_T20II: SupportedPrinter = SupportedPrinter {
     product_id: TM_T20II_PRODUCT_ID,
     model: "EPSON TM-T20II",
+    receipt_columns: 48,
 };
 
 const TM_T88V: SupportedPrinter = SupportedPrinter {
     product_id: TM_T88V_PRODUCT_ID,
     model: "EPSON TM-T88V",
+    // This printer's configured printable area is 42 characters wide.
+    receipt_columns: 42,
 };
 
 fn supported_printer(vendor_id: u16, product_id: u16) -> Option<SupportedPrinter> {

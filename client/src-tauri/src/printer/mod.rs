@@ -64,8 +64,8 @@ pub fn print(receipt: Receipt) -> Result<String, String> {
 
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
-    let data = escpos::receipt(&receipt);
     if let Some(queue) = cups::selected_queue()? {
+        let data = escpos::receipt(&receipt);
         let written = cups::print(&queue, &data)?;
         return Ok(format!("Receipt {} sent to {}: {written} bytes written", receipt.number, queue.name));
     }
@@ -76,6 +76,9 @@ pub fn print(receipt: Receipt) -> Result<String, String> {
             device.name
         ));
     }
+    let printer = device::connected_printer()?
+        .ok_or("Supported EPSON USB receipt printer not found")?;
+    let data = escpos::receipt_with_columns(&receipt, printer.receipt_columns);
     device::write(&data).map(|written| {
         format!(
             "Receipt {} printed: {written} bytes written",
