@@ -1,7 +1,8 @@
 import { API_BASE_URL, session } from "./api.js";
+import { uuid } from "./uuid.js";
 
 const KEY = "retaily-pos-print-relay-session";
-const id = () => localStorage.getItem(KEY) || (localStorage.setItem(KEY, crypto.randomUUID()), localStorage.getItem(KEY));
+const id = () => localStorage.getItem(KEY) || (localStorage.setItem(KEY, uuid()), localStorage.getItem(KEY));
 
 export function createPrintRelay({ device, storeId, printerStatus, onTargets, onRequest, onResult }) {
   let socket, ref = 1, joinRef = null, presence = {}, stopped = false;
