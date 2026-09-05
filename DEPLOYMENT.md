@@ -203,6 +203,81 @@ Create an annotated tag from the verified release commit, push it, and publish
 the staged artifacts. The GitHub CLI requires a token with repository contents
 write permission.
 
+**Always create and push the Git tag before creating the GitHub Release.** A
+GitHub Release is associated with a Git tag, but `gh release create` may create
+that tag on GitHub without creating a matching local tag. In that case, a later
+`git push origin v0.2.1` fails with `src refspec v0.2.1 does not match any`
+because Git has no local ref by that name to push.
+
+```sh
+# Confirm that the release commit is the one currently checked out.
+git status
+git log -1 --oneline
+
+# Substitute the selected version everywhere below.
+VERSION=0.2.1
+TAG="v${VERSION}"
+
+# Create an annotated tag on this exact commit, then publish the tag.
+git tag -a "$TAG" -m "Tigoo POS $TAG"
+git push origin "refs/tags/$TAG"
+
+# Confirm GitHub sees the intended tag before attaching any assets.
+git ls-remote --exit-code --tags origin "refs/tags/$TAG"
+
+# Create the release once, attaching every approved staged artifact.
+gh release create "$TAG" release/* \
+  --title "Tigoo POS $TAG" \
+  --generate-notes
+```
+
+If a release already exists, do not run `gh release create` again. Upload the
+remaining or replacement artifacts with `--clobber` instead:
+
+```sh
+gh release upload "$TAG" release/* --clobber
+```
+
+### Recovery: release was created before the local tag
+
+If `gh release create v0.2.1 ...` was run first and `git push origin v0.2.1`
+then reports `src refspec ... does not match any`, the remote tag already
+exists but there is no local tag. First ensure that the remote tag resolves to
+the same commit that was built and tested. Then create the local annotated tag
+only if it is missing; use the remote tag's commit as its target and push it
+only when the remote tag did not already exist.
+
+```sh
+TAG=v0.2.1
+
+# Inspect the release and its remote tag.
+gh release view "$TAG" --json url,targetCommitish
+git ls-remote --tags origin "refs/tags/$TAG" "refs/tags/$TAG^{}"
+
+# Fetch the remote tag locally; this is the normal recovery action.
+git fetch origin "refs/tags/$TAG:refs/tags/$TAG"
+git show "$TAG"
+```
+
+Do **not** force-push, delete, or retag a published release merely to fix the
+local `src refspec` error. If the fetched tag points at the wrong commit, stop
+and create a new corrective version/tag rather than moving a published tag.
+
+The repository also provides a helper that implements the correct order for a
+new release: it creates and pushes a local annotated tag before calling GitHub
+when the release does not yet exist.
+
+```sh
+# From the repository root, after a successful build and validation:
+bash scripts/release.sh "$VERSION" release/*
+```
+
+The helper's automatic artifact discovery currently expects files below
+`client/src-tauri/target`; pass explicit paths (as above) when artifacts have
+been staged elsewhere.
+
+The equivalent minimal manual commands are:
+
 ```sh
 git tag -a v0.2.1 -m "Tigoo POS v0.2.1"
 git push origin v0.2.1
