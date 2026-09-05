@@ -1,7 +1,19 @@
 const invoke = window.__TAURI__?.core?.invoke;
-if (typeof invoke !== "function") throw new Error("This POS client must run inside Tauri.");
+const browserPhoenixServerDns = () => {
+  const configured = document.querySelector('meta[name="phoenix-server-dns"]')?.content.trim();
+  if (configured) return configured;
 
-const phoenixServerDns = await invoke("phoenix_server_dns");
+  const url = new URL(window.location.href);
+  // Tauri's static development server uses port 1430; Phoenix development
+  // uses port 4000 on the same host. Other browser deployments can provide
+  // their public API origin with the phoenix-server-dns meta tag.
+  if (url.port === "1430") url.port = "4000";
+  return url.origin;
+};
+
+const phoenixServerDns = typeof invoke === "function"
+  ? await invoke("phoenix_server_dns")
+  : browserPhoenixServerDns();
 const phoenixServerUrl = new URL(phoenixServerDns);
 if (!/^https?:$/.test(phoenixServerUrl.protocol)) throw new Error("PHOENIX_SERVER_DNS must be an HTTP(S) URL.");
 
