@@ -72,6 +72,7 @@ if config_env() == :prod do
   allowed_socket_origins = [
     "https://#{host}",
     "tauri://localhost",
+    "http://tauri.localhost",
     "http://127.0.0.1:1430"
   ]
 
