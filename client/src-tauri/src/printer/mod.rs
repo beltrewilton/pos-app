@@ -106,11 +106,14 @@ pub fn status() -> Result<PrinterStatus, String> {
     if let Some(device) = bluetooth::connected_printer()? {
         return Ok(PrinterStatus { connected: true, vendor_id: String::new(), product_id: String::new(), model: device.name, transport: "bluetooth".to_string() });
     }
+    let printer = device::connected_printer()?;
     Ok(PrinterStatus {
-        connected: device::connected()?,
+        connected: printer.is_some(),
+        // Keep the historical disconnected status payload while reporting the
+        // actual model whenever a supported device is present.
         vendor_id: format!("0x{:04x}", device::EPSON_VENDOR_ID),
-        product_id: format!("0x{:04x}", device::TM_T20II_PRODUCT_ID),
-        model: "EPSON TM-T20II".to_string(),
+        product_id: format!("0x{:04x}", printer.map_or(device::TM_T20II_PRODUCT_ID, |printer| printer.product_id)),
+        model: printer.map_or_else(|| "EPSON TM-T20II".to_string(), |printer| printer.model.to_string()),
         transport: "usb".to_string(),
     })
     }
