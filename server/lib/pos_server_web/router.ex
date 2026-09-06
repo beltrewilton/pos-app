@@ -16,6 +16,13 @@ defmodule PosServerWeb.Router do
     plug :put_desktop_cors_headers
   end
 
+  # The LiveView ESM client is a public, read-only asset. It must not pass
+  # through the browser CSRF plug because that plug protects JavaScript
+  # responses against cross-origin script embedding.
+  pipeline :liveview_asset do
+    plug :accepts, ["js", "css"]
+  end
+
   pipeline :admin do
     plug PosServerWeb.Plugs.RequireAdminSession
   end
@@ -42,6 +49,14 @@ defmodule PosServerWeb.Router do
     post "/logout", GoogleAuthController, :logout
     get "/dash", DashboardController, :index
     post "/dash/tenant", DashboardController, :create
+    live "/pos", PosLive, :index
+  end
+
+  scope "/", PosServerWeb do
+    pipe_through :liveview_asset
+
+    get "/liveview-client.js", LiveViewAssetController, :show
+    get "/pos-client.css", LiveViewAssetController, :pos_css
   end
 
   scope "/addons", PosServerWeb do

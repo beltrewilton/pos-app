@@ -26,10 +26,48 @@ import {hooks as colocatedHooks} from "phoenix-colocated/pos_server"
 import topbar from "../vendor/topbar"
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
+const hooks = {
+  InfiniteCatalog: {
+    mounted() {
+      this.observer = new IntersectionObserver(entries => {
+        if (entries.some(entry => entry.isIntersecting)) this.pushEvent("load_more_products")
+      }, {rootMargin: "360px"})
+      this.observer.observe(this.el)
+    },
+    destroyed() { this.observer?.disconnect() }
+  },
+  PosShell: {
+    mounted() {
+      this.onKeydown = event => {
+        if (event.key === "Escape" && this.el.dataset.mobileCartOpen === "true") this.pushEvent("close_mobile_cart")
+      }
+      this.onTheme = event => document.documentElement.dataset.theme = event.detail.theme
+      document.addEventListener("keydown", this.onKeydown)
+      window.addEventListener("pos:set-theme", this.onTheme)
+    },
+    updated() {
+      const panel = this.el.querySelector("#order-panel")
+      const catalog = this.el.querySelector(".catalog-panel")
+      if (this.el.dataset.mobileCartOpen === "true") {
+        panel?.setAttribute("role", "dialog")
+        panel?.setAttribute("aria-modal", "true")
+        catalog?.setAttribute("inert", "")
+      } else {
+        panel?.removeAttribute("role")
+        panel?.removeAttribute("aria-modal")
+        catalog?.removeAttribute("inert")
+      }
+    },
+    destroyed() {
+      document.removeEventListener("keydown", this.onKeydown)
+      window.removeEventListener("pos:set-theme", this.onTheme)
+    }
+  }
+}
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks},
+  hooks: {...colocatedHooks, ...hooks},
 })
 
 // Show progress bar on live navigation and form submits

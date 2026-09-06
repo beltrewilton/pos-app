@@ -30,6 +30,7 @@ server/.lexical/
 server/erl_crash.dump
 server/priv/static/assets/*
 !server/priv/static/assets/app.css
+!server/priv/static/assets/pos.css
 !server/priv/static/assets/theme.js
 server/priv/static/cache_manifest.json
 server/tmp/
