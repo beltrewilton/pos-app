@@ -27,6 +27,7 @@ import topbar from "../vendor/topbar"
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const hooks = {
+  CompanySettings: window.CompanySettingsHook,
   InfiniteInvoices: {
     mounted() {
       this.observer = new IntersectionObserver(entries => {
