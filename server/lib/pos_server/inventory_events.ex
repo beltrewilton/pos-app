@@ -17,4 +17,10 @@ defmodule PosServer.InventoryEvents do
       %{type: "inventory_changed", product_ids: Enum.uniq(product_ids)}
     })
   end
+
+  def broadcast_many(tenant, store_ids, product_ids) do
+    store_ids
+    |> Enum.uniq()
+    |> Enum.each(&broadcast(tenant, &1, product_ids))
+  end
 end

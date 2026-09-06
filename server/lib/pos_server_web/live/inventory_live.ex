@@ -34,6 +34,7 @@ defmodule PosServerWeb.InventoryLive do
         |> assign(:editing_product_id, nil)
         |> assign(:locally_updated_product_ids, MapSet.new())
         |> assign(:product_dialog, false)
+        |> assign(:editing_product, nil)
         |> assign(:product_form_status, "")
         |> assign(:pricing_lists, ProductCatalog.pricing_lists(scope))
         |> assign(:status, "Loading inventory…")
@@ -80,8 +81,16 @@ defmodule PosServerWeb.InventoryLive do
   end
 
   def handle_event("toggle_kpis", _, socket), do: {:noreply, assign(socket, :kpis_expanded, !socket.assigns.kpis_expanded)}
-  def handle_event("open_product_dialog", _, socket), do: {:noreply, socket |> assign(:product_dialog, true) |> assign(:product_form_status, "")}
-  def handle_event("close_product_dialog", _, socket), do: {:noreply, socket |> assign(:product_dialog, false) |> assign(:product_form_status, "")}
+  def handle_event("open_product_dialog", _, socket), do: {:noreply, socket |> assign(:product_dialog, true) |> assign(:editing_product, nil) |> assign(:product_form_status, "")}
+  def handle_event("close_product_dialog", _, socket), do: {:noreply, socket |> assign(:product_dialog, false) |> assign(:editing_product, nil) |> assign(:product_form_status, "")}
+
+  def handle_event("open_product_editor", %{"product_id" => id}, socket) do
+    case ProductCatalog.get(socket.assigns.scope, integer(id)) do
+      {:ok, product} -> {:noreply, socket |> assign(:product_dialog, true) |> assign(:editing_product, product) |> assign(:product_form_status, "")}
+      {:error, :forbidden} -> {:noreply, put_flash(socket, :error, "You do not have permission to edit products.")}
+      _ -> {:noreply, put_flash(socket, :error, "Product could not be loaded.")}
+    end
+  end
   def handle_event("create_product", params, socket) do
     case ProductCatalog.create(socket.assigns.scope, product_attrs(params, socket)) do
       {:ok, product} ->
@@ -90,6 +99,15 @@ defmodule PosServerWeb.InventoryLive do
       {:error, :forbidden} -> {:noreply, assign(socket, :product_form_status, "You do not have permission to create products.")}
       {:error, :default_price_required} -> {:noreply, assign(socket, :product_form_status, "A default selling price is required.")}
       {:error, _} -> {:noreply, assign(socket, :product_form_status, "Product could not be created. Check the required fields.")}
+    end
+  end
+
+  def handle_event("update_product", params, %{assigns: %{editing_product: product}} = socket) when not is_nil(product) do
+    case ProductCatalog.update(socket.assigns.scope, product.id, product_attrs(params, socket)) do
+      {:ok, _} -> {:noreply, socket |> assign(:product_dialog, false) |> assign(:editing_product, nil) |> put_flash(:info, "Product updated.") |> load_inventory()}
+      {:error, :forbidden} -> {:noreply, assign(socket, :product_form_status, "You do not have permission to edit products.")}
+      {:error, :default_price_required} -> {:noreply, assign(socket, :product_form_status, "A default selling price is required.")}
+      {:error, _} -> {:noreply, assign(socket, :product_form_status, "Product could not be updated. Check the required fields.")}
     end
   end
 
@@ -249,7 +267,15 @@ defmodule PosServerWeb.InventoryLive do
   defp money(value), do: :erlang.float_to_binary(decimal(value), decimals: 2) |> then(&"$#{&1}")
   defp decimal(%Decimal{} = value), do: Decimal.to_float(value)
   defp decimal(value) when is_number(value), do: value * 1.0
+  defp decimal(value) when is_binary(value) do
+    case Float.parse(value) do
+      {number, ""} -> number
+      _ -> 0.0
+    end
+  end
   defp decimal(_), do: 0.0
+  defp number_input(nil), do: ""
+  defp number_input(value), do: :erlang.float_to_binary(decimal(value), decimals: 2)
   defp datetime(nil), do: "—"
   defp datetime(%NaiveDateTime{} = value), do: Calendar.strftime(value, "%d/%m/%Y %-I:%M %p")
   defp datetime(value), do: to_string(value)
@@ -322,7 +348,7 @@ defmodule PosServerWeb.InventoryLive do
           <div class="table-container operations-table-container"><table class="table operations-table"><caption class="table-caption">Inventory by store.</caption><thead><tr class="table-row"><th :for={{label, key} <- headers()} class="table-head" scope="col" aria-sort={sort_aria(@sort, key)}><button class="btn operations-sort" type="button" data-variant="ghost" phx-click="sort" phx-value-key={key}>{label}</button></th></tr></thead><tbody id="inventory-table-body">
             <%= for entry <- visible_entries(assigns) do %>
               <tr class="table-row" data-inventory-product-id={entry.product_id}>
-                <td class="table-cell" data-label="Product"><button class="btn" type="button" data-variant="link" disabled>{entry.product_name || "Product ##{entry.product_id}"}</button></td><td class="table-cell" data-label="SKU"><button class="btn inventory-sku-trace" type="button" data-variant="link" phx-click="toggle_traces" phx-value-product_id={entry.product_id} aria-expanded={to_string(@expanded == {:traces, entry.product_id})}>{entry.product_code || "—"}</button></td><td class="table-cell" data-label="Store">{entry.store_name || "Current store"}</td><td class="table-cell numeric" data-label="Cost">{money(entry.product_cost)}</td><td class="table-cell numeric" data-label="Price">{if is_nil(entry.product_price), do: "—", else: money(entry.product_price)}</td><td class="table-cell numeric" data-label="Total quantity"><button class="btn inventory-total-quantity" type="button" data-variant="link" phx-click="toggle_quantities" phx-value-product_id={entry.product_id} aria-expanded={to_string(@expanded == {:quantities, entry.product_id})}><span class="inventory-total-quantity-indicator" aria-hidden="true">{if @expanded == {:quantities, entry.product_id}, do: "▾", else: "▸"}</span>{entry.total_quantity || entry.quantity || 0}</button></td>
+                <td class="table-cell" data-label="Product"><button class="btn" type="button" data-variant="link" phx-click="open_product_editor" phx-value-product_id={entry.product_id}>{entry.product_name || "Product ##{entry.product_id}"}</button></td><td class="table-cell" data-label="SKU"><button class="btn inventory-sku-trace" type="button" data-variant="link" phx-click="toggle_traces" phx-value-product_id={entry.product_id} aria-expanded={to_string(@expanded == {:traces, entry.product_id})}>{entry.product_code || "—"}</button></td><td class="table-cell" data-label="Store">{entry.store_name || "Current store"}</td><td class="table-cell numeric" data-label="Cost">{money(entry.product_cost)}</td><td class="table-cell numeric" data-label="Price">{if is_nil(entry.product_price), do: "—", else: money(entry.product_price)}</td><td class="table-cell numeric" data-label="Total quantity"><button class="btn inventory-total-quantity" type="button" data-variant="link" phx-click="toggle_quantities" phx-value-product_id={entry.product_id} aria-expanded={to_string(@expanded == {:quantities, entry.product_id})}><span class="inventory-total-quantity-indicator" aria-hidden="true">{if @expanded == {:quantities, entry.product_id}, do: "▾", else: "▸"}</span>{entry.total_quantity || entry.quantity || 0}</button></td>
                 <td class="table-cell" data-label="Current quantity"><%= if @editing_product_id == entry.product_id do %><form class="inventory-inline-editor" phx-submit="save_quantity"><input type="hidden" name="product_id" value={entry.product_id}/><input id={"inventory-quantity-#{entry.product_id}"} class="input" name="quantity" type="number" value={entry.quantity || 0}/><button class="btn" type="submit" data-variant="default" data-size="sm">Update</button><button class="btn" type="button" data-variant="ghost" data-size="sm" phx-click="cancel_edit">Cancel</button></form><% else %><div class="inventory-inline-editor"><span>{entry.quantity || 0}</span><button class="btn" type="button" data-variant="outline" data-size="sm" phx-click="edit_quantity" phx-value-product_id={entry.product_id}>Update</button></div><% end %></td>
                 <td class="table-cell numeric" data-label="Previous quantity">{entry.prev_quantity || "—"}</td><td class="table-cell" data-label="Last updated">{datetime(entry.last_update)}</td><td class="table-cell" data-label="Updated by">{entry.user_updated || "—"}</td>
               </tr>
@@ -332,15 +358,15 @@ defmodule PosServerWeb.InventoryLive do
           </tbody></table></div>
         </section>
       </section>
-      <dialog :if={@product_dialog} id="product-dialog" open class="dialog" data-size="lg" style="z-index: 100" role="dialog" aria-modal="true" aria-labelledby="product-dialog-title">
+      <dialog :if={@product_dialog} id="product-dialog" class="dialog" data-size="lg" role="dialog" aria-modal="true" aria-labelledby="product-dialog-title">
         <div class="dialog-content">
-          <div class="dialog-header"><h2 id="product-dialog-title" class="dialog-title">Create product</h2><p id="product-dialog-description" class="dialog-description">Catalog details and pricing-list values are saved as separate records.</p></div>
-          <form id="product-form" class="form dialog-body" phx-submit="create_product">
-            <div id="product-form-fields">
-              <div class="form-field"><label class="label" for="product-name">Name <span aria-hidden="true" class="text-destructive">*</span></label><input id="product-name" name="name" class="input" required autofocus/></div>
-              <div class="product-form-row"><div class="form-field"><label class="label" for="product-cost">Cost</label><input id="product-cost" name="cost" class="input" type="number" min="0" step="0.01" value="0"/></div><fieldset class="form-fieldset product-prices-fieldset"><legend>Price lists</legend><div id="product-pricing-fields" class="form-group" aria-live="polite"><div :for={list <- @pricing_lists} class="product-price-row" data-pricing-id={list.id}><label class="label" for={"product-price-#{list.id}"}>{list.label || "Pricing list ##{list.id}"}</label><input id={"product-price-#{list.id}"} name={"prices[#{list.id}]"} class="input" type="number" min="0" step="0.01" placeholder="Price" required={list.id == 1} aria-label={"Price for #{list.label}"}/></div></div></fieldset></div>
-              <div class="form-field"><label class="label" for="product-code">SKU</label><input id="product-code" name="code" class="input"/></div>
-              <div id="product-image-dropzone" class="product-image-dropzone" tabindex="0" role="button" aria-describedby="product-image-help"><img id="product-image-preview" class="product-image-preview" alt="Product preview" hidden/><label class="label" for="product-image">Image upload</label><p id="product-image-help" class="field-description">Drop an image here or choose a file (max 10 MB). It will be resized and stored as Base64.</p><input id="product-image" class="input" type="file" accept="image/*"/><input id="product-image-raw" name="image_raw" type="hidden"/></div>
+          <div class="dialog-header"><h2 id="product-dialog-title" class="dialog-title">{if @editing_product, do: "Edit product", else: "Create product"}</h2><p id="product-dialog-description" class="dialog-description">Catalog details and pricing-list values are saved as separate records.</p></div>
+          <form id="product-form" class="form dialog-body" phx-submit={if @editing_product, do: "update_product", else: "create_product"}>
+            <div id="product-form-fields" phx-update="ignore">
+              <div class="form-field"><label class="label" for="product-name">Name <span aria-hidden="true" class="text-destructive">*</span></label><input id="product-name" name="name" class="input" value={@editing_product && @editing_product.name} required autofocus/></div>
+              <div class="product-form-row"><div class="form-field"><label class="label" for="product-cost">Cost</label><input id="product-cost" name="cost" class="input" type="number" min="0" step="0.01" value={number_input(if @editing_product, do: @editing_product.cost || 0, else: 0)}/></div><fieldset class="form-fieldset product-prices-fieldset"><legend>Price lists</legend><div id="product-pricing-fields" class="form-group" aria-live="polite"><div :for={list <- @pricing_lists} class="product-price-row" data-pricing-id={list.id}><label class="label" for={"product-price-#{list.id}"}>{list.label || "Pricing list ##{list.id}"}</label><input id={"product-price-#{list.id}"} name={"prices[#{list.id}]"} class="input" type="number" min="0" step="0.01" placeholder="Price" value={number_input(price_for(@editing_product, list.id))} required={list.id == 1} aria-label={"Price for #{list.label}"}/></div></div></fieldset></div>
+              <div class="form-field"><label class="label" for="product-code">SKU</label><input id="product-code" name="code" class="input" value={@editing_product && @editing_product.code}/></div>
+              <div id="product-image-dropzone" class="product-image-dropzone" tabindex="0" role="button" aria-describedby="product-image-help"><img id="product-image-preview" class="product-image-preview" src={image_source(@editing_product && @editing_product.image_raw)} alt="Product preview" hidden={is_nil(@editing_product && @editing_product.image_raw)}/><label class="label" for="product-image">Image upload</label><p id="product-image-help" class="field-description">Drop an image here or choose a file (max 10 MB). It will be resized and stored as Base64.</p><input id="product-image" class="input" type="file" accept="image/*"/><input id="product-image-raw" name="image_raw" type="hidden" value={@editing_product && @editing_product.image_raw}/></div>
             </div>
             <p id="product-form-status" class="field-description" role="status">{@product_form_status}</p>
             <div class="dialog-footer"><button class="btn" type="button" data-variant="outline" phx-click="close_product_dialog">Cancel</button><button class="btn" type="submit" data-variant="default">Save</button></div>
@@ -352,6 +378,11 @@ defmodule PosServerWeb.InventoryLive do
   end
 
   defp headers, do: [{"Product", "product_name"}, {"SKU", "product_code"}, {"Store", "store_name"}, {"Cost", "product_cost"}, {"Price", "product_price"}, {"Total quantity", "total_quantity"}, {"Current quantity", "quantity"}, {"Previous quantity", "prev_quantity"}, {"Last updated", "last_update"}, {"Updated by", "user_updated"}]
+  defp price_for(nil, _pricing_id), do: nil
+  defp price_for(product, pricing_id), do: Enum.find_value(product.prices, fn price -> if price.pricing_id == pricing_id, do: price.price end)
+  defp image_source(nil), do: nil
+  defp image_source("data:image/" <> _ = source), do: source
+  defp image_source(source), do: "data:image/jpeg;base64,#{source}"
   defp sort_aria(sort, key) when sort.key == key, do: if(sort.direction == :asc, do: "ascending", else: "descending")
   defp sort_aria(_, _), do: "none"
   defp active_store(assigns), do: Enum.find_value(assigns.stores, "", fn store -> if store.id == assigns.store_id, do: store.name end)

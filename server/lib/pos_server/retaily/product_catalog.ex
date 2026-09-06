@@ -21,19 +21,20 @@ defmodule PosServer.Retaily.ProductCatalog do
 
       result = Repo.transaction(fn ->
         product_attrs = %{name: attrs.name, code: attrs.code, cost: attrs.cost, image_raw: attrs.image_raw, active: 1, user_modified: username, date_create: now, archived: "0"}
+        store_ids = store_ids(tenant)
 
         with {:ok, product} <- %Product{} |> Product.changeset(product_attrs) |> Repo.insert(prefix: tenant),
-             {_, _} <- initialize_inventory(product.id, username, now, tenant),
+             {_, _} <- initialize_inventory(product.id, username, now, tenant, store_ids),
              :ok <- save_prices(attrs.prices, product.id, username, now, tenant) do
-          product
+          {product, store_ids}
         else
           {:error, reason} -> Repo.rollback(reason)
         end
       end)
 
       case result do
-        {:ok, product} ->
-          InventoryEvents.broadcast(tenant, store_id, [product.id])
+        {:ok, {product, store_ids}} ->
+          InventoryEvents.broadcast_many(tenant, store_ids, [product.id])
           {:ok, product}
 
         error -> error
@@ -44,12 +45,60 @@ defmodule PosServer.Retaily.ProductCatalog do
     end
   end
 
+  def get(%Scope{tenant: tenant} = scope, product_id) do
+    with true <- Scope.allowed?(scope, "product.view"),
+         %Product{} = product <- Repo.get(Product, product_id, prefix: tenant) do
+      prices = Repo.all(from(entry in PricingList, where: entry.product_id == ^product.id, select: %{pricing_id: entry.pricing_id, price: entry.price}), prefix: tenant)
+      {:ok, %{id: product.id, name: product.name, code: product.code, cost: product.cost, image_raw: product.image_raw, prices: prices}}
+    else
+      false -> {:error, :forbidden}
+      nil -> {:error, :not_found}
+    end
+  end
+
+  def update(%Scope{tenant: tenant} = scope, product_id, attrs) do
+    with true <- Scope.allowed?(scope, "product.edit"),
+         %Product{} = product <- Repo.get(Product, product_id, prefix: tenant),
+         :ok <- default_price?(attrs.prices) do
+      username = scope.login || get_in(scope.user || %{}, [:name]) || "system"
+      now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+      product_attrs = %{name: attrs.name, code: attrs.code, cost: attrs.cost, user_modified: username}
+      product_attrs = if is_binary(attrs.image_raw), do: Map.put(product_attrs, :image_raw, attrs.image_raw), else: product_attrs
+
+      result = Repo.transaction(fn ->
+        with {:ok, updated} <- product |> Product.changeset(product_attrs) |> Repo.update(prefix: tenant),
+             :ok <- save_prices(attrs.prices, updated.id, username, now, tenant) do
+          updated
+        else
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      end)
+
+      case result do
+        {:ok, updated} ->
+          InventoryEvents.broadcast(tenant, attrs.store_id, [updated.id])
+          {:ok, updated}
+
+        error -> error
+      end
+    else
+      false -> {:error, :forbidden}
+      nil -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
   defp default_price?(prices) do
     if Enum.any?(prices, &(&1.pricing_id == 1 and is_number(&1.price) and &1.price >= 0)), do: :ok, else: {:error, :default_price_required}
   end
 
-  defp initialize_inventory(product_id, username, now, tenant) do
-    rows = Repo.all(from(store in Store, select: %{product_id: type(^product_id, :integer), store_id: store.id, quantity: 0, prev_quantity: 0, last_update: type(^now, :naive_datetime), user_updated: type(^username, :string)}), prefix: tenant)
+  defp store_ids(tenant), do: Repo.all(from(store in Store, select: store.id), prefix: tenant)
+  defp initialize_inventory(product_id, username, now, tenant, store_ids) do
+    rows =
+      Enum.map(store_ids, fn store_id ->
+        %{product_id: product_id, store_id: store_id, quantity: 0, prev_quantity: 0, last_update: now, user_updated: username}
+      end)
+
     if rows == [], do: {0, nil}, else: Repo.insert_all(Inventory, rows, prefix: tenant, on_conflict: :nothing, conflict_target: [:product_id, :store_id])
   end
 

@@ -3,7 +3,7 @@ defmodule PosServerWeb.ProductCreateController do
 
   import Ecto.Query
   alias Ecto.Changeset
-  alias PosServer.{Repo, TenantContext}
+  alias PosServer.{InventoryEvents, Repo, TenantContext}
   alias PosServer.Retaily.{Inventory, InventoryContext, PricingList, Product, Sql, Store}
 
   def create(conn, attrs) do
@@ -11,6 +11,7 @@ defmodule PosServerWeb.ProductCreateController do
          {:ok, tenant} <- InventoryContext.authorize_store(conn.assigns.current_scope, store_id) do
       username = conn.assigns.current_scope.user.name
       now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+      store_ids = store_ids(tenant)
 
       product_attrs = Map.take(attrs, ["name", "cost", "margin", "code", "img_path", "image_raw", "active"])
         |> Map.merge(%{"active" => attrs["active"] || 1, "user_modified" => username, "date_create" => now, "archived" => "0"})
@@ -18,7 +19,7 @@ defmodule PosServerWeb.ProductCreateController do
       Repo.transaction(fn ->
         with :ok <- require_default_price(attrs["prices"]),
              {:ok, product} <- %Product{} |> Product.changeset(product_attrs) |> Repo.insert(prefix: tenant),
-             {_, _} <- initialize_inventory(product.id, username, now, tenant),
+             {_, _} <- initialize_inventory(product.id, username, now, tenant, store_ids),
              :ok <- save_prices(attrs["prices"], product.id, username, now, tenant) do
           product
         else
@@ -28,6 +29,8 @@ defmodule PosServerWeb.ProductCreateController do
       end)
       |> case do
         {:ok, product} ->
+          InventoryEvents.broadcast_many(tenant, store_ids, [product.id])
+
           case Sql.active_product(product.id, store_id) do
             {:ok, product} when is_map(product) ->
               conn |> put_status(:created) |> json(product)
@@ -125,21 +128,12 @@ defmodule PosServerWeb.ProductCreateController do
   end
   defp positive_integer(value) when is_integer(value) and value > 0, do: {:ok, value}
   defp positive_integer(_), do: {:error, :invalid_params}
-  defp initialize_inventory(product_id, username, now, tenant) do
+  defp store_ids(tenant), do: Repo.all(from(store in Store, select: store.id), prefix: tenant)
+  defp initialize_inventory(product_id, username, now, tenant, store_ids) do
     rows =
-      Repo.all(
-        from(store in Store,
-          select: %{
-            product_id: type(^product_id, :integer),
-            store_id: store.id,
-            quantity: 0,
-            prev_quantity: 0,
-            last_update: type(^now, :naive_datetime),
-            user_updated: type(^username, :string)
-          }
-        ),
-        prefix: tenant
-      )
+      Enum.map(store_ids, fn store_id ->
+        %{product_id: product_id, store_id: store_id, quantity: 0, prev_quantity: 0, last_update: now, user_updated: username}
+      end)
 
     if rows == [], do: {0, nil}, else: Repo.insert_all(Inventory, rows, prefix: tenant, on_conflict: :nothing, conflict_target: [:product_id, :store_id])
   end
