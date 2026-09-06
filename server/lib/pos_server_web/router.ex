@@ -52,6 +52,7 @@ defmodule PosServerWeb.Router do
     live "/pos", PosLive, :index
     live "/pos/invoices", InvoiceReportLive, :index
     live "/pos/inventory", InventoryLive, :index
+    live "/pos/orders", PurchaseOrdersLive, :index
   end
 
   scope "/", PosServerWeb do
