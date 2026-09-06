@@ -45,14 +45,8 @@ const hooks = {
         input.value = String(Math.max(1, (Number.parseInt(input.value, 10) || 1) + delta))
         this.recalculate()
       }
-      this.onDoubleClick = event => {
-        if (event.target.closest("input, button")) return
-        const line = event.target.closest("[data-cart-item-id]")
-        if (line && this.el.contains(line)) this.pushEvent("open_line_discount", {id: line.dataset.cartItemId})
-      }
       this.el.addEventListener("input", this.recalculate)
       this.el.addEventListener("click", this.onQuantityClick)
-      this.el.addEventListener("dblclick", this.onDoubleClick)
       this.handleEvent("pos:cart-bump", ({id}) => {
         const line = document.getElementById(`cart-line-${id}`)
         if (!line) return
@@ -67,7 +61,6 @@ const hooks = {
     destroyed() {
       this.el.removeEventListener("input", this.recalculate)
       this.el.removeEventListener("click", this.onQuantityClick)
-      this.el.removeEventListener("dblclick", this.onDoubleClick)
     }
   },
   DiscountPreview: {
@@ -97,6 +90,7 @@ const hooks = {
         this.el.querySelector("#discount-input-label").textContent = type === "percent" ? "Discount percentage" : "Discount amount"
         this.el.querySelector("#discount-help").textContent = type === "percent" ? "Enter 0 to remove this item discount." : "The amount applies to this entire order line."
         this.updatePreview()
+        input.focus()
       }
       this.el.addEventListener("click", this.onTypeClick)
       this.updatePreview()
