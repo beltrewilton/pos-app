@@ -50,6 +50,7 @@ defmodule PosServerWeb.Router do
     get "/dash", DashboardController, :index
     post "/dash/tenant", DashboardController, :create
     live "/pos", PosLive, :index
+    live "/pos/inventory", InventoryLive, :index
   end
 
   scope "/", PosServerWeb do

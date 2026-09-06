@@ -1,7 +1,7 @@
 defmodule PosServerWeb.PosLive do
   use PosServerWeb, :live_view
 
-  alias PosServer.{Authentication, TenantContext}
+  alias PosServer.{Authentication, InventoryEvents, TenantContext}
   alias PosServer.Retaily.{InventoryContext, Sales, Sql}
 
   @impl true
@@ -12,9 +12,9 @@ defmodule PosServerWeb.PosLive do
          {:ok, stores} <- InventoryContext.stores(scope) do
       store = List.first(stores)
 
-      {:ok,
-       socket
-       |> assign(:page_title, "Tigoo POS")
+      socket =
+        socket
+        |> assign(:page_title, "Tigoo POS")
        |> assign(:scope, scope)
        |> assign(:stores, stores)
        |> assign(:store_id, store && store.id)
@@ -43,8 +43,11 @@ defmodule PosServerWeb.PosLive do
        |> assign(:sequence, "CF")
        |> assign(:memo, "")
        |> assign(:mobile_cart_open, false)
-       |> load_products()
-       |> sync()}
+        |> load_products()
+        |> sync()
+
+      if connected?(socket) and store, do: InventoryEvents.subscribe(scope.tenant, store.id)
+      {:ok, socket}
     else
       _ -> {:ok, socket |> put_flash(:error, "Sign in is required to use POS.") |> redirect(to: ~p"/")}
     end
@@ -57,6 +60,8 @@ defmodule PosServerWeb.PosLive do
 
   def handle_event("change_store", %{"store_id" => id}, socket) do
     store_id = String.to_integer(id)
+    InventoryEvents.unsubscribe(socket.assigns.scope.tenant, socket.assigns.store_id)
+    InventoryEvents.subscribe(socket.assigns.scope.tenant, store_id)
     socket = socket |> assign(:store_id, store_id) |> assign(:products, []) |> assign(:cursor, nil) |> assign(:has_more, true) |> assign(:cart, []) |> assign(:selected_customer, nil)
     {:noreply, load_products(socket)}
   end
@@ -191,6 +196,11 @@ defmodule PosServerWeb.PosLive do
   end
 
   @impl true
+  def handle_info({:inventory_changed, %{product_ids: product_ids}}, socket) do
+    {:noreply, refresh_inventory_products(socket, product_ids)}
+  end
+
+  @impl true
   def render(assigns) do
     # `@socket` is retained as a template-only compatibility alias. It must
     # reflect the current render assigns (not the previous sync snapshot), so
@@ -229,7 +239,7 @@ defmodule PosServerWeb.PosLive do
         <a class="sidebar-link" href="#" aria-current="page" aria-label="POS"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3z"/><path d="M7 7h10v10H7z"/></svg></a>
         <button class="sidebar-link" type="button" aria-label="Customers"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></button>
         <button class="sidebar-link" type="button" aria-label="Invoice report"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 2v20h16"/><path d="M8 6h8M8 10h8M8 14h5"/></svg></button>
-        <button class="sidebar-link" type="button" aria-label="Inventory"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5M3 16l9 5 9-5"/></svg></button>
+        <a class="sidebar-link" href={~p"/pos/inventory"} aria-label="Inventory"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5M3 16l9 5 9-5"/></svg></a>
         <button class="sidebar-link" type="button" aria-label="Purchase orders"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l3 3v17H6z"/><path d="M9 10h6M9 14h6"/></svg></button>
         <details class="sidebar-menu sidebar-store-selector"><summary class="sidebar-menu-trigger" aria-label="Choose active store">⌂</summary><div class="user-menu-content sidebar-menu-content" role="group" aria-label="Active store"><button :for={store <- @stores} class="sidebar-menu-action" type="button" phx-click="change_store" phx-value-store_id={store.id} aria-pressed={to_string(store.id == @store_id)}>{store.name}</button></div></details>
         <details class="sidebar-menu sidebar-theme-selector"><summary class="sidebar-menu-trigger" aria-label="Choose theme">◐</summary><div class="user-menu-content sidebar-menu-content"><button class="sidebar-menu-action" type="button" phx-click={JS.dispatch("pos:set-theme", detail: %{theme: "default-light"})}>Default Light</button></div></details>
@@ -346,6 +356,28 @@ defmodule PosServerWeb.PosLive do
         |> assign(:loading_products, false)
       {:error, _} -> socket |> assign(:loading_products, false) |> put_flash(:error, "Products could not be loaded.")
     end
+  end
+
+  # InventoryEvents carries only product ids. Fetching just the affected loaded
+  # products keeps every terminal current without reloading or disturbing the
+  # catalog's cursor, search, or cart state.
+  defp refresh_inventory_products(socket, product_ids) do
+    changed = MapSet.new(product_ids)
+
+    products =
+      Enum.map(socket.assigns.products, fn product ->
+        if MapSet.member?(changed, product.id) do
+          case Sql.active_product(product.id, socket.assigns.store_id) do
+            {:ok, nil} -> product
+            {:ok, fresh} -> normalize_product(fresh)
+            {:error, _} -> product
+          end
+        else
+          product
+        end
+      end)
+
+    assign(socket, :products, products)
   end
   defp load_customers(socket) do
     case Sql.recent_clients_page(nil, socket.assigns.customer_search, limit: 100) do

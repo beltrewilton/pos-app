@@ -12,7 +12,7 @@ defmodule PosServerWeb.SystemChannel do
          ^tenant <- socket.assigns.tenant,
          {store_id, ""} <- Integer.parse(raw_store_id),
          true <- allowed_store?(socket.assigns.scope, store_id) do
-      Phoenix.PubSub.subscribe(PosServer.PubSub, InventoryEvents.topic(tenant, store_id))
+      InventoryEvents.subscribe(tenant, store_id)
       {:ok, socket}
     else
       _ -> {:error, %{reason: "unsupported_topic"}}
