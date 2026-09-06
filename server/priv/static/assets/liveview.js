@@ -112,6 +112,92 @@ const hooks = {
     },
     destroyed() { this.el.removeEventListener("click", this.onBackdropClick) }
   },
+  CustomerPurchases: {
+    mounted() {
+      this.onClick = event => {
+        const trigger = event.target.closest("[data-customer-purchase-details]")
+        if (!trigger || !this.el.contains(trigger)) return
+        const details = document.getElementById(`customer-purchase-items-${trigger.dataset.customerPurchaseDetails}`)
+        if (!details) return
+        const expanded = trigger.getAttribute("aria-expanded") === "true"
+        trigger.setAttribute("aria-expanded", String(!expanded))
+        trigger.querySelector(".customer-purchase-disclosure").textContent = expanded ? "▸" : "▾"
+        details.hidden = expanded
+      }
+      this.el.addEventListener("click", this.onClick)
+    },
+    destroyed() { this.el.removeEventListener("click", this.onClick) }
+  },
+  PaymentAmounts: {
+    mounted() {
+      this.money = value => new Intl.NumberFormat("en-US", {style: "currency", currency: "USD"}).format(value)
+      this.updateSummary = () => {
+        const total = Number(this.el.dataset.saleTotal) || 0
+        const paid = [...this.el.querySelectorAll(".payment-line input")].reduce((sum, input) => sum + (Number(input.value) || 0), 0)
+        const remaining = Math.max(0, total - paid)
+        const change = Math.max(0, paid - total)
+        // `data-sale-total` is the LiveView-authoritative checkout amount.
+        // Keep the payment-stage header in lockstep with it after a delivery
+        // option patches this hook, rather than waiting for a separate DOM
+        // update of the heading.
+        const checkoutTotal = this.el.closest(".checkout-stage")?.querySelector("#checkout-total")
+        const balance = this.el.parentElement.querySelector("#payment-balance")
+        let changeLabel = this.el.parentElement.querySelector("#payment-change")
+        if (!changeLabel) {
+          changeLabel = this.el.parentElement.querySelector("[data-client-payment-change]")
+          if (!changeLabel) {
+            changeLabel = document.createElement("p")
+            changeLabel.className = "payment-change"
+            changeLabel.dataset.clientPaymentChange = ""
+            changeLabel.hidden = true
+            balance?.insertAdjacentElement("afterend", changeLabel)
+          }
+        }
+        const complete = this.el.closest(".checkout-stage")?.querySelector("#complete-sale")
+        if (checkoutTotal) checkoutTotal.textContent = this.money(total)
+        if (balance) balance.textContent = `Remaining: ${this.money(remaining)}`
+        if (changeLabel) {
+          changeLabel.hidden = change === 0
+          changeLabel.textContent = change ? `Change: ${this.money(change)}` : ""
+        }
+        if (complete) complete.disabled = paid < total
+      }
+      this.onInput = event => {
+        const input = event.target.closest(".payment-line input")
+        if (!input || !this.el.contains(input)) return
+        const line = input.closest(".payment-line")
+        const previous = Number(input.dataset.previousAmount) || 0
+        const entered = Number(input.value) || 0
+        const sourceId = line.dataset.splitSource
+        const source = sourceId && this.el.querySelector(`[data-payment-line-id="${sourceId}"] input`)
+        if (source) {
+          const change = Math.round((entered - previous) * 100) / 100
+          const total = Number(this.el.dataset.saleTotal) || 0
+          const totalBeforeChange = [...this.el.querySelectorAll(".payment-line input")].reduce((sum, node) => sum + (Number(node.value) || 0), 0) - entered + previous
+          const changeAbsorbed = change < 0 ? Math.min(-change, Math.max(0, totalBeforeChange - total)) : 0
+          const transferred = change > 0 ? Math.min(change, Number(source.value) || 0) : change + changeAbsorbed
+          source.value = String(Math.max(0, Math.round(((Number(source.value) || 0) - transferred) * 100) / 100))
+          source.dataset.previousAmount = source.value
+        }
+        input.dataset.previousAmount = String(entered)
+        this.updateSummary()
+      }
+      this.el.addEventListener("input", this.onInput)
+      this.onCartTotal = event => {
+        const total = Number(event.detail?.total)
+        if (!Number.isFinite(total)) return
+        this.el.dataset.saleTotal = String(total)
+        this.updateSummary()
+      }
+      window.addEventListener("pos:checkout-total", this.onCartTotal)
+      this.updateSummary()
+    },
+    updated() { this.updateSummary() },
+    destroyed() {
+      this.el.removeEventListener("input", this.onInput)
+      window.removeEventListener("pos:checkout-total", this.onCartTotal)
+    }
+  },
   FlashToast: {
     mounted() {
       this.el.showPopover?.()
@@ -158,8 +244,9 @@ function calculateCart(panel) {
     ? beforeOrderDiscount * Math.min(orderDiscountInput, 100) / 100
     : Math.min(orderDiscountInput, beforeOrderDiscount)
   const delivery = number(panel.dataset.delivery)
-  const total = beforeOrderDiscount - orderDiscount + delivery
-  const orderFactor = beforeOrderDiscount ? total / beforeOrderDiscount : 1
+  const merchandiseTotal = beforeOrderDiscount - orderDiscount
+  const total = merchandiseTotal + delivery
+  const orderFactor = beforeOrderDiscount ? merchandiseTotal / beforeOrderDiscount : 1
   let subtotal = 0
   let tax = 0
   lines.forEach(line => {
@@ -180,6 +267,16 @@ function calculateCart(panel) {
   if (rows[3]) rows[3].querySelector("dd").textContent = `−${money(lineDiscountTotal + orderDiscount)}`
   const grandTotal = panel.querySelector(".grand-total dd")
   if (grandTotal) grandTotal.textContent = money(total)
+
+  // Checkout is rendered beside the cart, so compute its amount from this
+  // same client-side sale sum. In particular, delivery is part of `total` and
+  // must never leave #checkout-total at the merchandise-only amount.
+  const checkoutTotal = document.querySelector("#checkout-total")
+  if (checkoutTotal) checkoutTotal.textContent = money(total)
+
+  const paymentLines = document.querySelector("#payment-lines")
+  if (paymentLines) paymentLines.dataset.saleTotal = String(total)
+  window.dispatchEvent(new CustomEvent("pos:checkout-total", {detail: {total}}))
 }
 const liveSocket = new LiveSocket("/live", window.Phoenix.Socket, {
   params: { _csrf_token: csrfToken },
