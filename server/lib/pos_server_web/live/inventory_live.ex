@@ -326,6 +326,7 @@ defmodule PosServerWeb.InventoryLive do
         <a class="sidebar-link" href={~p"/pos/invoices"} aria-label="Invoice report">▤</a>
         <a class="sidebar-link" href={~p"/pos/inventory"} aria-current="page" aria-label="Inventory">▱</a>
         <a class="sidebar-link" href={~p"/pos/orders"} aria-label="Purchase orders">▤</a>
+        <a :if={Scope.allowed?(@scope, "company.settings")} id="company-settings-nav" class="sidebar-link" href={~p"/pos/company-settings"} aria-label="Company settings"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 2-5h14l2 5"/><path d="M3 9h18v11H3z"/><path d="M7 20v-6h4v6"/><path d="M3 9c0 2 2 3 4 3s4-1 4-3c0 2 2 3 4 3s4-1 4-3"/></svg></a>
       </nav>
       <section class="catalog-panel" data-view="inventory" aria-labelledby="inventory-title">
         <section id="inventory-screen" class="operations-screen" aria-labelledby="inventory-title">

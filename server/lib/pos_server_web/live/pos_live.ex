@@ -2,6 +2,7 @@ defmodule PosServerWeb.PosLive do
   use PosServerWeb, :live_view
 
   alias PosServer.{Authentication, InventoryEvents, TenantContext}
+  alias PosServer.Accounts.Scope
   alias PosServer.Retaily.{InventoryContext, Sales, Sql}
 
   @impl true
@@ -241,6 +242,7 @@ defmodule PosServerWeb.PosLive do
         <a class="sidebar-link" href={~p"/pos/invoices"} aria-label="Invoice report"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 2v20h16"/><path d="M8 6h8M8 10h8M8 14h5"/></svg></a>
         <a class="sidebar-link" href={~p"/pos/inventory"} aria-label="Inventory"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5M3 16l9 5 9-5"/></svg></a>
         <a class="sidebar-link" href={~p"/pos/orders"} aria-label="Purchase orders"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l3 3v17H6z"/><path d="M9 10h6M9 14h6"/></svg></a>
+        <a :if={Scope.allowed?(@scope, "company.settings")} id="company-settings-nav" class="sidebar-link" href={~p"/pos/company-settings"} aria-label="Company settings"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 2-5h14l2 5"/><path d="M3 9h18v11H3z"/><path d="M7 20v-6h4v6"/><path d="M3 9c0 2 2 3 4 3s4-1 4-3c0 2 2 3 4 3s4-1 4-3"/></svg></a>
         <details class="sidebar-menu sidebar-store-selector"><summary class="sidebar-menu-trigger" aria-label="Choose active store">⌂</summary><div class="user-menu-content sidebar-menu-content" role="group" aria-label="Active store"><button :for={store <- @stores} class="sidebar-menu-action" type="button" phx-click="change_store" phx-value-store_id={store.id} aria-pressed={to_string(store.id == @store_id)}>{store.name}</button></div></details>
         <details class="sidebar-menu sidebar-theme-selector"><summary class="sidebar-menu-trigger" aria-label="Choose theme">◐</summary><div class="user-menu-content sidebar-menu-content"><button class="sidebar-menu-action" type="button" phx-click={JS.dispatch("pos:set-theme", detail: %{theme: "default-light"})}>Default Light</button></div></details>
       </nav>
