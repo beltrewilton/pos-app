@@ -105,12 +105,14 @@ const hooks = {
     mounted() {
       if (!this.el.open) this.el.showModal()
       requestAnimationFrame(() => this.el.querySelector("#discount-input")?.focus())
-      this.onBackdropClick = event => {
-        if (event.target === this.el) this.pushEvent("close_dialog")
-      }
-      this.el.addEventListener("click", this.onBackdropClick)
+      // Discount cards are deliberate confirmation dialogs. Native dialogs
+      // normally close on Escape and the old hook closed on their backdrop;
+      // both paths would discard an in-progress discount without choosing
+      // Cancel or Apply discount.
+      this.preventCancel = event => event.preventDefault()
+      this.el.addEventListener("cancel", this.preventCancel)
     },
-    destroyed() { this.el.removeEventListener("click", this.onBackdropClick) }
+    destroyed() { this.el.removeEventListener("cancel", this.preventCancel) }
   },
   CustomerPurchases: {
     mounted() {
