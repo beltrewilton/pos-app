@@ -377,7 +377,19 @@ defmodule PosServerWeb.PosLive do
         end
       end)
 
-    assign(socket, :products, products)
+    loaded_ids = MapSet.new(Enum.map(socket.assigns.products, & &1.id))
+
+    new_products =
+      changed
+      |> MapSet.difference(loaded_ids)
+      |> Enum.flat_map(fn product_id ->
+        case Sql.active_product(product_id, socket.assigns.store_id) do
+          {:ok, fresh} when is_map(fresh) -> [normalize_product(fresh)]
+          _ -> []
+        end
+      end)
+
+    assign(socket, :products, new_products ++ products)
   end
   defp load_customers(socket) do
     case Sql.recent_clients_page(nil, socket.assigns.customer_search, limit: 100) do

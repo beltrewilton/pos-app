@@ -4,7 +4,7 @@ defmodule PosServerWeb.InventoryLive do
 
   alias PosServer.{Authentication, InventoryEvents, TenantContext}
   alias PosServer.Accounts.Scope
-  alias PosServer.Retaily.{InventoryContext, Orders, Sql}
+  alias PosServer.Retaily.{InventoryContext, Orders, ProductCatalog, Sql}
 
   @sort_keys ~w(product_name product_code store_name product_cost product_price total_quantity quantity prev_quantity last_update user_updated)
 
@@ -33,6 +33,9 @@ defmodule PosServerWeb.InventoryLive do
         |> assign(:traces, [])
         |> assign(:editing_product_id, nil)
         |> assign(:locally_updated_product_ids, MapSet.new())
+        |> assign(:product_dialog, false)
+        |> assign(:product_form_status, "")
+        |> assign(:pricing_lists, ProductCatalog.pricing_lists(scope))
         |> assign(:status, "Loading inventory…")
         |> assign(:loading?, true)
         |> load_inventory()
@@ -77,6 +80,18 @@ defmodule PosServerWeb.InventoryLive do
   end
 
   def handle_event("toggle_kpis", _, socket), do: {:noreply, assign(socket, :kpis_expanded, !socket.assigns.kpis_expanded)}
+  def handle_event("open_product_dialog", _, socket), do: {:noreply, socket |> assign(:product_dialog, true) |> assign(:product_form_status, "")}
+  def handle_event("close_product_dialog", _, socket), do: {:noreply, socket |> assign(:product_dialog, false) |> assign(:product_form_status, "")}
+  def handle_event("create_product", params, socket) do
+    case ProductCatalog.create(socket.assigns.scope, product_attrs(params, socket)) do
+      {:ok, product} ->
+        socket = socket |> assign(:product_dialog, false) |> assign(:product_form_status, "") |> put_flash(:info, "Product created.") |> load_inventory()
+        {:noreply, socket |> ignore_next_inventory_event(product.id)}
+      {:error, :forbidden} -> {:noreply, assign(socket, :product_form_status, "You do not have permission to create products.")}
+      {:error, :default_price_required} -> {:noreply, assign(socket, :product_form_status, "A default selling price is required.")}
+      {:error, _} -> {:noreply, assign(socket, :product_form_status, "Product could not be created. Check the required fields.")}
+    end
+  end
 
   def handle_event("toggle_quantities", %{"product_id" => id}, socket) do
     product_id = integer(id)
@@ -205,6 +220,19 @@ defmodule PosServerWeb.InventoryLive do
       :error -> 0
     end
   end
+  defp product_attrs(params, socket) do
+    prices =
+      params
+      |> Map.get("prices", %{})
+      |> Enum.flat_map(fn {pricing_id, price} ->
+        case Float.parse(to_string(price)) do
+          {amount, ""} when amount >= 0 -> [%{pricing_id: integer(pricing_id), price: amount}]
+          _ -> []
+        end
+      end)
+
+    %{store_id: socket.assigns.store_id, name: params |> Map.get("name", "") |> String.trim(), code: params |> Map.get("code", "") |> String.trim(), cost: decimal(Map.get(params, "cost")), image_raw: Map.get(params, "image_raw") || nil, prices: prices}
+  end
   defp inventory_status(entries), do: if(entries == [], do: "No inventory found.", else: "#{length(entries)} products")
 
   defp visible_entries(assigns) do
@@ -279,7 +307,7 @@ defmodule PosServerWeb.InventoryLive do
               <form class="operations-filters" phx-change="search" phx-submit="search">
                 <div class="search-field"><svg class="search-icon" aria-hidden="true"><use href="#ui-icon-search"/></svg><input id="inventory-search" name="value" class="input" type="search" value={@search} phx-debounce="0" placeholder="Search product" autocomplete="off"/></div>
                 <select id="inventory-store" name="store_id" class="select" aria-label="Store or warehouse" phx-change="change_store"><option :for={store <- @stores} value={store.id} selected={store.id == @store_id}>{store.name}</option></select>
-                <button class="btn" type="button" data-variant="default" disabled title="Product creation is not part of this inventory delivery">Create product</button>
+                <button :if={Scope.allowed?(@scope, "product.add")} id="create-product" class="btn" type="button" data-variant="default" aria-haspopup="dialog" phx-click="open_product_dialog">Create product</button>
               </form>
             </header>
             <p id="inventory-status" class="operations-status" role="status">{@status}</p>
@@ -304,6 +332,21 @@ defmodule PosServerWeb.InventoryLive do
           </tbody></table></div>
         </section>
       </section>
+      <dialog :if={@product_dialog} id="product-dialog" open class="dialog" data-size="lg" style="z-index: 100" role="dialog" aria-modal="true" aria-labelledby="product-dialog-title">
+        <div class="dialog-content">
+          <div class="dialog-header"><h2 id="product-dialog-title" class="dialog-title">Create product</h2><p id="product-dialog-description" class="dialog-description">Catalog details and pricing-list values are saved as separate records.</p></div>
+          <form id="product-form" class="form dialog-body" phx-submit="create_product">
+            <div id="product-form-fields">
+              <div class="form-field"><label class="label" for="product-name">Name <span aria-hidden="true" class="text-destructive">*</span></label><input id="product-name" name="name" class="input" required autofocus/></div>
+              <div class="product-form-row"><div class="form-field"><label class="label" for="product-cost">Cost</label><input id="product-cost" name="cost" class="input" type="number" min="0" step="0.01" value="0"/></div><fieldset class="form-fieldset product-prices-fieldset"><legend>Price lists</legend><div id="product-pricing-fields" class="form-group" aria-live="polite"><div :for={list <- @pricing_lists} class="product-price-row" data-pricing-id={list.id}><label class="label" for={"product-price-#{list.id}"}>{list.label || "Pricing list ##{list.id}"}</label><input id={"product-price-#{list.id}"} name={"prices[#{list.id}]"} class="input" type="number" min="0" step="0.01" placeholder="Price" required={list.id == 1} aria-label={"Price for #{list.label}"}/></div></div></fieldset></div>
+              <div class="form-field"><label class="label" for="product-code">SKU</label><input id="product-code" name="code" class="input"/></div>
+              <div id="product-image-dropzone" class="product-image-dropzone" tabindex="0" role="button" aria-describedby="product-image-help"><img id="product-image-preview" class="product-image-preview" alt="Product preview" hidden/><label class="label" for="product-image">Image upload</label><p id="product-image-help" class="field-description">Drop an image here or choose a file (max 10 MB). It will be resized and stored as Base64.</p><input id="product-image" class="input" type="file" accept="image/*"/><input id="product-image-raw" name="image_raw" type="hidden"/></div>
+            </div>
+            <p id="product-form-status" class="field-description" role="status">{@product_form_status}</p>
+            <div class="dialog-footer"><button class="btn" type="button" data-variant="outline" phx-click="close_product_dialog">Cancel</button><button class="btn" type="submit" data-variant="default">Save</button></div>
+          </form>
+        </div>
+      </dialog>
     </main>
     """
   end
