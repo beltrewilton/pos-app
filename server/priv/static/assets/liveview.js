@@ -2,6 +2,27 @@ import { LiveSocket } from "/liveview-client.js";
 
 const csrfToken = document.querySelector("meta[name='csrf-token']")?.getAttribute("content");
 const hooks = {
+  InfiniteInvoices: {
+    mounted() {
+      this.observer = new IntersectionObserver(entries => {
+        if (entries.some(entry => entry.isIntersecting)) this.pushEvent("load_more")
+      }, {rootMargin: "360px"})
+      this.observer.observe(this.el)
+    },
+    destroyed() { this.observer?.disconnect() }
+  },
+  InvoiceReport: {
+    mounted() {
+      this.fixed = this.el.querySelector(".invoice-report-fixed")
+      this.syncStickyOffset = () => this.el.querySelector("#invoice-report")?.style.setProperty("--invoice-fixed-height", `${this.fixed?.offsetHeight || 0}px`)
+      this.resizeObserver = new ResizeObserver(this.syncStickyOffset)
+      if (this.fixed) this.resizeObserver.observe(this.fixed)
+      this.syncStickyOffset()
+      requestAnimationFrame(() => this.el.querySelector("#invoice-report-title")?.focus())
+    },
+    updated() { this.syncStickyOffset?.() },
+    destroyed() { this.resizeObserver?.disconnect() }
+  },
   InfiniteCatalog: {
     mounted() {
       this.observer = new IntersectionObserver(entries => {

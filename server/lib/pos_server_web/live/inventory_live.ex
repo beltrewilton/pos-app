@@ -323,6 +323,7 @@ defmodule PosServerWeb.InventoryLive do
     <main id="inventory-live" class="pos-shell invoice-view">
       <nav class="sidebar-rail" aria-label="Primary navigation">
         <a class="sidebar-link" href={~p"/pos"} aria-label="POS">▣</a>
+        <a class="sidebar-link" href={~p"/pos/invoices"} aria-label="Invoice report">▤</a>
         <a class="sidebar-link" href={~p"/pos/inventory"} aria-current="page" aria-label="Inventory">▱</a>
       </nav>
       <section class="catalog-panel" data-view="inventory" aria-labelledby="inventory-title">
