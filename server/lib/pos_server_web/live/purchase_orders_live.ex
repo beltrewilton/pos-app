@@ -2,6 +2,8 @@ defmodule PosServerWeb.PurchaseOrdersLive do
   @moduledoc false
   use PosServerWeb, :live_view
 
+  import PosServerWeb.PosLayoutComponents
+
   alias PosServer.{Authentication, InventoryEvents, TenantContext}
   alias PosServer.Accounts.Scope
   alias PosServer.Retaily.{InventoryContext, Orders}
@@ -15,7 +17,7 @@ defmodule PosServerWeb.PurchaseOrdersLive do
          true <- Scope.allowed?(scope, "inventory.view"),
          _ <- TenantContext.put_tenant(scope.tenant),
          {:ok, stores} <- InventoryContext.stores(scope),
-         %{id: store_id} <- List.first(stores) do
+         %{id: store_id} <- selected_store(stores, session["store_id"]) do
       socket = socket
       |> assign(:page_title, "Tigoo Purchase orders")
       |> assign(:scope, scope) |> assign(:stores, stores) |> assign(:store_id, store_id)
@@ -29,7 +31,7 @@ defmodule PosServerWeb.PurchaseOrdersLive do
       if connected?(socket), do: InventoryEvents.subscribe(scope.tenant, store_id)
       {:ok, socket}
     else
-      _ -> {:ok, socket |> put_flash(:error, "Inventory access is required.") |> redirect(to: ~p"/")}
+      _ -> {:ok, socket |> put_flash(:error, "Inventory access is required.") |> redirect(to: ~p"/pos/login")}
     end
   end
 
@@ -198,10 +200,7 @@ defmodule PosServerWeb.PurchaseOrdersLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <main id="purchase-orders-live" class="pos-shell invoice-view">
-      <nav class="sidebar-rail" aria-label="Primary navigation">
-        <a class="sidebar-link" href={~p"/pos"} aria-label="POS">▣</a><a class="sidebar-link" href={~p"/pos/invoices"} aria-label="Invoice report">▤</a><a class="sidebar-link" href={~p"/pos/inventory"} aria-label="Inventory">▱</a><a class="sidebar-link" href={~p"/pos/orders"} aria-current="page" aria-label="Purchase orders">▤</a><a :if={Scope.allowed?(@scope, "company.settings")} id="company-settings-nav" class="sidebar-link" href={~p"/pos/company-settings"} aria-label="Company settings"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 2-5h14l2 5"/><path d="M3 9h18v11H3z"/><path d="M7 20v-6h4v6"/><path d="M3 9c0 2 2 3 4 3s4-1 4-3c0 2 2 3 4 3s4-1 4-3"/></svg></a>
-      </nav>
+    <.pos_layout id="purchase-orders-live" class="pos-shell invoice-view" active_page={:orders} scope={@scope} stores={@stores} store_id={@store_id}>
       <section class="catalog-panel" data-view="orders" aria-labelledby="orders-title">
         <section :if={@view == :list} id="orders-screen" class="operations-screen" aria-labelledby="orders-title">
           <div class="operations-fixed"><header class="topbar operations-topbar"><div class="brand-lockup"><span class="brand-mark" aria-hidden="true">E</span><div><p class="eyebrow">Operations</p><h2 id="orders-title" tabindex="-1">Purchase orders — {active_store(@stores, @store_id)}</h2></div></div><div class="form-actions"><button class="btn" type="button" data-variant="default" phx-click="open_create">Create purchase order</button><button class="btn" type="button" data-variant="default" phx-click="open_move">Move Product</button></div></header><p class="operations-status" role="status">{@status}</p></div>
@@ -213,10 +212,16 @@ defmodule PosServerWeb.PurchaseOrdersLive do
           <article :if={@view == :form} class="card purchase-order-detail"><div class="card-header"><div><p class="eyebrow">Operations</p><h3 class="card-title">{if @mode == :move, do: "Move products", else: "Create purchase order"}</h3><p class="field-description">{if @mode == :move, do: "Move products from an origin store to a destination store.", else: "Add products and confirm the requested quantities."}</p></div></div><form class="form card-content" phx-submit="submit_order"><div class="order-form-grid"><div class="form-field"><label class="label" for="purchase-order-source">{if @mode == :move, do: "Origin store", else: "Source / provider"}</label><select id="purchase-order-source" class="select" name="source_id" phx-change="change_source" required><option value="" selected={@source_id == ""} disabled>Select a source</option><option :for={source <- source_options(@mode, @stores, @sources)} value={source.id} selected={to_string(source.id) == @source_id}>{source.name}</option></select></div><div class="form-field"><label class="label" for="purchase-order-destination">Destination store</label><select id="purchase-order-destination" class="select" name="destination_id" phx-change="change_destination" required><option :for={store <- @stores} value={store.id} selected={to_string(store.id) == @destination_id}>{store.name}</option></select></div></div><div class="order-lines"><div :for={line <- @lines} class="order-line"><button class="btn" type="button" data-variant="outline" data-size="icon-sm" disabled={is_nil(line.product_id)} aria-label="Edit selected product">✎</button><div class="product-combobox"><select class="select" aria-label="Product" phx-change="line_product" name="product_id" phx-value-id={line.id}><option value="">Search products</option><option :for={product <- @products} value={product.id} selected={product.id == line.product_id}>{product.name}{if product.code, do: " · #{product.code}", else: ""}</option></select><button class="btn" type="button" data-variant="outline" data-size="icon-sm" aria-label="Create product" disabled>+</button></div><input class="input numeric" type="text" value={line.current_quantity} readonly aria-label="Current inventory quantity"/><input class="input" type="number" min="1" value={line.quantity} aria-label="Requested quantity" phx-change="line_quantity" phx-value-id={line.id}/><button class="btn" type="button" data-variant="ghost" data-size="sm" phx-click="remove_line" phx-value-id={line.id}>Remove</button></div></div><button class="btn" type="button" data-variant="outline" data-size="sm" phx-click="add_line">Add product</button><div class="form-actions"><button class="btn" type="submit" data-variant="default">{if @mode == :move, do: "Move products", else: "Create order"}</button></div></form></article>
         </section>
       </section>
-    </main>
+    </.pos_layout>
     """
   end
 
   defp active_store(stores, id), do: Enum.find_value(stores, "", fn store -> if store.id == id, do: store.name end)
   defp order_position(orders, id), do: Enum.find_index(orders, &(&1.id == id)) || 0
+  defp selected_store(stores, selected_id) do
+    case Integer.parse(to_string(selected_id || "")) do
+      {id, ""} -> Enum.find(stores, List.first(stores), &(&1.id == id))
+      _ -> List.first(stores)
+    end
+  end
 end

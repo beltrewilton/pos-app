@@ -27,6 +27,7 @@ import topbar from "../vendor/topbar"
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const hooks = {
+  LoginScreen: window.LoginScreenHook,
   CompanySettings: window.CompanySettingsHook,
   InfiniteInvoices: {
     mounted() {
@@ -58,14 +59,19 @@ const hooks = {
     },
     destroyed() { this.observer?.disconnect() }
   },
+  PosTheme: {
+    mounted() {
+      this.onTheme = event => document.documentElement.dataset.theme = event.detail.theme
+      window.addEventListener("pos:set-theme", this.onTheme)
+    },
+    destroyed() { window.removeEventListener("pos:set-theme", this.onTheme) }
+  },
   PosShell: {
     mounted() {
       this.onKeydown = event => {
         if (event.key === "Escape" && this.el.dataset.mobileCartOpen === "true") this.pushEvent("close_mobile_cart")
       }
-      this.onTheme = event => document.documentElement.dataset.theme = event.detail.theme
       document.addEventListener("keydown", this.onKeydown)
-      window.addEventListener("pos:set-theme", this.onTheme)
     },
     updated() {
       const panel = this.el.querySelector("#order-panel")
@@ -82,7 +88,6 @@ const hooks = {
     },
     destroyed() {
       document.removeEventListener("keydown", this.onKeydown)
-      window.removeEventListener("pos:set-theme", this.onTheme)
     }
   }
 }

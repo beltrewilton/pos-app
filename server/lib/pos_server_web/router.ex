@@ -49,6 +49,9 @@ defmodule PosServerWeb.Router do
     post "/logout", GoogleAuthController, :logout
     get "/dash", DashboardController, :index
     post "/dash/tenant", DashboardController, :create
+    live "/pos/login", LoginLive, :index
+    post "/pos/login/session", BrowserLoginController, :create
+    delete "/pos/logout", BrowserLoginController, :delete
     live "/pos", PosLive, :index
     live "/pos/invoices", InvoiceReportLive, :index
     live "/pos/inventory", InventoryLive, :index
@@ -61,6 +64,7 @@ defmodule PosServerWeb.Router do
 
     get "/liveview-client.js", LiveViewAssetController, :show
     get "/pos-client.css", LiveViewAssetController, :pos_css
+    get "/login-client.css", LiveViewAssetController, :login_css
   end
 
   scope "/addons", PosServerWeb do

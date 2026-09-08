@@ -2,6 +2,8 @@ defmodule PosServerWeb.InvoiceReportLive do
   @moduledoc false
   use PosServerWeb, :live_view
 
+  import PosServerWeb.PosLayoutComponents
+
   alias PosServer.{Authentication, TenantContext}
   alias PosServer.Accounts.Scope
   alias PosServer.Retaily.{InventoryContext, Sales, Sql}
@@ -16,7 +18,7 @@ defmodule PosServerWeb.InvoiceReportLive do
          true <- Scope.allowed?(scope, "sales.view"),
          _ <- TenantContext.put_tenant(scope.tenant),
          {:ok, stores} <- InventoryContext.stores(scope),
-         %{id: store_id} <- List.first(stores) do
+         %{id: store_id} <- selected_store(stores, session["store_id"]) do
       {:ok,
        socket
        |> assign(:page_title, "Tigoo Invoice report")
@@ -44,7 +46,7 @@ defmodule PosServerWeb.InvoiceReportLive do
        |> assign(:status, "Loading invoices…")
        |> load_page(true)}
     else
-      _ -> {:ok, socket |> put_flash(:error, "Sales-report access is required.") |> redirect(to: ~p"/")}
+      _ -> {:ok, socket |> put_flash(:error, "Sales-report access is required.") |> redirect(to: ~p"/pos/login")}
     end
   end
 
@@ -108,7 +110,9 @@ defmodule PosServerWeb.InvoiceReportLive do
         {:error, reason} -> {:noreply, put_flash(socket, :error, "Payment could not be recorded: #{reason}")}
       end
     else
-      {:noreply, put_flash(socket, :error, "Enter a payment greater than zero and no greater than the outstanding balance.")}
+      # Tauri simply keeps the payment form unchanged when its client-side
+      # amount guard fails; it does not show a report-level error.
+      {:noreply, socket}
     end
   end
 
@@ -141,17 +145,24 @@ defmodule PosServerWeb.InvoiceReportLive do
     end
     {:noreply, assign(socket, :pending_range, range)}
   end
-  def handle_event("clear_range", _, socket), do: {:noreply, assign(socket, :pending_range, %{from: "", to: ""})}
+  def handle_event("clear_range", _, socket), do: {:noreply, socket |> assign(date_from: "", date_to: "", pending_range: %{from: "", to: ""}, calendar_open?: false) |> reset_report() |> load_page(true)}
   def handle_event("apply_range", _, socket) do
     range = socket.assigns.pending_range
     {:noreply, socket |> assign(date_from: range.from, date_to: range.to, calendar_open?: false) |> reset_report() |> load_page(true)}
   end
 
-  defp load_page(%{assigns: %{loading?: true}} = socket, _), do: socket
+  # A filter/status reset deliberately sets loading? before requesting page one.
+  # Only block overlapping incremental pagination requests; a reset must fetch.
+  defp load_page(%{assigns: %{loading?: true}} = socket, false), do: socket
   defp load_page(%{assigns: %{has_more?: false}} = socket, false), do: socket
   defp load_page(socket, reset?) do
     socket = if reset?, do: reset_report(socket), else: socket
-    opts = [search: socket.assigns.search, date_from: blank_nil(socket.assigns.date_from), date_to: blank_nil(socket.assigns.date_to), invoice_status: blank_nil(socket.assigns.status_filter)]
+    opts = [
+      search: socket.assigns.search,
+      date_from: date_filter(socket.assigns.date_from),
+      date_to: date_filter(socket.assigns.date_to),
+      invoice_status: blank_nil(socket.assigns.status_filter)
+    ]
     case {Sql.sales_report_page(socket.assigns.store_id, socket.assigns.cursor, opts), Sql.sales_report_summary(socket.assigns.store_id, Keyword.delete(opts, :invoice_status))} do
       {{:ok, page}, {:ok, summary}} ->
         entries = sort_entries(socket.assigns.entries ++ page.entries, socket.assigns.sort)
@@ -164,9 +175,10 @@ defmodule PosServerWeb.InvoiceReportLive do
   defp replace_invoice(socket, detail) do
     entry = summary_entry(detail)
     entries = socket.assigns.entries |> Enum.map(fn current -> if integer(value(current, "id")) == detail.id, do: Map.merge(current, entry), else: current end) |> sort_entries(socket.assigns.sort)
-    socket |> assign(entries: entries, details: Map.put(socket.assigns.details, detail.id, detail), expanded_id: detail.id) |> refresh_summary()
+    # Match Tauri's local patch: update the visible row/detail without
+    # resetting pagination, filters, ordering, or the already-rendered KPIs.
+    socket |> assign(entries: entries, details: Map.put(socket.assigns.details, detail.id, detail), expanded_id: detail.id, status: "Payment recorded.")
   end
-  defp refresh_summary(socket), do: load_page(socket |> assign(entries: [], cursor: nil, has_more?: true, loading?: false), true)
 
   defp summary_entry(detail), do: %{"id" => detail.id, "sequence" => detail.sequence, "client_name" => detail.client && detail.client.name, "date_create" => detail.date_create, "invoice_status" => detail.invoice_status, "amount" => detail.amount, "due_balance" => detail.due_balance, "login" => detail.login, "cancelled_by" => detail.cancelled_by, "store_id" => detail.store_id}
   defp sort_entries(entries, %{key: key, direction: direction}) do
@@ -179,6 +191,15 @@ defmodule PosServerWeb.InvoiceReportLive do
   defp flip(:desc), do: :asc
   defp blank_nil(""), do: nil
   defp blank_nil(value), do: value
+  defp date_filter(""), do: nil
+  defp date_filter(value) when is_binary(value) do
+    case Date.from_iso8601(value) do
+      {:ok, date} -> date
+      {:error, _} -> nil
+    end
+  end
+  defp date_filter(%Date{} = value), do: value
+  defp date_filter(_), do: nil
   defp integer(v) when is_integer(v), do: v
   defp integer(v) do
     case Integer.parse(to_string(v)) do
@@ -213,12 +234,13 @@ defmodule PosServerWeb.InvoiceReportLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <main id="invoice-report-live" class="pos-shell invoice-view" phx-hook="InvoiceReport">
+    <.pos_layout id="invoice-report-live" class="pos-shell invoice-view" active_page={:invoices} scope={@scope} stores={@stores} store_id={@store_id} phx-hook="InvoiceReport">
+      <:before_layout>
       <svg class="navigation-icon-sprite" aria-hidden="true" focusable="false"><symbol id="ui-icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></symbol></svg>
-      <nav class="sidebar-rail" aria-label="Primary navigation"><a class="sidebar-link" href={~p"/pos"} aria-label="POS">▣</a><a class="sidebar-link" href={~p"/pos/invoices"} aria-current="page" aria-label="Invoice report">▤</a><a class="sidebar-link" href={~p"/pos/inventory"} aria-label="Inventory">▱</a><a :if={Scope.allowed?(@scope, "company.settings")} id="company-settings-nav" class="sidebar-link" href={~p"/pos/company-settings"} aria-label="Company settings"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 2-5h14l2 5"/><path d="M3 9h18v11H3z"/><path d="M7 20v-6h4v6"/><path d="M3 9c0 2 2 3 4 3s4-1 4-3c0 2 2 3 4 3s4-1 4-3"/></svg></a><details class="sidebar-menu sidebar-store-selector"><summary class="sidebar-menu-trigger" aria-label="Choose active store">⌂</summary><div class="user-menu-content sidebar-menu-content" role="group" aria-label="Active store"><button :for={store <- @stores} class="sidebar-menu-action" type="button" phx-click="change_store" phx-value-store_id={store.id} aria-pressed={to_string(store.id == @store_id)}>{store.name}</button></div></details></nav>
-      <section class="catalog-panel" data-view="invoices" aria-labelledby="invoice-report-title"><section id="invoice-report" class="invoice-report" aria-labelledby="invoice-report-title"><div class="invoice-report-fixed"><header class="topbar invoice-topbar"><div class="brand-lockup"><span class="brand-mark" aria-hidden="true">E</span><div><p class="eyebrow">Sales</p><h2 id="invoice-report-title" tabindex="-1">Invoice report — {active_store(assigns)}</h2></div></div><form id="invoice-filters" class="invoice-filters" phx-submit="apply_filters"><div class="search-field"><svg class="search-icon" aria-hidden="true"><use href="#ui-icon-search"/></svg><input id="invoice-search" name="search" class="input" type="search" value={@search} phx-change="search" phx-debounce="250" aria-label="Search invoices by customer" autocomplete="off" placeholder="Search by customer name"/></div><button id="invoice-date-range-trigger" class="btn invoice-date-range" type="button" data-variant="outline" data-size="sm" aria-haspopup="dialog" phx-click="open_calendar">{range_label(@date_from, @date_to)}</button><button class="btn" type="submit" data-variant="outline" data-size="sm">Apply</button><button id="invoice-filters-clear" class="btn" type="button" data-variant="ghost" data-size="sm" phx-click="clear_filters">Clear</button></form></header><section class="invoice-summary" aria-label="Invoice status summary"><.kpi name="paid" label="Paid" status="close" summary={@summary} selected={@status_filter}/><.kpi name="pending" label="Pending" status="open" summary={@summary} selected={@status_filter}/><.kpi name="cancelled" label="Cancelled" status="cancelled" summary={@summary} selected={@status_filter}/></section><p id="invoice-report-status" class="invoice-report-status" role="status">{@status}</p></div><div class="table-container invoice-table-container"><table class="table invoice-table"><caption class="table-caption">Invoices for the selected store.</caption><thead><tr class="table-row"><th :for={{label, key} <- headers()} class="table-head" scope="col" aria-sort={sort_aria(@sort, key)}><button class="btn invoice-sort" type="button" data-variant="ghost" phx-click="sort" phx-value-key={key}>{label}</button></th><th class="table-head" scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody id="invoice-table-body"><%= for invoice <- @entries do %><.invoice_row invoice={invoice} expanded={@expanded_id == integer(value(invoice, "id"))}/><.invoice_detail :if={@expanded_id == integer(value(invoice, "id"))} invoice={invoice} detail={Map.get(@details, integer(value(invoice, "id")))} methods={@payment_methods}/><% end %><.skeleton_rows :if={@loading? && @entries == []}/></tbody></table></div><div id="invoice-sentinel" phx-hook="InfiniteInvoices" aria-hidden="true"></div></section></section>
-      <.calendar_dialog :if={@calendar_open?} month={@calendar_month} range={@pending_range}/><.cancel_dialog :if={@cancel_id} invoice={Enum.find(@entries, &(integer(value(&1, "id")) == @cancel_id))}/>
-    </main>
+      </:before_layout>
+      <section class="catalog-panel" data-view="invoices" aria-labelledby="invoice-report-title"><section id="invoice-report" class="invoice-report" aria-labelledby="invoice-report-title"><div class="invoice-report-fixed"><header class="topbar invoice-topbar"><div class="brand-lockup"><span class="brand-mark" aria-hidden="true">E</span><div><p class="eyebrow">Sales</p><h2 id="invoice-report-title" tabindex="-1">Invoice report — {active_store(assigns)}</h2></div></div><form id="invoice-filters" class="invoice-filters" phx-submit="apply_filters"><div class="search-field"><svg class="search-icon" aria-hidden="true"><use href="#ui-icon-search"/></svg><input id="invoice-search" name="search" class="input" type="search" value={@search} phx-change="search" phx-debounce="250" aria-label="Search invoices by customer" autocomplete="off" placeholder="Search by customer name"/></div><div class="invoice-date-picker"><button id="invoice-date-range-trigger" class="btn invoice-date-range" type="button" data-variant="outline" data-size="sm" aria-haspopup="dialog" aria-expanded={to_string(@calendar_open?)} phx-click="open_calendar">{range_label(@date_from, @date_to)}</button><.calendar_popover :if={@calendar_open?} month={@calendar_month} range={@pending_range}/></div><button class="btn" type="submit" data-variant="outline" data-size="sm">Apply</button><button id="invoice-filters-clear" class="btn" type="button" data-variant="ghost" data-size="sm" phx-click="clear_filters">Clear</button></form></header><section class="invoice-summary" aria-label="Invoice status summary"><.kpi name="paid" label="Paid" status="close" summary={@summary} selected={@status_filter}/><.kpi name="pending" label="Pending" status="open" summary={@summary} selected={@status_filter}/><.kpi name="cancelled" label="Cancelled" status="cancelled" summary={@summary} selected={@status_filter}/></section><p id="invoice-report-status" class="invoice-report-status" role="status">{@status}</p></div><div class="table-container invoice-table-container"><table class="table invoice-table"><caption class="table-caption">Invoices for the selected store.</caption><thead><tr class="table-row"><th :for={{label, key} <- headers()} class="table-head" scope="col" aria-sort={sort_aria(@sort, key)}><button class="btn invoice-sort" type="button" data-variant="ghost" phx-click="sort" phx-value-key={key}>{label}</button></th><th class="table-head" scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody id="invoice-table-body"><%= for invoice <- @entries do %><.invoice_row invoice={invoice} expanded={@expanded_id == integer(value(invoice, "id"))}/><.invoice_detail :if={@expanded_id == integer(value(invoice, "id"))} invoice={invoice} detail={Map.get(@details, integer(value(invoice, "id")))} methods={@payment_methods}/><% end %><.skeleton_rows :if={@loading? && @entries == []}/></tbody></table></div><div id="invoice-sentinel" phx-hook="InfiniteInvoices" aria-hidden="true"></div></section></section>
+      <.cancel_dialog :if={@cancel_id} invoice={Enum.find(@entries, &(integer(value(&1, "id")) == @cancel_id))}/>
+    </.pos_layout>
     """
   end
 
@@ -248,7 +270,7 @@ defmodule PosServerWeb.InvoiceReportLive do
   defp invoice_detail(assigns) do
     id = integer(value(assigns.invoice, "id")); assigns = assign(assigns, :id, id)
     ~H"""
-    <tr class="table-row invoice-details-row"><td class="table-cell" colspan="8"><section class="card invoice-details-card"><div :if={is_nil(@detail)} class="card-content invoice-details-skeleton" role="status"><span :for={_ <- 1..5} class="skeleton-line"></span></div><%= if @detail do %><div class="card-header"><div><h3 class="card-title">{@detail.sequence || "Invoice ##{@detail.id}"}</h3><p class="card-description">{(@detail.client && @detail.client.name) || "Walk-in customer"} · {@detail.sale_type || "Sales"} · {@detail.login || "—"}</p></div><.payment_form :if={@detail.invoice_status == "open"} detail={@detail} methods={@methods}/><span :if={@detail.invoice_status in ["close", "cancelled"]} class={["invoice-status", "invoice-detail-status", "invoice-status-#{@detail.invoice_status}"]}>{status_label(@detail.invoice_status)}</span></div><div class="card-content"><div class="table-container invoice-payment-history"><p class="invoice-table-section-title">Payments</p><table class="table"><thead><tr class="table-row invoice-payment-columns"><th class="table-head">Payment</th><th class="table-head">Date</th><th class="table-head">User</th><th class="table-head">Method</th><th class="table-head">Amount</th><th class="table-head">Status</th></tr></thead><tbody><tr :if={@detail.payments == []} class="table-row"><td class="table-cell muted" colspan="6">No payments recorded.</td></tr><tr :for={payment <- @detail.payments} class="table-row"><td class="table-cell">Payment</td><td class="table-cell">{date_time(payment.date_create)}</td><td class="table-cell">{payment.login || @detail.login || "—"}</td><td class="table-cell">{if payment.type == "CC", do: "Card", else: "Cash"}</td><td class="table-cell numeric">{money(payment.amount)}</td><td class="table-cell">{if @detail.invoice_status == "close", do: "Complete", else: "Partial"}</td></tr></tbody></table></div><div class="table-container"><p class="invoice-table-section-title">Line items</p><table class="table invoice-detail-lines"><thead><tr class="table-row invoice-line-columns"><th class="table-head">Product</th><th class="table-head">Quantity</th><th class="table-head">Unit price</th><th class="table-head">Discount</th><th class="table-head">Total</th></tr></thead><tbody><tr :for={line <- @detail.lines} class="table-row"><td class="table-cell">{line.product && line.product.name || "—"}</td><td class="table-cell numeric">{line.quantity}</td><td class="table-cell numeric">{money(line.amount)}</td><td class="table-cell numeric">{discount_display(line.discount, line.discount_type, line.discount_input)}</td><td class="table-cell numeric">{money(line.total_amount)}</td></tr></tbody><tfoot><tr class="table-row invoice-line-summary"><td class="table-cell" colspan="3"></td><th class="table-cell">Subtotal</th><td class="table-cell numeric">{money(@detail.sub)}</td></tr><tr class="table-row invoice-line-summary"><td class="table-cell" colspan="3"></td><th class="table-cell">Tax</th><td class="table-cell numeric">{money(@detail.tax_amount)}</td></tr><tr :if={decimal(@detail.delivery_charge) > 0} class="table-row invoice-line-summary"><td class="table-cell" colspan="3"></td><th class="table-cell">Delivery</th><td class="table-cell numeric">{money(@detail.delivery_charge)}</td></tr><tr class="table-row invoice-line-summary invoice-line-summary-total"><td class="table-cell" colspan="3"></td><th class="table-cell">Total</th><td class="table-cell numeric">{money(@detail.amount)}</td></tr></tfoot></table></div><section :if={@detail.additional_info && String.trim(@detail.additional_info) != ""} class="invoice-memo"><p class="invoice-memo-text">{@detail.additional_info}</p><div class="invoice-memo-salesperson"><span class="avatar invoice-memo-avatar">{String.first((@detail.salesperson && @detail.salesperson.name) || @detail.login || "?")}</span>{(@detail.salesperson && @detail.salesperson.name) || @detail.login || "—"}</div></section></div><% end %></section></td></tr>
+    <tr class="table-row invoice-details-row"><td class="table-cell" colspan="8"><section class="card invoice-details-card"><.invoice_details_skeleton :if={is_nil(@detail)} /><%= if @detail do %><div class="card-header"><div><h3 class="card-title">{@detail.sequence || "Invoice ##{@detail.id}"}</h3><p class="card-description">{(@detail.client && @detail.client.name) || "Walk-in customer"} · {@detail.sale_type || "Sales"} · {@detail.login || "—"}</p></div><.payment_form :if={@detail.invoice_status == "open"} detail={@detail} methods={@methods}/><span :if={@detail.invoice_status in ["close", "cancelled"]} class={["invoice-status", "invoice-detail-status", "invoice-status-#{@detail.invoice_status}"]}>{status_label(@detail.invoice_status)}</span></div><div class="card-content"><div class="table-container invoice-payment-history"><p class="invoice-table-section-title">Payments</p><table class="table"><thead><tr class="table-row invoice-payment-columns"><th class="table-head">Payment</th><th class="table-head">Date</th><th class="table-head">User</th><th class="table-head">Method</th><th class="table-head">Amount</th><th class="table-head">Status</th></tr></thead><tbody><tr :if={@detail.payments == []} class="table-row"><td class="table-cell muted" colspan="6">No payments recorded.</td></tr><tr :for={payment <- @detail.payments} class="table-row"><td class="table-cell">Payment</td><td class="table-cell">{date_time(payment.date_create)}</td><td class="table-cell">{payment.login || @detail.login || "—"}</td><td class="table-cell">{if payment.type == "CC", do: "Credit Card", else: "Cash"}</td><td class="table-cell numeric">{money(payment.amount)}</td><td class="table-cell">{if @detail.invoice_status == "close", do: "Complete", else: "Partial"}</td></tr></tbody></table></div><div class="table-container"><p class="invoice-table-section-title">Line items</p><table class="table invoice-detail-lines"><thead><tr class="table-row invoice-line-columns"><th class="table-head">Product</th><th class="table-head">Quantity</th><th class="table-head">Unit price</th><th class="table-head">Discount</th><th class="table-head">Total</th></tr></thead><tbody><tr :for={line <- @detail.lines} class="table-row"><td class="table-cell">{line.product && line.product.name || "—"}</td><td class="table-cell numeric">{line.quantity}</td><td class="table-cell numeric">{money(line.amount)}</td><td class="table-cell numeric">{discount_display(line.discount, line.discount_type, line.discount_input)}</td><td class="table-cell numeric">{money(line.total_amount)}</td></tr></tbody><tfoot><tr class="table-row invoice-line-summary"><td class="table-cell" colspan="3"></td><th class="table-cell">Subtotal</th><td class="table-cell numeric">{money(@detail.sub)}</td></tr><tr class="table-row invoice-line-summary"><td class="table-cell" colspan="3"></td><th class="table-cell">Tax</th><td class="table-cell numeric">{money(@detail.tax_amount)}</td></tr><tr :if={decimal(@detail.delivery_charge) > 0} class="table-row invoice-line-summary"><td class="table-cell" colspan="3"></td><th class="table-cell">Delivery</th><td class="table-cell numeric">{money(@detail.delivery_charge)}</td></tr><tr class="table-row invoice-line-summary invoice-line-summary-total"><td class="table-cell" colspan="3"></td><th class="table-cell">Total</th><td class="table-cell numeric">{money(@detail.amount)}</td></tr></tfoot></table></div><section :if={@detail.additional_info && String.trim(@detail.additional_info) != ""} class="invoice-memo"><p class="invoice-memo-text">{@detail.additional_info}</p><div class="invoice-memo-salesperson"><span class="avatar invoice-memo-avatar">{String.first((@detail.salesperson && @detail.salesperson.name) || @detail.login || "?")}</span>{(@detail.salesperson && @detail.salesperson.name) || @detail.login || "—"}</div></section></div><% end %></section></td></tr>
     """
   end
 
@@ -256,7 +278,7 @@ defmodule PosServerWeb.InvoiceReportLive do
   attr :methods, :map, required: true
   defp payment_form(assigns) do
     ~H"""
-    <form class="invoice-payment" phx-submit="add_payment"><input type="hidden" name="_id" value={@detail.id}/><div class="invoice-payment-row"><div class="invoice-payment-amount"><label class="sr-only" for={"invoice-payment-#{@detail.id}"}>Payment amount</label><input id={"invoice-payment-#{@detail.id}"} class="input numeric" name="amount" type="number" min="0.01" max={decimal(@detail.due_balance)} step="0.01" required/></div><.method_buttons id={@detail.id} row="partial" methods={@methods}/><button class="btn" type="submit" name="row" value="partial" data-variant="outline">Apply</button></div><div class="invoice-payment-row invoice-payment-payoff"><input class="input numeric" value={money(@detail.due_balance)} readonly/><.method_buttons id={@detail.id} row="payoff" methods={@methods}/><button class="btn" type="submit" name="row" value="payoff" formnovalidate data-variant="default">Pay off</button></div></form>
+    <form class="invoice-payment" phx-submit="add_payment"><input type="hidden" name="_id" value={@detail.id}/><div class="invoice-payment-row"><div class="invoice-payment-amount"><label class="sr-only" for={"invoice-payment-#{@detail.id}"}>Payment amount</label><input id={"invoice-payment-#{@detail.id}"} class="input numeric" name="amount" value="0" type="number" min="0.01" max={decimal(@detail.due_balance)} step="0.01" required/></div><.method_buttons id={@detail.id} row="partial" methods={@methods}/><button class="btn" type="submit" name="row" value="partial" data-variant="outline" phx-disable-with="Apply">Apply</button></div><div class="invoice-payment-row invoice-payment-payoff"><input class="input numeric" value={money(@detail.due_balance)} readonly/><.method_buttons id={@detail.id} row="payoff" methods={@methods}/><button class="btn" type="submit" name="row" value="payoff" formnovalidate data-variant="default" phx-disable-with="Pay off">Pay off</button></div></form>
     """
   end
   attr :id, :integer, required: true
@@ -265,20 +287,20 @@ defmodule PosServerWeb.InvoiceReportLive do
   defp method_buttons(assigns) do
     selected = Map.get(assigns.methods, {assigns.id, assigns.row}, "CASH"); assigns = assign(assigns, :selected, selected)
     ~H"""
-    <div class="invoice-payment-methods sequence-options" role="group" aria-label="Payment method"><button :for={{type, label} <- [{"CASH", "Cash"}, {"CC", "Card"}]} class="btn" type="button" data-variant={if @selected == type, do: "default", else: "secondary"} phx-click="select_payment_method" phx-value-id={@id} phx-value-row={@row} phx-value-type={type} aria-pressed={to_string(@selected == type)}>{label}</button></div>
+    <div class="invoice-payment-methods sequence-options" role="group" aria-label="Payment method"><button :for={{type, label} <- [{"CASH", "Cash"}, {"CC", "Credit Card"}]} class="btn" type="button" data-variant={if @selected == type, do: "default", else: "secondary"} phx-click="select_payment_method" phx-value-id={@id} phx-value-row={@row} phx-value-type={type} aria-pressed={to_string(@selected == type)}>{label}</button></div>
     """
   end
 
   defp skeleton_rows(assigns) do
     ~H"""
-    <tr :for={_ <- 1..6} class="table-row skeleton-table-row"><td :for={_ <- 1..8} class="table-cell"><span class="skeleton-line"></span></td></tr>
+    <.table_skeleton_rows rows={6} columns={8} />
     """
   end
   attr :month, :any, required: true
   attr :range, :map, required: true
-  defp calendar_dialog(assigns) do
+  defp calendar_popover(assigns) do
     ~H"""
-    <dialog id="invoice-date-range-dialog" class="dialog" data-size="sm" open role="dialog" aria-modal="true" aria-labelledby="invoice-date-range-title"><div class="dialog-content"><div class="dialog-header"><h2 id="invoice-date-range-title" class="dialog-title">Select date range</h2><p class="dialog-description">{if @range.from != "" && @range.to == "", do: "Choose an end date.", else: "Choose a start date, then an end date."}</p></div><hr class="separator"/><div class="calendar-header"><button class="btn" type="button" data-variant="ghost" data-size="icon-sm" phx-click="calendar_month" phx-value-direction="previous" aria-label="Previous month">‹</button><h3 class="h4">{Calendar.strftime(@month, "%B %Y")}</h3><button class="btn" type="button" data-variant="ghost" data-size="icon-sm" phx-click="calendar_month" phx-value-direction="next" aria-label="Next month">›</button></div><div class="calendar-weekdays" aria-hidden="true"><span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span></div><div class="calendar-grid" role="grid"><span :for={_ <- calendar_blanks(@month)}></span><button :for={date <- Date.range(@month, month_end(@month))} class="btn calendar-day" data-range={calendar_day_class(date, @range)} type="button" data-variant="ghost" data-size="icon-sm" phx-click="select_date" phx-value-date={Date.to_iso8601(date)} aria-selected={to_string(Date.to_iso8601(date) in [@range.from, @range.to])}>{date.day}</button></div><div class="dialog-footer"><button class="btn" type="button" data-variant="ghost" phx-click="clear_range">Clear</button><button class="btn" type="button" data-variant="outline" phx-click="close_calendar">Cancel</button><button class="btn" type="button" data-variant="default" phx-click="apply_range">Apply range</button></div></div></dialog>
+    <div id="invoice-date-range-dialog" class="invoice-date-popover" role="dialog" aria-modal="false" aria-labelledby="invoice-date-range-title"><div class="dialog-content"><div class="dialog-header"><h2 id="invoice-date-range-title" class="dialog-title">Select date range</h2><p class="dialog-description">{if @range.from != "" && @range.to == "", do: "Choose an end date.", else: "Choose a start date, then an end date."}</p></div><hr class="separator"/><div class="calendar-header"><button class="btn" type="button" data-variant="ghost" data-size="icon-sm" phx-click="calendar_month" phx-value-direction="previous" aria-label="Previous month">‹</button><h3 class="h4">{Calendar.strftime(@month, "%B %Y")}</h3><button class="btn" type="button" data-variant="ghost" data-size="icon-sm" phx-click="calendar_month" phx-value-direction="next" aria-label="Next month">›</button></div><div class="calendar-weekdays" aria-hidden="true"><span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span></div><div class="calendar-grid" role="grid"><span :for={_ <- calendar_blanks(@month)}></span><button :for={date <- Date.range(@month, month_end(@month))} class="btn calendar-day" data-range={calendar_day_class(date, @range)} type="button" data-variant="ghost" data-size="icon-sm" phx-click="select_date" phx-value-date={Date.to_iso8601(date)} aria-selected={to_string(Date.to_iso8601(date) in [@range.from, @range.to])}>{date.day}</button></div><div class="dialog-footer"><button class="btn" type="button" data-variant="ghost" phx-click="clear_range">Clear</button><button class="btn" type="button" data-variant="outline" phx-click="close_calendar">Cancel</button><button class="btn" type="button" data-variant="default" phx-click="apply_range">Apply range</button></div></div></div>
     """
   end
   attr :invoice, :any, required: true
@@ -292,9 +314,16 @@ defmodule PosServerWeb.InvoiceReportLive do
     if from != "" and to != "" and value > from and value < to, do: "middle", else: nil
   end
   defp range_label("", _), do: "Any date"
-  defp range_label(from, ""), do: from
-  defp range_label(from, to), do: "#{from} – #{to}"
+  defp range_label(from, ""), do: format_range_date(from)
+  defp range_label(from, to), do: "#{format_range_date(from)} – #{format_range_date(to)}"
+  defp format_range_date(value), do: value |> Date.from_iso8601!() |> Calendar.strftime("%b %-d, %Y")
   defp discount_display(_discount, "percentage", input) when not is_nil(input), do: "#{input}%"
   defp discount_display(discount, _, _) when discount in [nil, 0, 0.0], do: "-"
   defp discount_display(discount, _, _), do: money(discount)
+  defp selected_store(stores, selected_id) do
+    case Integer.parse(to_string(selected_id || "")) do
+      {id, ""} -> Enum.find(stores, List.first(stores), &(&1.id == id))
+      _ -> List.first(stores)
+    end
+  end
 end

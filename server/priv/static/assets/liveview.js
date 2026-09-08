@@ -2,6 +2,7 @@ import { LiveSocket } from "/liveview-client.js";
 
 const csrfToken = document.querySelector("meta[name='csrf-token']")?.getAttribute("content");
 const hooks = {
+  LoginScreen: window.LoginScreenHook,
   CompanySettings: window.CompanySettingsHook,
   InfiniteInvoices: {
     mounted() {

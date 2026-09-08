@@ -2,6 +2,8 @@ defmodule PosServerWeb.InventoryLive do
   @moduledoc false
   use PosServerWeb, :live_view
 
+  import PosServerWeb.PosLayoutComponents
+
   alias PosServer.{Authentication, InventoryEvents, TenantContext}
   alias PosServer.Accounts.Scope
   alias PosServer.Retaily.{InventoryContext, Orders, ProductCatalog, Sql}
@@ -15,7 +17,7 @@ defmodule PosServerWeb.InventoryLive do
          true <- Scope.allowed?(scope, "inventory.view"),
          _ <- TenantContext.put_tenant(scope.tenant),
          {:ok, stores} <- InventoryContext.stores(scope),
-         %{id: store_id} <- List.first(stores) do
+         %{id: store_id} <- selected_store(stores, session["store_id"]) do
       socket =
         socket
         |> assign(:page_title, "Tigoo Inventory")
@@ -44,7 +46,7 @@ defmodule PosServerWeb.InventoryLive do
       if connected?(socket), do: InventoryEvents.subscribe(scope.tenant, store_id)
       {:ok, socket}
     else
-      _ -> {:ok, socket |> put_flash(:error, "Inventory access is required.") |> redirect(to: ~p"/")}
+      _ -> {:ok, socket |> put_flash(:error, "Inventory access is required.") |> redirect(to: ~p"/pos/login")}
     end
   end
 
@@ -320,14 +322,7 @@ defmodule PosServerWeb.InventoryLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <main id="inventory-live" class="pos-shell invoice-view">
-      <nav class="sidebar-rail" aria-label="Primary navigation">
-        <a class="sidebar-link" href={~p"/pos"} aria-label="POS">▣</a>
-        <a class="sidebar-link" href={~p"/pos/invoices"} aria-label="Invoice report">▤</a>
-        <a class="sidebar-link" href={~p"/pos/inventory"} aria-current="page" aria-label="Inventory">▱</a>
-        <a class="sidebar-link" href={~p"/pos/orders"} aria-label="Purchase orders">▤</a>
-        <a :if={Scope.allowed?(@scope, "company.settings")} id="company-settings-nav" class="sidebar-link" href={~p"/pos/company-settings"} aria-label="Company settings"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 2-5h14l2 5"/><path d="M3 9h18v11H3z"/><path d="M7 20v-6h4v6"/><path d="M3 9c0 2 2 3 4 3s4-1 4-3c0 2 2 3 4 3s4-1 4-3"/></svg></a>
-      </nav>
+    <.pos_layout id="inventory-live" class="pos-shell invoice-view" active_page={:inventory} scope={@scope} stores={@stores} store_id={@store_id}>
       <section class="catalog-panel" data-view="inventory" aria-labelledby="inventory-title">
         <section id="inventory-screen" class="operations-screen" aria-labelledby="inventory-title">
           <div class="operations-fixed">
@@ -376,7 +371,7 @@ defmodule PosServerWeb.InventoryLive do
           </form>
         </div>
       </dialog>
-    </main>
+    </.pos_layout>
     """
   end
 
@@ -389,4 +384,10 @@ defmodule PosServerWeb.InventoryLive do
   defp sort_aria(sort, key) when sort.key == key, do: if(sort.direction == :asc, do: "ascending", else: "descending")
   defp sort_aria(_, _), do: "none"
   defp active_store(assigns), do: Enum.find_value(assigns.stores, "", fn store -> if store.id == assigns.store_id, do: store.name end)
+  defp selected_store(stores, selected_id) do
+    case Integer.parse(to_string(selected_id || "")) do
+      {id, ""} -> Enum.find(stores, List.first(stores), &(&1.id == id))
+      _ -> List.first(stores)
+    end
+  end
 end

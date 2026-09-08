@@ -1,8 +1,9 @@
 defmodule PosServerWeb.PosLive do
   use PosServerWeb, :live_view
 
+  import PosServerWeb.PosLayoutComponents
+
   alias PosServer.{Authentication, InventoryEvents, TenantContext}
-  alias PosServer.Accounts.Scope
   alias PosServer.Retaily.{InventoryContext, Sales, Sql}
 
   @impl true
@@ -11,7 +12,7 @@ defmodule PosServerWeb.PosLive do
          {:ok, scope} <- Authentication.authenticate(token),
          _tenant <- TenantContext.put_tenant(scope.tenant),
          {:ok, stores} <- InventoryContext.stores(scope) do
-      store = List.first(stores)
+      store = selected_store(stores, session["store_id"])
 
       socket =
         socket
@@ -50,7 +51,7 @@ defmodule PosServerWeb.PosLive do
       if connected?(socket) and store, do: InventoryEvents.subscribe(scope.tenant, store.id)
       {:ok, socket}
     else
-      _ -> {:ok, socket |> put_flash(:error, "Sign in is required to use POS.") |> redirect(to: ~p"/")}
+      _ -> {:ok, socket |> put_flash(:error, "Sign in is required to use POS.") |> redirect(to: ~p"/pos/login")}
     end
   end
 
@@ -208,7 +209,8 @@ defmodule PosServerWeb.PosLive do
     # delivery changes recalculate checkout totals and payment balances at once.
     assigns = Map.put(assigns, :socket, assigns)
     ~H"""
-    <main id="pos-live" class="pos-shell" phx-hook="PosShell" data-mobile-cart-open={to_string(@mobile_cart_open)} data-checkout-stage={@checkout_stage || ""}>
+    <.pos_layout id="pos-live" class="pos-shell" active_page={:pos} scope={@scope} stores={@stores} store_id={@store_id} phx-hook="PosShell" data-mobile-cart-open={to_string(@mobile_cart_open)} data-checkout-stage={@checkout_stage || ""}>
+      <:before_layout>
       <svg class="navigation-icon-sprite" aria-hidden="true" focusable="false">
         <symbol id="ui-icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></symbol>
       </svg>
@@ -236,22 +238,7 @@ defmodule PosServerWeb.PosLive do
           </div>
         </div>
       </div>
-      <nav class="sidebar-rail" aria-label="Primary navigation">
-        <a class="sidebar-link" href="#" aria-current="page" aria-label="POS"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3z"/><path d="M7 7h10v10H7z"/></svg></a>
-        <button class="sidebar-link" type="button" aria-label="Customers"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></button>
-        <a class="sidebar-link" href={~p"/pos/invoices"} aria-label="Invoice report"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 2v20h16"/><path d="M8 6h8M8 10h8M8 14h5"/></svg></a>
-        <a class="sidebar-link" href={~p"/pos/inventory"} aria-label="Inventory"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5M3 16l9 5 9-5"/></svg></a>
-        <a class="sidebar-link" href={~p"/pos/orders"} aria-label="Purchase orders"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l3 3v17H6z"/><path d="M9 10h6M9 14h6"/></svg></a>
-        <a :if={Scope.allowed?(@scope, "company.settings")} id="company-settings-nav" class="sidebar-link" href={~p"/pos/company-settings"} aria-label="Company settings"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 2-5h14l2 5"/><path d="M3 9h18v11H3z"/><path d="M7 20v-6h4v6"/><path d="M3 9c0 2 2 3 4 3s4-1 4-3c0 2 2 3 4 3s4-1 4-3"/></svg></a>
-        <details class="sidebar-menu sidebar-store-selector"><summary class="sidebar-menu-trigger" aria-label="Choose active store">⌂</summary><div class="user-menu-content sidebar-menu-content" role="group" aria-label="Active store"><button :for={store <- @stores} class="sidebar-menu-action" type="button" phx-click="change_store" phx-value-store_id={store.id} aria-pressed={to_string(store.id == @store_id)}>{store.name}</button></div></details>
-        <details class="sidebar-menu sidebar-theme-selector"><summary class="sidebar-menu-trigger" aria-label="Choose theme">◐</summary><div class="user-menu-content sidebar-menu-content"><button class="sidebar-menu-action" type="button" phx-click={JS.dispatch("pos:set-theme", detail: %{theme: "default-light"})}>Default Light</button></div></details>
-      </nav>
-      <div class="status-strip" aria-label="System status">
-        <span class="session-store-status" aria-live="polite">{@scope.login}</span>
-        <details class="language-switcher"><summary aria-label="Change display language"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 3.7 5.5 3.7 9S14.5 18.5 12 21c-2.5-2.5-3.7-5.5-3.7-9S9.5 5.5 12 3Z"/></svg></summary><div class="language-menu" role="group"><button type="button">English</button><button type="button">Español</button><button type="button">Português</button></div></details>
-        <svg class="printer-status connected" role="img" aria-label="Printer available" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v7H6z"/></svg>
-        <svg class="network-status" role="img" aria-label="Network status available" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/></svg>
-      </div>
+      </:before_layout>
       <section class="catalog-panel" aria-labelledby="pos-title" inert={if @mobile_cart_open, do: true}>
         <div :if={is_nil(@checkout_stage) and @dialog != :customer_picker} class="catalog-content">
           <header class="topbar"><div class="brand-lockup"><span class="brand-mark">T</span><div><p class="eyebrow">Tigoo</p><h1 id="pos-title">Point of Sale — {active_store_name(assigns)}</h1></div></div><button class="btn mobile-topbar-cart" type="button" phx-click="open_mobile_cart" aria-label="Open current sale">🛒<span :if={items(assigns) > 0} class="mobile-cart-count">{items(assigns)}</span></button><div class="topbar-search"><div class="search-field"><svg class="search-icon" aria-hidden="true"><use href="#ui-icon-search"/></svg><input id="product-search" class="input" type="search" value={@product_search} phx-keyup="search_products" phx-debounce="0" placeholder="Search products or scan a barcode" autocomplete="off"/><button :if={@product_search != ""} class="btn search-clear" type="button" phx-click="clear_product_search">×</button></div><button class="btn" type="button" data-variant="outline" data-size="icon" phx-click={JS.focus(to: "#product-search")} aria-label="Focus product search"><svg aria-hidden="true"><use href="#ui-icon-search"/></svg></button></div></header>
@@ -263,7 +250,7 @@ defmodule PosServerWeb.PosLive do
               <div :if={!product.image_raw} class="product-image product-image-placeholder" aria-hidden="true">{String.first(product.name || "?")}</div>
               <div class="card-content product-content"><h2 class="card-title product-name">{product.name || "Unnamed product"}</h2><p class="product-code">{if product.code, do: "SKU #{product.code}", else: "Tap to add"}</p><div class="product-footer"><strong class="product-price numeric">{money(float(product.price))}</strong><span class={["inventory-badge", if(float(product.inventory_quantity) <= 0, do: "inventory-badge-low")]}>Stock {product.inventory_quantity || 0}</span></div></div>
             </article>
-            <article :for={_ <- if(@loading_products and @products == [], do: 1..8, else: [])} class="card product product-skeleton-card"><div class="skeleton product-skeleton-image"></div><div class="card-content product-content"><i class="skeleton skeleton-line"></i><i class="skeleton skeleton-line"></i></div></article>
+            <.product_skeleton_cards :if={@loading_products and @products == []} />
           </div>
           <div id="products-sentinel" phx-hook="InfiniteCatalog" aria-hidden="true"></div>
         </div>
@@ -341,7 +328,7 @@ defmodule PosServerWeb.PosLive do
           <div class="dialog-footer"><button class="btn" type="button" data-variant="outline" phx-click="close_dialog">Close</button></div>
         </div>
       </dialog>
-    </main>
+    </.pos_layout>
     """
   end
 
@@ -609,6 +596,12 @@ defmodule PosServerWeb.PosLive do
   end
 
   defp value(map, key), do: Map.get(map, key) || Map.get(map, Atom.to_string(key))
+  defp selected_store(stores, selected_id) do
+    case Integer.parse(to_string(selected_id || "")) do
+      {id, ""} -> Enum.find(stores, List.first(stores), &(&1.id == id))
+      _ -> List.first(stores)
+    end
+  end
   defp state(%{assigns: assigns}), do: assigns
   defp state(assigns), do: assigns
   defp sync(socket), do: assign(socket, :pos_state, Map.drop(socket.assigns, [:pos_state]))

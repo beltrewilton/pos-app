@@ -24,4 +24,13 @@ defmodule PosServerWeb.LiveViewAssetController do
     |> put_resp_header("cache-control", "no-cache")
     |> send_file(200, path)
   end
+
+  def login_css(conn, _params) do
+    path = Path.expand("../../../../client/src/css/login.css", __DIR__)
+
+    conn
+    |> put_resp_content_type("text/css")
+    |> put_resp_header("cache-control", "no-cache")
+    |> send_file(200, path)
+  end
 end

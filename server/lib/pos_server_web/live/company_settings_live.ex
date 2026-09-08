@@ -2,6 +2,8 @@ defmodule PosServerWeb.CompanySettingsLive do
   @moduledoc false
   use PosServerWeb, :live_view
 
+  import PosServerWeb.PosLayoutComponents
+
   alias PosServer.{Authentication, TenantContext}
   alias PosServer.Accounts.Scope
   alias PosServer.Retaily.CompanySettings
@@ -20,6 +22,8 @@ defmodule PosServerWeb.CompanySettingsLive do
        |> assign(:page_title, "Tigoo Company settings")
        |> assign(:scope, scope)
        |> assign(:overview, overview)
+       |> assign(:stores, overview.stores)
+       |> assign(:store_id, selected_store_id(overview.stores, session["store_id"]))
        |> assign(:editing, nil)
        |> assign(:status, "")}
     else
@@ -40,6 +44,15 @@ defmodule PosServerWeb.CompanySettingsLive do
   end
 
   def handle_event("cancel", _, socket), do: {:noreply, socket |> assign(:editing, nil) |> assign(:status, "")}
+
+  def handle_event("change_store", %{"store_id" => id}, socket) do
+    with {store_id, ""} <- Integer.parse(id),
+         true <- Enum.any?(socket.assigns.stores, &(&1.id == store_id)) do
+      {:noreply, assign(socket, :store_id, store_id)}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "The selected store is unavailable.")}
+    end
+  end
 
   def handle_event("save", %{"kind" => kind} = params, socket) when kind in @kinds do
     result =
@@ -81,15 +94,7 @@ defmodule PosServerWeb.CompanySettingsLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <main id="company-settings-live" class="pos-shell invoice-view" phx-hook="CompanySettings" data-editing={editing_key(@editing)}>
-      <svg class="navigation-icon-sprite" aria-hidden="true" focusable="false"><symbol id="nav-icon-pos" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z"/><path d="M7 7h10v10H7z"/></symbol><symbol id="nav-icon-sales" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20h16"/><path d="M8 6h8M8 10h8M8 14h5"/></symbol><symbol id="nav-icon-inventory" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 7 9-4 9 4-9 4-9-4Z"/><path d="m3 12 9 4 9-4M3 17l9 4 9-4"/></symbol><symbol id="nav-icon-orders" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l3 3v17H6z"/><path d="M15 2v4h4M9 12h6M9 16h6"/></symbol><symbol id="nav-icon-company" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 2-5h14l2 5"/><path d="M3 9h18v11H3z"/><path d="M7 20v-6h4v6"/><path d="M3 9c0 2 2 3 4 3s4-1 4-3c0 2 2 3 4 3s4-1 4-3"/></symbol></svg>
-      <nav class="sidebar-rail" aria-label="Primary navigation">
-        <a id="pos-nav" class="sidebar-link" href={~p"/pos"} aria-label="POS"><svg aria-hidden="true"><use href="#nav-icon-pos"/></svg></a>
-        <a id="sales-report-nav" class="sidebar-link" href={~p"/pos/invoices"} aria-label="Invoice report"><svg aria-hidden="true"><use href="#nav-icon-sales"/></svg></a>
-        <a id="inventory-nav" class="sidebar-link" href={~p"/pos/inventory"} aria-label="Inventory"><svg aria-hidden="true"><use href="#nav-icon-inventory"/></svg></a>
-        <a id="orders-nav" class="sidebar-link" href={~p"/pos/orders"} aria-label="Purchase orders"><svg aria-hidden="true"><use href="#nav-icon-orders"/></svg></a>
-        <a id="company-settings-nav" class="sidebar-link" href={~p"/pos/company-settings"} aria-current="page" aria-label="Company settings"><svg aria-hidden="true"><use href="#nav-icon-company"/></svg></a>
-      </nav>
+    <.pos_layout id="company-settings-live" class="pos-shell invoice-view" active_page={:company_settings} scope={@scope} stores={@stores} store_id={@store_id} phx-hook="CompanySettings" data-editing={editing_key(@editing)}>
       <section class="catalog-panel" data-view="company-settings" aria-labelledby="company-settings-title">
         <section id="company-settings-screen" class="company-settings-screen" aria-labelledby="company-settings-title">
           <div class="company-settings-fixed">
@@ -105,7 +110,7 @@ defmodule PosServerWeb.CompanySettingsLive do
           </div>
         </section>
       </section>
-    </main>
+    </.pos_layout>
     """
   end
 
@@ -176,7 +181,10 @@ defmodule PosServerWeb.CompanySettingsLive do
 
   defp reload(socket) do
     case CompanySettings.overview(socket.assigns.scope) do
-      {:ok, overview} -> assign(socket, :overview, overview)
+      {:ok, overview} ->
+        stores = overview.stores
+        store_id = selected_store_id(stores, socket.assigns.store_id)
+        assign(socket, overview: overview, stores: stores, store_id: store_id)
       _ -> assign(socket, :status, "Company settings could not be loaded.")
     end
   end
@@ -199,6 +207,14 @@ defmodule PosServerWeb.CompanySettingsLive do
       _ -> 0
     end
   end
+
+  defp selected_store_id(stores, selected_id) do
+    case Integer.parse(to_string(selected_id || "")) do
+      {id, ""} -> if(Enum.any?(stores, &(&1.id == id)), do: id, else: stores |> List.first() |> then(&(&1 && &1.id)))
+      _ -> stores |> List.first() |> then(&(&1 && &1.id))
+    end
+  end
+
   defp entry(overview, "price-list", id), do: Enum.find(overview.price_lists, &(&1.id == id))
   defp entry(overview, "store", id), do: Enum.find(overview.stores, &(&1.id == id))
   defp entry(overview, "provider", id), do: Enum.find(overview.providers, &(&1.id == id))
