@@ -41,6 +41,8 @@ const hooks = {
     },
     destroyed() { this.observer?.disconnect(); }
   },
+  PurchaseOrderLines: purchaseOrderLinesHook(),
+  OrderProductDialog: dialogHook(),
   PosTheme: {
     mounted() {
       this.onTheme = event => document.documentElement.dataset.theme = event.detail.theme;
@@ -324,3 +326,31 @@ const liveSocket = new LiveSocket("/live", window.Phoenix.Socket, {
 
 liveSocket.connect();
 window.liveSocket = liveSocket;
+
+function dialogHook() {
+  return { mounted() { this.el.showModal(); this.el.addEventListener("cancel", event => event.preventDefault()); this.el.addEventListener("click", event => { if (event.target === this.el) event.preventDefault(); }); } };
+}
+function purchaseOrderLinesHook() {
+  return { mounted() { initializePurchaseOrderLines(this); }, updated() { initializePurchaseOrderLines(this); if (!this.focusNewLine) return; this.focusNewLine = false; this.el.querySelector("[data-order-line]:last-child [role='combobox']")?.focus(); } };
+}
+function initializePurchaseOrderLines(hook) {
+  hook.boundLines ||= new WeakSet();
+  const form = hook.el.closest("form");
+  if (form && !form.dataset.purchaseOrderComboboxGuard) {
+    form.dataset.purchaseOrderComboboxGuard = "true";
+    form.addEventListener("keydown", event => { if (event.key === "Enter" && event.target.matches("[role='combobox']")) event.preventDefault(); }, true);
+    form.addEventListener("submit", event => { if (form.dataset.comboboxSelecting !== "true") return; event.preventDefault(); event.stopImmediatePropagation(); }, true);
+  }
+  hook.el.querySelectorAll("[data-order-line]").forEach(line => {
+    if (hook.boundLines.has(line)) return;
+    hook.boundLines.add(line);
+    const input = line.querySelector("[role='combobox']"), list = line.querySelector("[role='listbox']"), options = () => [...list.querySelectorAll("[role='option']")]; let matches = [], active = -1;
+    const render = () => { const query = input.value.trim().toLowerCase(); matches = options().filter(option => `${option.dataset.productName} ${option.dataset.productCode}`.toLowerCase().includes(query)).slice(0, 50); options().forEach(option => { option.hidden = !matches.includes(option); option.setAttribute("aria-selected", String(matches[active] === option)); }); list.hidden = matches.length === 0; input.setAttribute("aria-expanded", String(matches.length > 0)); input.setAttribute("aria-activedescendant", active >= 0 ? matches[active]?.id || "" : ""); };
+    const close = () => { active = -1; list.hidden = true; input.setAttribute("aria-expanded", "false"); };
+    const choose = option => { if (!option) return; form && (form.dataset.comboboxSelecting = "true"); window.setTimeout(() => { if (form) delete form.dataset.comboboxSelecting; }, 300); input.value = option.dataset.productCode ? `${option.dataset.productName} · ${option.dataset.productCode}` : option.dataset.productName; close(); hook.pushEvent("line_product", {id: line.dataset.lineId, product_id: option.dataset.productId}); line.querySelector("[aria-label='Requested quantity']")?.focus(); };
+    input.addEventListener("input", () => { active = -1; render(); }); input.addEventListener("focus", render);
+    input.addEventListener("keydown", event => { if (["ArrowDown", "ArrowUp"].includes(event.key)) { event.preventDefault(); render(); active = event.key === "ArrowUp" && active < 0 ? matches.length - 1 : Math.max(0, Math.min(matches.length - 1, active + (event.key === "ArrowDown" ? 1 : -1))); render(); } else if (event.key === "Home" && matches.length) { event.preventDefault(); active = 0; render(); } else if (event.key === "End" && matches.length) { event.preventDefault(); active = matches.length - 1; render(); } else if (event.key === "Enter" && matches.length) { event.preventDefault(); choose(matches[Math.max(active, 0)]); } else if (event.key === "Escape") close(); });
+    input.addEventListener("blur", () => setTimeout(close, 120)); options().forEach(option => option.addEventListener("pointerdown", event => { event.preventDefault(); event.stopPropagation(); choose(option); }));
+    const quantity = line.querySelector("[aria-label='Requested quantity']"); quantity?.addEventListener("keydown", event => { if (event.key !== "Enter") return; event.preventDefault(); if (line.querySelector("[aria-label='Edit selected product']")?.disabled || !quantity.validity.valid) return; hook.focusNewLine = true; hook.pushEvent("add_line", {}); });
+  });
+}
