@@ -32,8 +32,8 @@ defmodule PosServerWeb.InvoiceReportLive do
        |> assign(:loading?, false)
        |> assign(:load_error?, false)
        |> assign(:search, "")
-       |> assign(:date_from, "")
-       |> assign(:date_to, "")
+       |> assign(:date_from, Date.to_iso8601(Date.utc_today()))
+       |> assign(:date_to, Date.to_iso8601(Date.utc_today()))
        |> assign(:status_filter, "")
        |> assign(:sort, %{key: "date_create", direction: :desc})
        |> assign(:expanded_id, nil)
@@ -41,7 +41,7 @@ defmodule PosServerWeb.InvoiceReportLive do
        |> assign(:payment_methods, %{})
        |> assign(:calendar_open?, false)
        |> assign(:calendar_month, month_start(Date.utc_today()))
-       |> assign(:pending_range, %{from: "", to: ""})
+       |> assign(:pending_range, %{from: Date.to_iso8601(Date.utc_today()), to: Date.to_iso8601(Date.utc_today())})
        |> assign(:cancel_id, nil)
        |> assign(:status, "Loading invoices…")
        |> load_page(true)}
@@ -127,7 +127,8 @@ defmodule PosServerWeb.InvoiceReportLive do
   end
 
   def handle_event("open_calendar", _, socket) do
-    range = %{from: socket.assigns.date_from, to: socket.assigns.date_to}
+    today = Date.to_iso8601(Date.utc_today())
+    range = if socket.assigns.date_from == "" and socket.assigns.date_to == "", do: %{from: today, to: ""}, else: %{from: socket.assigns.date_from, to: socket.assigns.date_to}
     month = if range.from != "", do: month_start(Date.from_iso8601!(range.from)), else: month_start(Date.utc_today())
     {:noreply, assign(socket, calendar_open?: true, pending_range: range, calendar_month: month)}
   end
@@ -218,8 +219,28 @@ defmodule PosServerWeb.InvoiceReportLive do
   end
   defp decimal(_), do: 0.0
   defp money(v), do: :erlang.float_to_binary(decimal(v), decimals: 2) |> then(&"$#{&1}")
-  defp date_time(nil), do: "—"
-  defp date_time(v), do: to_string(v)
+  # Tauri renders list dates in separate en-GB date and 12-hour-time spans.
+  defp date_only(%NaiveDateTime{} = value), do: Calendar.strftime(value, "%d/%m/%Y")
+  defp date_only(nil), do: "—"
+  defp date_only(value) when is_binary(value) do
+    case NaiveDateTime.from_iso8601(String.replace(value, " ", "T")) do
+      {:ok, date_time} -> date_only(date_time)
+      _ -> "—"
+    end
+  end
+  defp date_only(_), do: "—"
+  defp time_only(%NaiveDateTime{} = value), do: twelve_hour_time(value)
+  defp time_only(value) when is_binary(value) do
+    case NaiveDateTime.from_iso8601(String.replace(value, " ", "T")) do
+      {:ok, date_time} -> time_only(date_time)
+      _ -> "—"
+    end
+  end
+  defp time_only(_), do: "—"
+  defp twelve_hour_time(%NaiveDateTime{hour: hour, minute: minute}) do
+    period = if hour < 12, do: "AM", else: "PM"
+    "#{rem(hour + 11, 12) + 1}:#{String.pad_leading(Integer.to_string(minute), 2, "0")} #{period}"
+  end
   defp report_status(true, _), do: "Scroll to load more invoices."
   defp report_status(false, count), do: "#{count} invoices loaded."
   defp status_label("close"), do: "Paid"
@@ -251,7 +272,7 @@ defmodule PosServerWeb.InvoiceReportLive do
   attr :selected, :string, required: true
   defp kpi(assigns) do
     ~H"""
-    <article class={["card", "invoice-summary-#{@name}"]}><button class="btn invoice-kpi" type="button" data-variant={if @selected == @status, do: "secondary", else: "ghost"} phx-click="toggle_status" phx-value-status={@status} aria-pressed={to_string(@selected == @status)}><div class="card-header"><p class="card-title">{@label}</p></div><div class="card-content"><p id={"invoice-#{@name}-count"} class="invoice-kpi-value numeric">{value(@summary, "#{@name}_count") || 0}</p><p id={"invoice-#{@name}-total"} class="invoice-kpi-total muted numeric">{money(value(@summary, "#{@name}_total"))}</p></div></button></article>
+    <article class={["card", "invoice-summary-#{@name}"]}><button class="btn invoice-kpi" type="button" data-variant={if @selected == @status, do: "secondary", else: "ghost"} phx-click="toggle_status" phx-value-status={@status} aria-pressed={to_string(@selected == @status)}><div class="card-header"><p class="card-title">{@label}</p></div><div class="card-content"><p id={"invoice-#{@name}-total"} class="invoice-kpi-value numeric">{money(value(@summary, "#{@name}_total"))}</p><p id={"invoice-#{@name}-count"} class="invoice-kpi-total muted numeric">{value(@summary, "#{@name}_count") || 0}</p></div></button></article>
     """
   end
 
@@ -260,7 +281,7 @@ defmodule PosServerWeb.InvoiceReportLive do
   defp invoice_row(assigns) do
     id = integer(value(assigns.invoice, "id")); assigns = assign(assigns, :id, id)
     ~H"""
-    <tr class="table-row invoice-row"><td class="table-cell" data-label="Invoice"><button class="btn invoice-detail-trigger" type="button" data-variant="ghost" phx-click="toggle_detail" phx-value-id={@id} aria-expanded={to_string(@expanded)}><span class="invoice-disclosure" aria-hidden="true">{if @expanded, do: "▾", else: "▸"}</span>{value(@invoice, "sequence") || "##{@id}"}</button></td><td class="table-cell" data-label="Customer"><button class="btn invoice-detail-trigger" type="button" data-variant="ghost" phx-click="toggle_detail" phx-value-id={@id} aria-expanded={to_string(@expanded)}>{value(@invoice, "client_name") || "Walk-in customer"}</button></td><td class="table-cell" data-label="Date"><span class="invoice-date">{date_time(value(@invoice, "date_create"))}</span></td><td class="table-cell" data-label="Status"><span class={["invoice-status", "invoice-status-#{value(@invoice, "invoice_status")}"]}>{status_label(value(@invoice, "invoice_status"))}</span></td><td class="table-cell numeric" data-label="Total">{money(value(@invoice, "amount"))}</td><td class="table-cell numeric" data-label="Balance">{money(max(decimal(value(@invoice, "due_balance")), 0))}</td><td class="table-cell invoice-salesperson" data-label="Sales Person" title={value(@invoice, "login") || ""}>{value(@invoice, "login") || "—"}</td><td class="table-cell invoice-actions" data-label="Actions"><button :if={value(@invoice, "invoice_status") != "cancelled"} class="btn invoice-cancel" type="button" data-variant="ghost" data-size="sm" phx-click="open_cancel" phx-value-id={@id}>Cancel</button><span :if={value(@invoice, "invoice_status") == "cancelled"}>{value(@invoice, "cancelled_by") || "—"}</span></td></tr>
+    <tr class="table-row invoice-row"><td class="table-cell" data-label="Invoice"><button class="btn invoice-detail-trigger" type="button" data-variant="ghost" phx-click="toggle_detail" phx-value-id={@id} aria-expanded={to_string(@expanded)}><span class="invoice-disclosure" aria-hidden="true">{if @expanded, do: "▾", else: "▸"}</span>{value(@invoice, "sequence") || "##{@id}"}</button></td><td class="table-cell" data-label="Customer"><button class="btn invoice-detail-trigger" type="button" data-variant="ghost" phx-click="toggle_detail" phx-value-id={@id} aria-expanded={to_string(@expanded)}>{value(@invoice, "client_name") || "Walk-in customer"}</button></td><td class="table-cell" data-label="Date"><span class="invoice-date">{date_only(value(@invoice, "date_create"))}</span><span class="invoice-time">{time_only(value(@invoice, "date_create"))}</span></td><td class="table-cell" data-label="Status"><span class={["invoice-status", "invoice-status-#{value(@invoice, "invoice_status")}"]}>{status_label(value(@invoice, "invoice_status"))}</span></td><td class="table-cell numeric" data-label="Total">{money(value(@invoice, "amount"))}</td><td class="table-cell numeric" data-label="Balance">{money(max(decimal(value(@invoice, "due_balance")), 0))}</td><td class="table-cell invoice-salesperson" data-label="Sales Person" title={value(@invoice, "login") || ""}>{value(@invoice, "login") || "—"}</td><td class="table-cell invoice-actions" data-label="Actions"><button :if={value(@invoice, "invoice_status") != "cancelled"} class="btn invoice-cancel" type="button" data-variant="ghost" data-size="sm" phx-click="open_cancel" phx-value-id={@id}>Cancel</button><span :if={value(@invoice, "invoice_status") == "cancelled"}>{value(@invoice, "cancelled_by") || "—"}</span></td></tr>
     """
   end
 
@@ -270,7 +291,7 @@ defmodule PosServerWeb.InvoiceReportLive do
   defp invoice_detail(assigns) do
     id = integer(value(assigns.invoice, "id")); assigns = assign(assigns, :id, id)
     ~H"""
-    <tr class="table-row invoice-details-row"><td class="table-cell" colspan="8"><section class="card invoice-details-card"><.invoice_details_skeleton :if={is_nil(@detail)} /><%= if @detail do %><div class="card-header"><div><h3 class="card-title">{@detail.sequence || "Invoice ##{@detail.id}"}</h3><p class="card-description">{(@detail.client && @detail.client.name) || "Walk-in customer"} · {@detail.sale_type || "Sales"} · {@detail.login || "—"}</p></div><.payment_form :if={@detail.invoice_status == "open"} detail={@detail} methods={@methods}/><span :if={@detail.invoice_status in ["close", "cancelled"]} class={["invoice-status", "invoice-detail-status", "invoice-status-#{@detail.invoice_status}"]}>{status_label(@detail.invoice_status)}</span></div><div class="card-content"><div class="table-container invoice-payment-history"><p class="invoice-table-section-title">Payments</p><table class="table"><thead><tr class="table-row invoice-payment-columns"><th class="table-head">Payment</th><th class="table-head">Date</th><th class="table-head">User</th><th class="table-head">Method</th><th class="table-head">Amount</th><th class="table-head">Status</th></tr></thead><tbody><tr :if={@detail.payments == []} class="table-row"><td class="table-cell muted" colspan="6">No payments recorded.</td></tr><tr :for={payment <- @detail.payments} class="table-row"><td class="table-cell">Payment</td><td class="table-cell">{date_time(payment.date_create)}</td><td class="table-cell">{payment.login || @detail.login || "—"}</td><td class="table-cell">{if payment.type == "CC", do: "Credit Card", else: "Cash"}</td><td class="table-cell numeric">{money(payment.amount)}</td><td class="table-cell">{if @detail.invoice_status == "close", do: "Complete", else: "Partial"}</td></tr></tbody></table></div><div class="table-container"><p class="invoice-table-section-title">Line items</p><table class="table invoice-detail-lines"><thead><tr class="table-row invoice-line-columns"><th class="table-head">Product</th><th class="table-head">Quantity</th><th class="table-head">Unit price</th><th class="table-head">Discount</th><th class="table-head">Total</th></tr></thead><tbody><tr :for={line <- @detail.lines} class="table-row"><td class="table-cell">{line.product && line.product.name || "—"}</td><td class="table-cell numeric">{line.quantity}</td><td class="table-cell numeric">{money(line.amount)}</td><td class="table-cell numeric">{discount_display(line.discount, line.discount_type, line.discount_input)}</td><td class="table-cell numeric">{money(line.total_amount)}</td></tr></tbody><tfoot><tr class="table-row invoice-line-summary"><td class="table-cell" colspan="3"></td><th class="table-cell">Subtotal</th><td class="table-cell numeric">{money(@detail.sub)}</td></tr><tr class="table-row invoice-line-summary"><td class="table-cell" colspan="3"></td><th class="table-cell">Tax</th><td class="table-cell numeric">{money(@detail.tax_amount)}</td></tr><tr :if={decimal(@detail.delivery_charge) > 0} class="table-row invoice-line-summary"><td class="table-cell" colspan="3"></td><th class="table-cell">Delivery</th><td class="table-cell numeric">{money(@detail.delivery_charge)}</td></tr><tr class="table-row invoice-line-summary invoice-line-summary-total"><td class="table-cell" colspan="3"></td><th class="table-cell">Total</th><td class="table-cell numeric">{money(@detail.amount)}</td></tr></tfoot></table></div><section :if={@detail.additional_info && String.trim(@detail.additional_info) != ""} class="invoice-memo"><p class="invoice-memo-text">{@detail.additional_info}</p><div class="invoice-memo-salesperson"><span class="avatar invoice-memo-avatar">{String.first((@detail.salesperson && @detail.salesperson.name) || @detail.login || "?")}</span>{(@detail.salesperson && @detail.salesperson.name) || @detail.login || "—"}</div></section></div><% end %></section></td></tr>
+    <tr class="table-row invoice-details-row"><td class="table-cell" colspan="8"><section class="card invoice-details-card"><.invoice_details_skeleton :if={is_nil(@detail)} /><%= if @detail do %><div class="card-header"><div><h3 class="card-title">{@detail.sequence || "Invoice ##{@detail.id}"}</h3><p class="card-description">{(@detail.client && @detail.client.name) || "Walk-in customer"} · {@detail.sale_type || "Sales"} · {@detail.login || "—"}</p></div><.payment_form :if={@detail.invoice_status == "open"} detail={@detail} methods={@methods}/><span :if={@detail.invoice_status in ["close", "cancelled"]} class={["invoice-status", "invoice-detail-status", "invoice-status-#{@detail.invoice_status}"]}>{status_label(@detail.invoice_status)}</span></div><div class="card-content"><div class="table-container invoice-payment-history"><p class="invoice-table-section-title">Payments</p><table class="table"><thead><tr class="table-row invoice-payment-columns"><th class="table-head">Payment</th><th class="table-head">Date</th><th class="table-head">User</th><th class="table-head">Method</th><th class="table-head">Amount</th><th class="table-head">Status</th></tr></thead><tbody><tr :if={@detail.payments == []} class="table-row"><td class="table-cell muted" colspan="6">No payments recorded.</td></tr><tr :for={payment <- @detail.payments} class="table-row"><td class="table-cell">Payment</td><td class="table-cell">{date_only(payment.date_create)}</td><td class="table-cell">{payment.login || @detail.login || "—"}</td><td class="table-cell">{if payment.type == "CC", do: "Credit Card", else: "Cash"}</td><td class="table-cell numeric">{money(payment.amount)}</td><td class="table-cell">{if @detail.invoice_status == "close", do: "Complete", else: "Partial"}</td></tr></tbody></table></div><div class="table-container"><p class="invoice-table-section-title">Line items</p><table class="table invoice-detail-lines"><thead><tr class="table-row invoice-line-columns"><th class="table-head">Product</th><th class="table-head">Quantity</th><th class="table-head">Unit price</th><th class="table-head">Discount</th><th class="table-head">Total</th></tr></thead><tbody><tr :for={line <- @detail.lines} class="table-row"><td class="table-cell">{line.product && line.product.name || "—"}</td><td class="table-cell numeric">{line.quantity}</td><td class="table-cell numeric">{money(line.amount)}</td><td class="table-cell numeric">{discount_display(line.discount, line.discount_type, line.discount_input)}</td><td class="table-cell numeric">{money(line.total_amount)}</td></tr></tbody><tfoot><tr class="table-row invoice-line-summary"><td class="table-cell" colspan="3"></td><th class="table-cell">Subtotal</th><td class="table-cell numeric">{money(@detail.sub)}</td></tr><tr class="table-row invoice-line-summary"><td class="table-cell" colspan="3"></td><th class="table-cell">Tax</th><td class="table-cell numeric">{money(@detail.tax_amount)}</td></tr><tr :if={decimal(@detail.delivery_charge) > 0} class="table-row invoice-line-summary"><td class="table-cell" colspan="3"></td><th class="table-cell">Delivery</th><td class="table-cell numeric">{money(@detail.delivery_charge)}</td></tr><tr class="table-row invoice-line-summary invoice-line-summary-total"><td class="table-cell" colspan="3"></td><th class="table-cell">Total</th><td class="table-cell numeric">{money(@detail.amount)}</td></tr></tfoot></table></div><section :if={@detail.additional_info && String.trim(@detail.additional_info) != ""} class="invoice-memo"><p class="invoice-memo-text">{@detail.additional_info}</p><div class="invoice-memo-salesperson"><span class="avatar invoice-memo-avatar">{String.first((@detail.salesperson && @detail.salesperson.name) || @detail.login || "?")}</span>{(@detail.salesperson && @detail.salesperson.name) || @detail.login || "—"}</div></section></div><% end %></section></td></tr>
     """
   end
 
@@ -305,7 +326,7 @@ defmodule PosServerWeb.InvoiceReportLive do
   end
   attr :invoice, :any, required: true
   defp cancel_dialog(assigns), do: ~H"""
-    <dialog id="invoice-cancel-dialog" class="dialog" data-size="sm" open role="dialog" aria-modal="true" aria-labelledby="invoice-cancel-title"><div class="dialog-content"><div class="dialog-header"><h2 id="invoice-cancel-title" class="dialog-title">Cancel invoice?</h2><p class="dialog-description">This restores the sold inventory. This action cannot be undone from the report.</p></div><div class="alert" data-variant="destructive" role="alert"><div class="alert-content"><h5 class="alert-title">{value(@invoice || %{}, "sequence") || "Selected invoice"}</h5><p class="alert-description">{value(@invoice || %{}, "client_name") || "Walk-in customer"} · {money(value(@invoice || %{}, "amount"))} · {date_time(value(@invoice || %{}, "date_create"))}</p></div></div><div class="dialog-footer"><button class="btn" type="button" data-variant="outline" phx-click="close_cancel">Keep invoice</button><button class="btn" type="button" data-variant="destructive" phx-click="confirm_cancel">Cancel invoice</button></div></div></dialog>
+    <dialog id="invoice-cancel-dialog" class="dialog" data-size="sm" open role="dialog" aria-modal="true" aria-labelledby="invoice-cancel-title"><div class="dialog-content"><div class="dialog-header"><h2 id="invoice-cancel-title" class="dialog-title">Cancel invoice?</h2><p class="dialog-description">This restores the sold inventory. This action cannot be undone from the report.</p></div><div class="alert" data-variant="destructive" role="alert"><div class="alert-content"><h5 class="alert-title">{value(@invoice || %{}, "sequence") || "Selected invoice"}</h5><p class="alert-description">{value(@invoice || %{}, "client_name") || "Walk-in customer"} · {money(value(@invoice || %{}, "amount"))} · {date_only(value(@invoice || %{}, "date_create"))}</p></div></div><div class="dialog-footer"><button class="btn" type="button" data-variant="outline" phx-click="close_cancel">Keep invoice</button><button class="btn" type="button" data-variant="destructive" phx-click="confirm_cancel">Cancel invoice</button></div></div></dialog>
     """
   defp headers, do: [{"Invoice", "sequence"}, {"Customer", "client_name"}, {"Date", "date_create"}, {"Status", "invoice_status"}, {"Total", "amount"}, {"Balance", "due_balance"}, {"Sales Person", "login"}]
   defp calendar_blanks(month), do: List.duplicate(:blank, Date.day_of_week(month, :sunday) - 1)
@@ -314,6 +335,7 @@ defmodule PosServerWeb.InvoiceReportLive do
     if from != "" and to != "" and value > from and value < to, do: "middle", else: nil
   end
   defp range_label("", _), do: "Any date"
+  defp range_label(from, from), do: format_range_date(from)
   defp range_label(from, ""), do: format_range_date(from)
   defp range_label(from, to), do: "#{format_range_date(from)} – #{format_range_date(to)}"
   defp format_range_date(value), do: value |> Date.from_iso8601!() |> Calendar.strftime("%b %-d, %Y")

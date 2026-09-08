@@ -45,10 +45,17 @@ const hooks = {
       this.resizeObserver = new ResizeObserver(this.syncStickyOffset)
       if (this.fixed) this.resizeObserver.observe(this.fixed)
       this.syncStickyOffset()
-      requestAnimationFrame(() => this.el.querySelector("#invoice-report-title")?.focus())
+      this.onPointerDown = event => {
+        if (!this.el.querySelector(".invoice-date-picker")?.contains(event.target)) this.pushEvent("close_calendar")
+      }
+      document.addEventListener("pointerdown", this.onPointerDown)
+      requestAnimationFrame(() => this.el.querySelector("#invoice-search")?.focus())
     },
     updated() { this.syncStickyOffset?.() },
-    destroyed() { this.resizeObserver?.disconnect() }
+    destroyed() {
+      this.resizeObserver?.disconnect()
+      document.removeEventListener("pointerdown", this.onPointerDown)
+    }
   },
   InfiniteCatalog: {
     mounted() {
