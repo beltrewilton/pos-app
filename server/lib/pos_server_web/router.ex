@@ -53,6 +53,7 @@ defmodule PosServerWeb.Router do
     post "/pos/login/session", BrowserLoginController, :create
     delete "/pos/logout", BrowserLoginController, :delete
     live "/pos", PosLive, :index
+    live "/pos/customers", CustomerLive, :index
     live "/pos/invoices", InvoiceReportLive, :index
     live "/pos/inventory", InventoryLive, :index
     live "/pos/orders", PurchaseOrdersLive, :index

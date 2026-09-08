@@ -12,7 +12,7 @@ defmodule PosServerWeb.InvoiceReportLive do
   @statuses ~w(open close cancelled)
 
   @impl true
-  def mount(_params, session, socket) do
+  def mount(params, session, socket) do
     today = server_today()
 
     with token when is_binary(token) <- session["user_token"],
@@ -33,7 +33,7 @@ defmodule PosServerWeb.InvoiceReportLive do
        |> assign(:has_more?, true)
        |> assign(:loading?, false)
        |> assign(:load_error?, false)
-       |> assign(:search, "")
+       |> assign(:search, Map.get(params, "search", ""))
        |> assign(:date_from, Date.to_iso8601(today))
        |> assign(:date_to, Date.to_iso8601(today))
        |> assign(:status_filter, "")

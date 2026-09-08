@@ -1,10 +1,11 @@
 defmodule PosServerWeb.PosLive do
   use PosServerWeb, :live_view
 
+  import PosServerWeb.CustomerComponents
   import PosServerWeb.PosLayoutComponents
 
-  alias PosServer.{Authentication, InventoryEvents, TenantContext}
-  alias PosServer.Retaily.{InventoryContext, Sales, Sql}
+  alias PosServer.{Authentication, InventoryEvents, Repo, TenantContext}
+  alias PosServer.Retaily.{Client, InventoryContext, Sales, Sql}
 
   @impl true
   def mount(_params, session, socket) do
@@ -17,135 +18,291 @@ defmodule PosServerWeb.PosLive do
       socket =
         socket
         |> assign(:page_title, "Tigoo POS")
-       |> assign(:scope, scope)
-       |> assign(:stores, stores)
-       |> assign(:store_id, store && store.id)
-       |> assign(:products, [])
-       |> assign(:cursor, nil)
-       |> assign(:has_more, true)
-       |> assign(:loading_products, false)
-       |> assign(:product_search, "")
-       |> assign(:cart, [])
-       |> assign(:selected_customer, nil)
-       |> assign(:customers, [])
-       |> assign(:customer_search, "")
-       |> assign(:customer_purchases, [])
-       |> assign(:expanded_purchases, MapSet.new())
-       |> assign(:checkout_stage, nil)
-       |> assign(:dialog, nil)
-       |> assign(:discount_target, nil)
-       |> assign(:discount_type, "amount")
-       |> assign(:discount_input, "0")
-       |> assign(:order_discount, 0.0)
-       |> assign(:order_discount_type, "amount")
-       |> assign(:delivery, 0.0)
-       |> assign(:delivery_open, false)
-       |> assign(:credit, false)
-       |> assign(:payments, [])
-       |> assign(:sequence, "CF")
-       |> assign(:memo, "")
-       |> assign(:mobile_cart_open, false)
+        |> assign(:scope, scope)
+        |> assign(:stores, stores)
+        |> assign(:store_id, store && store.id)
+        |> assign(:products, [])
+        |> assign(:cursor, nil)
+        |> assign(:has_more, true)
+        |> assign(:loading_products, false)
+        |> assign(:product_search, "")
+        |> assign(:cart, [])
+        |> assign(:selected_customer, nil)
+        |> assign(:customers, [])
+        |> assign(:customer_search, "")
+        |> assign(:customer_purchases, [])
+        |> assign(:customer_dialog?, false)
+        |> assign(:customer_form_status, "")
+        |> assign(:saving_customer?, false)
+        |> assign(:expanded_purchases, MapSet.new())
+        |> assign(:checkout_stage, nil)
+        |> assign(:dialog, nil)
+        |> assign(:discount_target, nil)
+        |> assign(:discount_type, "amount")
+        |> assign(:discount_input, "0")
+        |> assign(:order_discount, 0.0)
+        |> assign(:order_discount_type, "amount")
+        |> assign(:delivery, 0.0)
+        |> assign(:delivery_open, false)
+        |> assign(:credit, false)
+        |> assign(:payments, [])
+        |> assign(:sequence, "CF")
+        |> assign(:memo, "")
+        |> assign(:mobile_cart_open, false)
         |> load_products()
         |> sync()
 
       if connected?(socket) and store, do: InventoryEvents.subscribe(scope.tenant, store.id)
       {:ok, socket}
     else
-      _ -> {:ok, socket |> put_flash(:error, "Sign in is required to use POS.") |> redirect(to: ~p"/pos/login")}
+      _ ->
+        {:ok,
+         socket
+         |> put_flash(:error, "Sign in is required to use POS.")
+         |> redirect(to: ~p"/pos/login")}
     end
   end
 
   @impl true
-  def handle_event("search_products", %{"value" => value}, socket), do: {:noreply, assign(socket, :product_search, value)}
-  def handle_event("clear_product_search", _, socket), do: {:noreply, assign(socket, :product_search, "")}
+  def handle_event("search_products", %{"value" => value}, socket),
+    do: {:noreply, assign(socket, :product_search, value)}
+
+  def handle_event("clear_product_search", _, socket),
+    do: {:noreply, assign(socket, :product_search, "")}
+
   def handle_event("load_more_products", _, socket), do: {:noreply, load_products(socket)}
 
   def handle_event("change_store", %{"store_id" => id}, socket) do
     store_id = String.to_integer(id)
     InventoryEvents.unsubscribe(socket.assigns.scope.tenant, socket.assigns.store_id)
     InventoryEvents.subscribe(socket.assigns.scope.tenant, store_id)
-    socket = socket |> assign(:store_id, store_id) |> assign(:products, []) |> assign(:cursor, nil) |> assign(:has_more, true) |> assign(:cart, []) |> assign(:selected_customer, nil)
+
+    socket =
+      socket
+      |> assign(:store_id, store_id)
+      |> assign(:products, [])
+      |> assign(:cursor, nil)
+      |> assign(:has_more, true)
+      |> assign(:cart, [])
+      |> assign(:selected_customer, nil)
+
     {:noreply, load_products(socket)}
   end
 
-  def handle_event("add_product", _params, %{assigns: %{checkout_stage: stage}} = socket) when not is_nil(stage), do: {:noreply, socket}
+  def handle_event("add_product", _params, %{assigns: %{checkout_stage: stage}} = socket)
+      when not is_nil(stage),
+      do: {:noreply, socket}
 
   def handle_event("add_product", %{"id" => id}, socket) do
     case Enum.find(socket.assigns.products, &(to_string(&1.id) == id)) do
-      nil -> {:noreply, socket}
-      product -> {:noreply, socket |> add_product(product) |> sync() |> push_event("pos:cart-bump", %{id: id})}
+      nil ->
+        {:noreply, socket}
+
+      product ->
+        {:noreply,
+         socket |> add_product(product) |> sync() |> push_event("pos:cart-bump", %{id: id})}
     end
   end
 
-  def handle_event(event, _params, %{assigns: %{checkout_stage: stage}} = socket) when event in ["increase_quantity", "decrease_quantity", "set_quantity", "remove_line"] and not is_nil(stage), do: {:noreply, socket}
-  def handle_event("increase_quantity", %{"id" => id}, socket), do: {:noreply, change_quantity(socket, id, 1)}
-  def handle_event("decrease_quantity", %{"id" => id}, socket), do: {:noreply, change_quantity(socket, id, -1)}
+  def handle_event(event, _params, %{assigns: %{checkout_stage: stage}} = socket)
+      when event in ["increase_quantity", "decrease_quantity", "set_quantity", "remove_line"] and
+             not is_nil(stage),
+      do: {:noreply, socket}
+
+  def handle_event("increase_quantity", %{"id" => id}, socket),
+    do: {:noreply, change_quantity(socket, id, 1)}
+
+  def handle_event("decrease_quantity", %{"id" => id}, socket),
+    do: {:noreply, change_quantity(socket, id, -1)}
 
   def handle_event("set_quantity", %{"id" => id, "value" => value}, socket) do
-    quantity = case Integer.parse(value) do {number, _} -> number; :error -> 0 end
+    quantity =
+      case Integer.parse(value) do
+        {number, _} -> number
+        :error -> 0
+      end
+
     {:noreply, set_quantity(socket, id, quantity)}
   end
 
-  def handle_event("remove_line", %{"id" => id}, socket), do: {:noreply, socket |> assign(:cart, Enum.reject(socket.assigns.cart, &(to_string(&1.id) == id))) |> sync()}
-  def handle_event("clear_sale_prompt", _, socket), do: {:noreply, assign(socket, :dialog, :clear_sale)}
-  def handle_event("clear_sale", _, socket), do: {:noreply, socket |> assign(:cart, []) |> assign(:order_discount, 0.0) |> assign(:delivery, 0.0) |> assign(:delivery_open, false) |> assign(:dialog, nil) |> sync()}
+  def handle_event("remove_line", %{"id" => id}, socket),
+    do:
+      {:noreply,
+       socket
+       |> assign(:cart, Enum.reject(socket.assigns.cart, &(to_string(&1.id) == id)))
+       |> sync()}
+
+  def handle_event("clear_sale_prompt", _, socket),
+    do: {:noreply, assign(socket, :dialog, :clear_sale)}
+
+  def handle_event("clear_sale", _, socket),
+    do:
+      {:noreply,
+       socket
+       |> assign(:cart, [])
+       |> assign(:order_discount, 0.0)
+       |> assign(:delivery, 0.0)
+       |> assign(:delivery_open, false)
+       |> assign(:dialog, nil)
+       |> sync()}
+
   def handle_event("close_dialog", _, socket), do: {:noreply, assign(socket, :dialog, nil)}
 
-  def handle_event("open_line_discount", _params, %{assigns: %{checkout_stage: :payment}} = socket), do: {:noreply, socket}
+  def handle_event(
+        "open_line_discount",
+        _params,
+        %{assigns: %{checkout_stage: :payment}} = socket
+      ),
+      do: {:noreply, socket}
 
   def handle_event("open_line_discount", %{"id" => id}, socket) do
     cond do
       socket.assigns.order_discount > 0 ->
-        {:noreply, put_flash(socket, :info, "An order discount is active. Remove it before applying an item discount.")}
+        {:noreply,
+         put_flash(
+           socket,
+           :info,
+           "An order discount is active. Remove it before applying an item discount."
+         )}
 
       line = Enum.find(socket.assigns.cart, &(to_string(&1.id) == id)) ->
-        {:noreply, socket |> assign(:dialog, :discount) |> assign(:discount_target, id) |> assign(:discount_type, line.discount_type) |> assign(:discount_input, discount_input_value(line.discount))}
+        {:noreply,
+         socket
+         |> assign(:dialog, :discount)
+         |> assign(:discount_target, id)
+         |> assign(:discount_type, line.discount_type)
+         |> assign(:discount_input, discount_input_value(line.discount))}
 
       true ->
         {:noreply, socket}
     end
   end
 
-  def handle_event("open_order_discount", _, %{assigns: %{checkout_stage: :payment}} = socket), do: {:noreply, socket}
+  def handle_event("open_order_discount", _, %{assigns: %{checkout_stage: :payment}} = socket),
+    do: {:noreply, socket}
 
   def handle_event("open_order_discount", _, socket) do
     if socket.assigns.cart == [] do
       {:noreply, socket}
     else
-      {:noreply, socket |> assign(:dialog, :discount) |> assign(:discount_target, nil) |> assign(:discount_type, socket.assigns.order_discount_type) |> assign(:discount_input, discount_input_value(socket.assigns.order_discount))}
+      {:noreply,
+       socket
+       |> assign(:dialog, :discount)
+       |> assign(:discount_target, nil)
+       |> assign(:discount_type, socket.assigns.order_discount_type)
+       |> assign(:discount_input, discount_input_value(socket.assigns.order_discount))}
     end
   end
 
-  def handle_event("open_order_discount_key", %{"key" => key}, socket) when key in ["Enter", " "], do: handle_event("open_order_discount", %{}, socket)
+  def handle_event("open_order_discount_key", %{"key" => key}, socket) when key in ["Enter", " "],
+    do: handle_event("open_order_discount", %{}, socket)
+
   def handle_event("open_order_discount_key", _, socket), do: {:noreply, socket}
 
-  def handle_event("set_discount_type", %{"type" => type}, socket) when type in ["amount", "percent"], do: {:noreply, assign(socket, :discount_type, type)}
-  def handle_event("change_discount", %{"value" => value}, socket), do: {:noreply, assign(socket, :discount_input, value)}
-  def handle_event("clear_discount_input", _, socket), do: {:noreply, assign(socket, :discount_input, "")}
+  def handle_event("set_discount_type", %{"type" => type}, socket)
+      when type in ["amount", "percent"],
+      do: {:noreply, assign(socket, :discount_type, type)}
+
+  def handle_event("change_discount", %{"value" => value}, socket),
+    do: {:noreply, assign(socket, :discount_input, value)}
+
+  def handle_event("clear_discount_input", _, socket),
+    do: {:noreply, assign(socket, :discount_input, "")}
+
   def handle_event("clear_pos_flash", _, socket), do: {:noreply, clear_flash(socket, :info)}
 
   def handle_event("apply_discount", params, socket) do
     discount_type = Map.get(params, "discount_type", socket.assigns.discount_type)
     socket = assign(socket, :discount_type, discount_type)
     discount = float(Map.get(params, "value", socket.assigns.discount_input))
-    valid? = discount_type in ["amount", "percent"] and discount >= 0 and (discount_type != "percent" or discount <= 100)
-    if not valid?, do: {:noreply, put_flash(socket, :error, "Enter a valid discount.")}, else: {:noreply, apply_discount(socket, discount)}
+
+    valid? =
+      discount_type in ["amount", "percent"] and discount >= 0 and
+        (discount_type != "percent" or discount <= 100)
+
+    if not valid?,
+      do: {:noreply, put_flash(socket, :error, "Enter a valid discount.")},
+      else: {:noreply, apply_discount(socket, discount)}
   end
 
-  def handle_event("open_customer_picker", _, socket), do: {:noreply, socket |> assign(:dialog, :customer_picker) |> load_customers()}
-  def handle_event("search_customers", %{"value" => value}, socket), do: {:noreply, socket |> assign(:customer_search, value) |> load_customers()}
-  def handle_event("select_customer", %{"id" => id}, socket), do: {:noreply, socket |> assign(:selected_customer, Enum.find(socket.assigns.customers, &(to_string(&1.id) == id))) |> assign(:dialog, nil)}
-  def handle_event("clear_customer", _, %{assigns: %{checkout_stage: stage}} = socket) when not is_nil(stage), do: {:noreply, socket}
-  def handle_event("clear_customer", _, socket), do: {:noreply, assign(socket, :selected_customer, nil)}
+  def handle_event("open_customer_picker", _, socket),
+    do: {:noreply, socket |> assign(:dialog, :customer_picker) |> load_customers()}
 
-  def handle_event("open_customer_purchases", _, %{assigns: %{selected_customer: nil}} = socket), do: {:noreply, socket}
+  def handle_event("search_customers", %{"value" => value}, socket),
+    do: {:noreply, socket |> assign(:customer_search, value) |> load_customers()}
+
+  def handle_event("select_customer", %{"id" => id}, socket),
+    do:
+      {:noreply,
+       socket
+       |> assign(
+         :selected_customer,
+         Enum.find(socket.assigns.customers, &(to_string(&1.id) == id))
+       )
+       |> assign(:dialog, nil)}
+
+  def handle_event("clear_customer", _, %{assigns: %{checkout_stage: stage}} = socket)
+      when not is_nil(stage),
+      do: {:noreply, socket}
+
+  def handle_event("clear_customer", _, socket),
+    do: {:noreply, assign(socket, :selected_customer, nil)}
+
+  def handle_event("open_customer_dialog", _, socket),
+    do: {:noreply, socket |> assign(:customer_dialog?, true) |> assign(:customer_form_status, "")}
+
+  def handle_event("close_customer_dialog", _, socket),
+    do:
+      {:noreply,
+       socket
+       |> assign(:customer_dialog?, false)
+       |> assign(:customer_form_status, "")
+       |> assign(:saving_customer?, false)}
+
+  def handle_event("create_customer", params, socket) do
+    attrs =
+      params
+      |> Map.put("wholesaler", wholesaler_value(params["is_wholesaler"]))
+      |> Map.delete("is_wholesaler")
+
+    case %Client{} |> Client.changeset(attrs) |> Repo.insert(prefix: TenantContext.tenant!()) do
+      {:ok, customer} ->
+        customer = normalize_customer(customer)
+
+        {:noreply,
+         socket
+         |> assign(:customer_dialog?, false)
+         |> assign(:customer_form_status, "")
+         |> assign(:saving_customer?, false)
+         |> assign(:selected_customer, customer)
+         |> assign(:dialog, nil)
+         |> load_customers()
+         |> sync()}
+
+      {:error, _changeset} ->
+        {:noreply,
+         socket
+         |> assign(
+           :customer_form_status,
+           "Could not create customer. Check the data and try again."
+         )
+         |> assign(:saving_customer?, false)}
+    end
+  end
+
+  def handle_event("open_customer_purchases", _, %{assigns: %{selected_customer: nil}} = socket),
+    do: {:noreply, socket}
 
   def handle_event("open_customer_purchases", _, socket) do
     customer = socket.assigns.selected_customer
 
     case Sales.recent_customer_purchases(socket.assigns.scope, customer.id) do
       {:ok, purchases} ->
-        {:noreply, socket |> assign(:customer_purchases, purchases) |> assign(:expanded_purchases, MapSet.new()) |> assign(:dialog, :customer_purchases)}
+        {:noreply,
+         socket
+         |> assign(:customer_purchases, purchases)
+         |> assign(:expanded_purchases, MapSet.new())
+         |> assign(:dialog, :customer_purchases)}
 
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Customer purchases could not be loaded.")}
@@ -156,50 +313,143 @@ defmodule PosServerWeb.PosLive do
     if socket.assigns.cart == [] do
       {:noreply, put_flash(socket, :error, "Add a product before continuing.")}
     else
-      {:noreply, assign(socket, :checkout_stage, if(socket.assigns.selected_customer, do: :payment, else: :customer))}
+      {:noreply,
+       assign(
+         socket,
+         :checkout_stage,
+         if(socket.assigns.selected_customer, do: :payment, else: :customer)
+       )}
     end
   end
-  def handle_event("close_checkout", _, socket), do: {:noreply, assign(socket, :checkout_stage, nil)}
-  def handle_event("checkout_customer_continue", _, socket), do: {:noreply, assign(socket, :checkout_stage, :payment)}
-  def handle_event("checkout_payment_back", _, socket), do: {:noreply, assign(socket, :checkout_stage, :customer)}
+
+  def handle_event("close_checkout", _, socket),
+    do: {:noreply, assign(socket, :checkout_stage, nil)}
+
+  def handle_event("checkout_customer_continue", _, socket),
+    do: {:noreply, assign(socket, :checkout_stage, :payment)}
+
+  def handle_event("checkout_payment_back", _, socket),
+    do: {:noreply, assign(socket, :checkout_stage, :customer)}
+
   def handle_event("toggle_delivery", _, socket) do
     socket = assign(socket, :delivery_open, !socket.assigns.delivery_open)
     socket = if socket.assigns.delivery_open, do: socket, else: set_delivery_total(socket, 0.0)
     {:noreply, sync(socket)}
   end
-  def handle_event("set_delivery", %{"amount" => amount}, socket), do: {:noreply, socket |> assign(:delivery_open, true) |> set_delivery_total(float(amount)) |> sync()}
-  def handle_event("toggle_credit", _, socket), do: {:noreply, assign(socket, :credit, !socket.assigns.credit)}
-  def handle_event("select_sequence", %{"sequence" => sequence}, socket) when sequence in ["CF", "VF", "DV"], do: {:noreply, assign(socket, :sequence, sequence)}
-  def handle_event("change_memo", %{"value" => value}, socket), do: {:noreply, assign(socket, :memo, String.slice(value, 0, 1000))}
+
+  def handle_event("set_delivery", %{"amount" => amount}, socket),
+    do:
+      {:noreply,
+       socket |> assign(:delivery_open, true) |> set_delivery_total(float(amount)) |> sync()}
+
+  def handle_event("toggle_credit", _, socket),
+    do: {:noreply, assign(socket, :credit, !socket.assigns.credit)}
+
+  def handle_event("select_sequence", %{"sequence" => sequence}, socket)
+      when sequence in ["CF", "VF", "DV"],
+      do: {:noreply, assign(socket, :sequence, sequence)}
+
+  def handle_event("change_memo", %{"value" => value}, socket),
+    do: {:noreply, assign(socket, :memo, String.slice(value, 0, 1000))}
+
   def handle_event("add_payment_line", _, socket) do
     previous = List.last(socket.assigns.payments)
     # Tauri's addPaymentLine defaults the first payment to Card and alternates
     # each following line from the preceding method.
     type = if previous && previous.type == "CC", do: "CASH", else: "CC"
     amount = Float.round(max(0.0, total(socket) - paid(socket)), 2)
-    payment = %{id: "payment-#{System.unique_integer([:positive])}", type: type, amount: amount, split_source: previous && previous.id, auto_amount: true}
+
+    payment = %{
+      id: "payment-#{System.unique_integer([:positive])}",
+      type: type,
+      amount: amount,
+      split_source: previous && previous.id,
+      auto_amount: true
+    }
+
     {:noreply, socket |> assign(:payments, socket.assigns.payments ++ [payment]) |> sync()}
   end
-  def handle_event("remove_payment_line", %{"id" => id}, socket), do: {:noreply, socket |> assign(:payments, Enum.reject(socket.assigns.payments, &(&1.id == id))) |> sync()}
-  def handle_event("change_payment", %{"id" => id, "field" => field, "value" => value}, socket), do: {:noreply, socket |> update_payment(id, field, value) |> sync()}
-  def handle_event("open_mobile_cart", _, socket), do: {:noreply, assign(socket, :mobile_cart_open, true)}
-  def handle_event("close_mobile_cart", _, socket), do: {:noreply, assign(socket, :mobile_cart_open, false)}
+
+  def handle_event("remove_payment_line", %{"id" => id}, socket),
+    do:
+      {:noreply,
+       socket |> assign(:payments, Enum.reject(socket.assigns.payments, &(&1.id == id))) |> sync()}
+
+  def handle_event("change_payment", %{"id" => id, "field" => field, "value" => value}, socket),
+    do: {:noreply, socket |> update_payment(id, field, value) |> sync()}
+
+  def handle_event("open_mobile_cart", _, socket),
+    do: {:noreply, assign(socket, :mobile_cart_open, true)}
+
+  def handle_event("close_mobile_cart", _, socket),
+    do: {:noreply, assign(socket, :mobile_cart_open, false)}
 
   def handle_event("complete_sale", _, socket) do
-    if socket.assigns.selected_customer && (socket.assigns.credit || paid(socket) >= total(socket)) do
-      attrs = %{"store_id" => socket.assigns.store_id, "client_id" => socket.assigns.selected_customer.id, "sequence_type" => socket.assigns.sequence, "status" => if(socket.assigns.credit, do: "CREDIT", else: "CASH"), "sale_type" => if(socket.assigns.delivery > 0, do: "FOR_DELIVER", else: "IN_SHOP"), "delivery_charge" => socket.assigns.delivery, "discount" => order_discount_total(socket), "discount_type" => discount_type_for_sale(socket), "discount_input" => socket.assigns.order_discount, "additional_info" => socket.assigns.memo, "lines" => Enum.map(socket.assigns.cart, &%{"product_id" => &1.id, "quantity" => &1.qty, "discount" => line_discount(&1), "discount_type" => if(&1.discount_type == "percent", do: "percentage", else: "money"), "discount_input" => &1.discount}), "payments" => if(socket.assigns.credit, do: [], else: Enum.map(socket.assigns.payments, &%{"type" => &1.type, "amount" => &1.amount}))}
+    if socket.assigns.selected_customer &&
+         (socket.assigns.credit || paid(socket) >= total(socket)) do
+      attrs = %{
+        "store_id" => socket.assigns.store_id,
+        "client_id" => socket.assigns.selected_customer.id,
+        "sequence_type" => socket.assigns.sequence,
+        "status" => if(socket.assigns.credit, do: "CREDIT", else: "CASH"),
+        "sale_type" => if(socket.assigns.delivery > 0, do: "FOR_DELIVER", else: "IN_SHOP"),
+        "delivery_charge" => socket.assigns.delivery,
+        "discount" => order_discount_total(socket),
+        "discount_type" => discount_type_for_sale(socket),
+        "discount_input" => socket.assigns.order_discount,
+        "additional_info" => socket.assigns.memo,
+        "lines" =>
+          Enum.map(
+            socket.assigns.cart,
+            &%{
+              "product_id" => &1.id,
+              "quantity" => &1.qty,
+              "discount" => line_discount(&1),
+              "discount_type" =>
+                if(&1.discount_type == "percent", do: "percentage", else: "money"),
+              "discount_input" => &1.discount
+            }
+          ),
+        "payments" =>
+          if(socket.assigns.credit,
+            do: [],
+            else: Enum.map(socket.assigns.payments, &%{"type" => &1.type, "amount" => &1.amount})
+          )
+      }
+
       # Tauri retains a zero-valued split row in the checkout UI, but omits it
       # from the completed sale payload (`.filter(line => line.amount)`).
       # Keep that distinction: the Cash row remains visible until completion,
       # while persistence receives only actual payments.
-      attrs = Map.update!(attrs, "payments", &Enum.filter(&1, fn payment -> float(payment["amount"]) > 0 end))
+      attrs =
+        Map.update!(
+          attrs,
+          "payments",
+          &Enum.filter(&1, fn payment -> float(payment["amount"]) > 0 end)
+        )
 
       case Sales.create_sale(socket.assigns.scope, attrs) do
-        {:ok, _} -> {:noreply, socket |> put_flash(:info, "Sale completed.") |> assign(:cart, []) |> assign(:checkout_stage, nil) |> assign(:selected_customer, nil) |> assign(:order_discount, 0.0) |> assign(:delivery, 0.0) |> assign(:delivery_open, false) |> assign(:credit, false) |> assign(:payments, []) |> assign(:memo, "") |> sync()}
-        {:error, reason} -> {:noreply, put_flash(socket, :error, "Sale could not be completed: #{inspect(reason)}")}
+        {:ok, _} ->
+          {:noreply,
+           socket
+           |> put_flash(:info, "Sale completed.")
+           |> assign(:cart, [])
+           |> assign(:checkout_stage, nil)
+           |> assign(:selected_customer, nil)
+           |> assign(:order_discount, 0.0)
+           |> assign(:delivery, 0.0)
+           |> assign(:delivery_open, false)
+           |> assign(:credit, false)
+           |> assign(:payments, [])
+           |> assign(:memo, "")
+           |> sync()}
+
+        {:error, reason} ->
+          {:noreply, put_flash(socket, :error, "Sale could not be completed: #{inspect(reason)}")}
       end
     else
-      {:noreply, put_flash(socket, :error, "Select a customer and cover the sale total before completing.")}
+      {:noreply,
+       put_flash(socket, :error, "Select a customer and cover the sale total before completing.")}
     end
   end
 
@@ -214,6 +464,7 @@ defmodule PosServerWeb.PosLive do
     # reflect the current render assigns (not the previous sync snapshot), so
     # delivery changes recalculate checkout totals and payment balances at once.
     assigns = Map.put(assigns, :socket, assigns)
+
     ~H"""
     <.pos_layout id="pos-live" class="pos-shell" active_page={:pos} scope={@scope} stores={@stores} store_id={@store_id} phx-hook="PosShell" data-mobile-cart-open={to_string(@mobile_cart_open)} data-checkout-stage={@checkout_stage || ""}>
       <:before_layout>
@@ -263,7 +514,7 @@ defmodule PosServerWeb.PosLive do
         <section :if={@dialog == :customer_picker} id="customers-screen" class="customers-screen" aria-labelledby="customers-title">
           <header class="topbar invoice-topbar customers-header">
             <div class="brand-lockup"><span class="brand-mark" aria-hidden="true">E</span><div><p class="eyebrow">Customers</p><h2 id="customers-title" class="h3" tabindex="-1">Customer list</h2></div></div>
-            <div class="customers-header-actions"><button class="btn" type="button" data-variant="default" phx-click="clear_customer" disabled={is_nil(@selected_customer)}>Clear client</button><button class="btn" type="button" data-variant="outline" phx-click="close_dialog">Back</button></div>
+            <div class="customers-header-actions"><button id="create-customer" class="btn" type="button" data-variant="default" phx-click="open_customer_dialog" aria-haspopup="dialog">Crear client</button><button class="btn" type="button" data-variant="outline" phx-click="close_dialog">Back</button></div>
           </header>
           <div class="customer-search-field">
             <label class="sr-only" for="customer-search">Search customers</label>
@@ -308,6 +559,7 @@ defmodule PosServerWeb.PosLive do
       </aside>
       <button :if={@mobile_cart_open} class="mobile-cart-backdrop is-visible" type="button" phx-click="close_mobile_cart" aria-label="Close sale"></button>
       <dialog :if={@dialog == :clear_sale} open class="dialog" data-size="sm"><div class="dialog-content"><div class="dialog-header"><h2 class="dialog-title">Clear this order?</h2><p class="dialog-description">All items and line discounts will be removed.</p></div><div class="dialog-footer"><button class="btn" type="button" data-variant="outline" phx-click="close_dialog">Cancel</button><button class="btn" type="button" data-variant="destructive" phx-click="clear_sale">Clear order</button></div></div></dialog>
+      <.customer_dialog :if={@customer_dialog?} status={@customer_form_status} saving={@saving_customer?} />
       <dialog :if={@dialog == :discount} id="discount-dialog" class="dialog" data-size="sm" phx-hook="DiscountDialog" role="dialog" aria-modal="true" aria-labelledby="discount-title">
         <div class="dialog-content">
           <div class="dialog-header"><div class="discount-heading"><div><p class="eyebrow">{if @discount_target, do: "Line item discount", else: "Order discount"}</p><h2 id="discount-title" class="dialog-title">{if @discount_target, do: "Apply a discount", else: "Apply an order discount"}</h2><p class="dialog-description">{discount_subject(assigns)}</p></div><img :if={discount_image(assigns)} class="discount-product-image" src={discount_image(assigns)} alt=""/></div></div>
@@ -340,16 +592,28 @@ defmodule PosServerWeb.PosLive do
 
   defp load_products(%{assigns: %{loading_products: true}} = socket), do: socket
   defp load_products(%{assigns: %{has_more: false}} = socket), do: socket
+
   defp load_products(socket) do
     assign(socket, :loading_products, true)
-    case Sql.active_products_page(socket.assigns.cursor, store_id: socket.assigns.store_id, limit: 100) do
+
+    case Sql.active_products_page(socket.assigns.cursor,
+           store_id: socket.assigns.store_id,
+           limit: 100
+         ) do
       {:ok, page} ->
         socket
-        |> assign(:products, socket.assigns.products ++ Enum.map(page.entries, &normalize_product/1))
+        |> assign(
+          :products,
+          socket.assigns.products ++ Enum.map(page.entries, &normalize_product/1)
+        )
         |> assign(:cursor, page.next_cursor)
         |> assign(:has_more, page.has_more?)
         |> assign(:loading_products, false)
-      {:error, _} -> socket |> assign(:loading_products, false) |> put_flash(:error, "Products could not be loaded.")
+
+      {:error, _} ->
+        socket
+        |> assign(:loading_products, false)
+        |> put_flash(:error, "Products could not be loaded.")
     end
   end
 
@@ -386,32 +650,110 @@ defmodule PosServerWeb.PosLive do
 
     assign(socket, :products, new_products ++ products)
   end
+
   defp load_customers(socket) do
     case Sql.recent_clients_page(nil, socket.assigns.customer_search, limit: 100) do
       {:ok, page} -> assign(socket, :customers, Enum.map(page.entries, &normalize_customer/1))
       _ -> assign(socket, :customers, [])
     end
   end
+
   defp add_product(socket, p) do
-    cart = case Enum.find_index(socket.assigns.cart, &(&1.id == p.id)) do
-      nil -> socket.assigns.cart ++ [%{id: p.id, name: p.name || "Unnamed product", price: float(p.price), sub: float(p.sub), tax: float(p.tax), image_raw: p.image_raw, qty: 1, discount: 0.0, discount_type: "amount"}]
-      index -> List.update_at(socket.assigns.cart, index, &Map.update!(&1, :qty, fn qty -> qty + 1 end))
-    end
+    cart =
+      case Enum.find_index(socket.assigns.cart, &(&1.id == p.id)) do
+        nil ->
+          socket.assigns.cart ++
+            [
+              %{
+                id: p.id,
+                name: p.name || "Unnamed product",
+                price: float(p.price),
+                sub: float(p.sub),
+                tax: float(p.tax),
+                image_raw: p.image_raw,
+                qty: 1,
+                discount: 0.0,
+                discount_type: "amount"
+              }
+            ]
+
+        index ->
+          List.update_at(
+            socket.assigns.cart,
+            index,
+            &Map.update!(&1, :qty, fn qty -> qty + 1 end)
+          )
+      end
+
     assign(socket, :cart, cart)
   end
-  defp change_quantity(socket, id, delta), do: Enum.find(socket.assigns.cart, &(to_string(&1.id) == id)) |> then(fn line -> if line, do: set_quantity(socket, id, line.qty + delta), else: socket end)
-  defp set_quantity(socket, id, qty), do: if(qty < 1, do: assign(socket, :cart, Enum.reject(socket.assigns.cart, &(to_string(&1.id) == id))) |> sync(), else: assign(socket, :cart, Enum.map(socket.assigns.cart, fn line -> if to_string(line.id) == id, do: %{line | qty: qty}, else: line end)) |> sync())
+
+  defp change_quantity(socket, id, delta),
+    do:
+      Enum.find(socket.assigns.cart, &(to_string(&1.id) == id))
+      |> then(fn line ->
+        if line, do: set_quantity(socket, id, line.qty + delta), else: socket
+      end)
+
+  defp set_quantity(socket, id, qty),
+    do:
+      if(qty < 1,
+        do:
+          assign(socket, :cart, Enum.reject(socket.assigns.cart, &(to_string(&1.id) == id)))
+          |> sync(),
+        else:
+          assign(
+            socket,
+            :cart,
+            Enum.map(socket.assigns.cart, fn line ->
+              if to_string(line.id) == id, do: %{line | qty: qty}, else: line
+            end)
+          )
+          |> sync()
+      )
+
   defp apply_discount(socket, value) do
     discount_target = socket.assigns.discount_target
-    socket = if socket.assigns.discount_target do
-      assign(socket, :cart, Enum.map(socket.assigns.cart, fn line -> if(to_string(line.id) == socket.assigns.discount_target, do: %{line | discount: value, discount_type: socket.assigns.discount_type}, else: line) end))
-    else
-      socket |> assign(:order_discount, value) |> assign(:order_discount_type, socket.assigns.discount_type) |> assign(:cart, Enum.map(socket.assigns.cart, &%{&1 | discount: 0.0, discount_type: "amount"}))
-    end
+
+    socket =
+      if socket.assigns.discount_target do
+        assign(
+          socket,
+          :cart,
+          Enum.map(socket.assigns.cart, fn line ->
+            if(to_string(line.id) == socket.assigns.discount_target,
+              do: %{line | discount: value, discount_type: socket.assigns.discount_type},
+              else: line
+            )
+          end)
+        )
+      else
+        socket
+        |> assign(:order_discount, value)
+        |> assign(:order_discount_type, socket.assigns.discount_type)
+        |> assign(
+          :cart,
+          Enum.map(socket.assigns.cart, &%{&1 | discount: 0.0, discount_type: "amount"})
+        )
+      end
+
     socket = socket |> assign(:dialog, nil) |> sync()
-    if discount_target, do: push_event(socket, "pos:cart-bump", %{id: discount_target}), else: socket
+
+    if discount_target,
+      do: push_event(socket, "pos:cart-bump", %{id: discount_target}),
+      else: socket
   end
-  defp update_payment(socket, id, "type", value), do: assign(socket, :payments, Enum.map(socket.assigns.payments, fn p -> if p.id == id, do: %{p | type: value}, else: p end))
+
+  defp update_payment(socket, id, "type", value),
+    do:
+      assign(
+        socket,
+        :payments,
+        Enum.map(socket.assigns.payments, fn p ->
+          if p.id == id, do: %{p | type: value}, else: p
+        end)
+      )
+
   defp update_payment(socket, id, "amount", value) do
     entered = max(0.0, float(value))
     payment = Enum.find(socket.assigns.payments, &(&1.id == id))
@@ -427,15 +769,30 @@ defmodule PosServerWeb.PosLive do
         # this explicit split and only refresh the remaining automatic line.
         payments =
           Enum.map(socket.assigns.payments, fn p ->
-            if p.id == id, do: p |> Map.put(:amount, entered) |> Map.put(:auto_amount, false), else: p
+            if p.id == id,
+              do: p |> Map.put(:amount, entered) |> Map.put(:auto_amount, false),
+              else: p
           end)
 
-        case Map.get(payment, :split_source) && Enum.find(payments, &(&1.id == payment.split_source)) do
-          nil -> payments
+        case Map.get(payment, :split_source) &&
+               Enum.find(payments, &(&1.id == payment.split_source)) do
+          nil ->
+            payments
+
           source ->
-            change_absorbed = if change < 0, do: min(-change, max(0.0, total_before_change - total(socket))), else: 0.0
-            transferred = if change > 0, do: min(change, source.amount), else: change + change_absorbed
-            Enum.map(payments, fn p -> if p.id == source.id, do: %{p | amount: Float.round(max(0.0, p.amount - transferred), 2)}, else: p end)
+            change_absorbed =
+              if change < 0,
+                do: min(-change, max(0.0, total_before_change - total(socket))),
+                else: 0.0
+
+            transferred =
+              if change > 0, do: min(change, source.amount), else: change + change_absorbed
+
+            Enum.map(payments, fn p ->
+              if p.id == source.id,
+                do: %{p | amount: Float.round(max(0.0, p.amount - transferred), 2)},
+                else: p
+            end)
         end
       else
         socket.assigns.payments
@@ -443,6 +800,7 @@ defmodule PosServerWeb.PosLive do
 
     assign(socket, :payments, payments)
   end
+
   defp update_payment(socket, _, _, _), do: socket
 
   # Tauri keeps an untouched initial payment populated with the balance due.
@@ -463,7 +821,9 @@ defmodule PosServerWeb.PosLive do
 
     payments =
       case automatic_payment do
-        nil -> socket.assigns.payments
+        nil ->
+          socket.assigns.payments
+
         payment ->
           paid_by_other_lines =
             socket.assigns.payments
@@ -471,28 +831,75 @@ defmodule PosServerWeb.PosLive do
             |> Enum.sum_by(& &1.amount)
 
           amount = Float.round(max(0.0, total(socket) - paid_by_other_lines), 2)
-          Enum.map(socket.assigns.payments, fn line -> if line.id == payment.id, do: %{line | amount: amount}, else: line end)
+
+          Enum.map(socket.assigns.payments, fn line ->
+            if line.id == payment.id, do: %{line | amount: amount}, else: line
+          end)
       end
 
     assign(socket, :payments, payments)
   end
 
   defp line_gross(line), do: line.price * line.qty
-  defp line_discount(line), do: if(line.discount_type == "percent", do: line_gross(line) * min(line.discount, 100) / 100, else: min(line.discount, line_gross(line)))
-  defp line_factor(line), do: if(line_gross(line) == 0, do: 1, else: (line_gross(line) - line_discount(line)) / line_gross(line))
-  defp subtotal(state), do: Enum.sum(Enum.map(state(state).cart, fn line -> line.sub * line.qty * line_factor(line) * order_factor(state) end))
+
+  defp line_discount(line),
+    do:
+      if(line.discount_type == "percent",
+        do: line_gross(line) * min(line.discount, 100) / 100,
+        else: min(line.discount, line_gross(line))
+      )
+
+  defp line_factor(line),
+    do:
+      if(line_gross(line) == 0,
+        do: 1,
+        else: (line_gross(line) - line_discount(line)) / line_gross(line)
+      )
+
+  defp subtotal(state),
+    do:
+      Enum.sum(
+        Enum.map(state(state).cart, fn line ->
+          line.sub * line.qty * line_factor(line) * order_factor(state)
+        end)
+      )
+
   defp line_discount_total(state), do: Enum.sum(Enum.map(state(state).cart, &line_discount/1))
   defp gross_subtotal(state), do: Enum.sum(Enum.map(state(state).cart, &line_gross/1))
   defp before_order_discount(state), do: gross_subtotal(state) - line_discount_total(state)
-  defp order_discount_total(state), do: if(state(state).order_discount_type == "percent", do: before_order_discount(state) * min(state(state).order_discount, 100) / 100, else: min(state(state).order_discount, before_order_discount(state)))
-  defp discount_type_for_sale(state), do: if(state(state).order_discount_type == "percent", do: "percentage", else: "money")
+
+  defp order_discount_total(state),
+    do:
+      if(state(state).order_discount_type == "percent",
+        do: before_order_discount(state) * min(state(state).order_discount, 100) / 100,
+        else: min(state(state).order_discount, before_order_discount(state))
+      )
+
+  defp discount_type_for_sale(state),
+    do: if(state(state).order_discount_type == "percent", do: "percentage", else: "money")
+
   defp merchandise_total(state), do: before_order_discount(state) - order_discount_total(state)
   defp total(state), do: merchandise_total(state) + state(state).delivery
-  defp order_factor(state), do: if(before_order_discount(state) == 0, do: 1, else: merchandise_total(state) / before_order_discount(state))
-  defp tax(state), do: Enum.sum(Enum.map(state(state).cart, fn line -> line.tax * line.qty * line_factor(line) * order_factor(state) end))
+
+  defp order_factor(state),
+    do:
+      if(before_order_discount(state) == 0,
+        do: 1,
+        else: merchandise_total(state) / before_order_discount(state)
+      )
+
+  defp tax(state),
+    do:
+      Enum.sum(
+        Enum.map(state(state).cart, fn line ->
+          line.tax * line.qty * line_factor(line) * order_factor(state)
+        end)
+      )
+
   defp items(state), do: Enum.sum(Enum.map(state(state).cart, & &1.qty))
   defp paid(state), do: Enum.sum(Enum.map(state(state).payments, & &1.amount))
   defp remaining(socket), do: max(0.0, total(socket) - paid(socket))
+
   defp payment_choice(state) do
     if state(state).credit do
       "Credit"
@@ -501,45 +908,69 @@ defmodule PosServerWeb.PosLive do
       |> Enum.map(fn payment -> if payment.type == "CC", do: "Credit Card", else: "Cash" end)
       |> Enum.uniq()
       |> Enum.join(" + ")
-      |> case do "" -> "—"; value -> value end
+      |> case do
+        "" -> "—"
+        value -> value
+      end
     end
   end
+
   defp payment_amount_input(value), do: :erlang.float_to_binary(float(value), decimals: 2)
   defp float(value) when is_number(value), do: value * 1.0
   defp float(%Decimal{} = value), do: Decimal.to_float(value)
+
   defp float(value) when is_binary(value) do
     case Float.parse(value) do
       {number, _remainder} -> number
       :error -> 0.0
     end
   end
+
   defp float(_), do: 0.0
   defp discount_input_value(value) when value == 0 or value == 0.0, do: ""
   defp discount_input_value(value), do: :erlang.float_to_binary(value, decimals: 2)
+
   defp money(value) do
     value = Float.round(value * 1.0, 2)
     [whole, cents] = :erlang.float_to_binary(value, decimals: 2) |> String.split(".")
+
     "$#{whole |> String.reverse() |> String.graphemes() |> Enum.chunk_every(3) |> Enum.map_join(",", &Enum.join(&1)) |> String.reverse()}.#{cents}"
   end
+
   defp purchase_date(%NaiveDateTime{} = value), do: Calendar.strftime(value, "%Y-%m-%d %H:%M")
   defp purchase_date(_), do: "—"
+
   defp purchase_discount(item) do
     discount = float(item.discount)
 
     cond do
-      discount == 0 -> "—"
-      item.discount_type == "percentage" and not is_nil(item.discount_input) -> "#{float(item.discount_input)}%"
-      true -> money(discount)
+      discount == 0 ->
+        "—"
+
+      item.discount_type == "percentage" and not is_nil(item.discount_input) ->
+        "#{float(item.discount_input)}%"
+
+      true ->
+        money(discount)
     end
   end
+
   defp sequence_description("CF"), do: "Consumer final"
   defp sequence_description("DV"), do: "Direct sale"
   defp sequence_description("VF"), do: "Fiscal voucher"
   defp sequence_description(_), do: ""
+
   defp visible_products(assigns) do
     query = String.downcase(String.trim(assigns.product_search))
-    if query == "", do: assigns.products, else: Enum.filter(assigns.products, fn product -> String.contains?(String.downcase("#{product.name || ""} #{product.code || ""}"), query) end)
+
+    if query == "",
+      do: assigns.products,
+      else:
+        Enum.filter(assigns.products, fn product ->
+          String.contains?(String.downcase("#{product.name || ""} #{product.code || ""}"), query)
+        end)
   end
+
   defp product_status(assigns) do
     cond do
       assigns.loading_products and assigns.products == [] -> "Loading products…"
@@ -548,10 +979,19 @@ defmodule PosServerWeb.PosLive do
       true -> "#{length(assigns.products)} products loaded"
     end
   end
+
   defp image_source("data:image/" <> _ = source), do: source
   defp image_source(source), do: "data:image/jpeg;base64,#{source}"
-  defp active_store_name(assigns), do: Enum.find_value(assigns.stores, "", fn store -> if store.id == assigns.store_id, do: store.name end)
-  defp discount_line(assigns), do: Enum.find(assigns.cart, &(to_string(&1.id) == assigns.discount_target))
+
+  defp active_store_name(assigns),
+    do:
+      Enum.find_value(assigns.stores, "", fn store ->
+        if store.id == assigns.store_id, do: store.name
+      end)
+
+  defp discount_line(assigns),
+    do: Enum.find(assigns.cart, &(to_string(&1.id) == assigns.discount_target))
+
   defp discount_image(assigns) do
     case discount_line(assigns) do
       %{image_raw: image} when is_binary(image) -> image_source(image)
@@ -572,10 +1012,14 @@ defmodule PosServerWeb.PosLive do
       line -> line_gross(line)
     end
   end
+
   defp discount_preview(assigns) do
     entered = float(assigns.discount_input)
     base = discount_base(assigns)
-    if assigns.discount_type == "percent", do: base * min(entered, 100) / 100, else: min(entered, base)
+
+    if assigns.discount_type == "percent",
+      do: base * min(entered, 100) / 100,
+      else: min(entered, base)
   end
 
   defp normalize_product(product) do
@@ -597,17 +1041,24 @@ defmodule PosServerWeb.PosLive do
       name: value(customer, :name),
       celphone: value(customer, :celphone),
       address: value(customer, :address),
-      document_id: value(customer, :document_id)
+      document_id: value(customer, :document_id),
+      email: value(customer, :email),
+      wholesaler: value(customer, :wholesaler),
+      is_wholesaler: value(customer, :is_wholesaler)
     }
   end
 
   defp value(map, key), do: Map.get(map, key) || Map.get(map, Atom.to_string(key))
+  defp wholesaler_value(value) when value in [true, 1, "1", "true", "on"], do: 1
+  defp wholesaler_value(_), do: 0
+
   defp selected_store(stores, selected_id) do
     case Integer.parse(to_string(selected_id || "")) do
       {id, ""} -> Enum.find(stores, List.first(stores), &(&1.id == id))
       _ -> List.first(stores)
     end
   end
+
   defp state(%{assigns: assigns}), do: assigns
   defp state(assigns), do: assigns
   defp sync(socket), do: assign(socket, :pos_state, Map.drop(socket.assigns, [:pos_state]))

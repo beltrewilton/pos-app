@@ -71,6 +71,7 @@ defmodule PosServerWeb.PurchaseOrdersLive do
     delta = if key == "ArrowUp", do: -1, else: 1
     {:noreply, push_event(socket, "purchase-orders:focus-observed", %{index: max(0, integer(index) + delta)})}
   end
+  def handle_event("observed_key", _params, socket), do: {:noreply, socket}
 
   def handle_event("receive_order", %{"observed" => observed}, socket) do
     lines = Enum.map(socket.assigns.selected_order.lines, fn line -> %{id: line.id, quantity_observed: integer(Map.get(observed, to_string(line.id), line.quantity))} end)
@@ -238,7 +239,7 @@ defmodule PosServerWeb.PurchaseOrdersLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <.pos_layout id="purchase-orders-live" class="pos-shell invoice-view" active_page={:orders} scope={@scope} stores={@stores} store_id={@store_id}>
+    <.pos_layout id="purchase-orders-live" class="pos-shell invoice-view" active_page={:orders} scope={@scope} stores={@stores} store_id={@store_id} phx-hook="PurchaseOrders">
       <section class="catalog-panel" data-view="orders" aria-labelledby="orders-title">
         <section :if={@view == :list} id="orders-screen" class="operations-screen" aria-labelledby="orders-title">
           <div class="operations-fixed"><header class="topbar operations-topbar"><div class="brand-lockup"><span class="brand-mark" aria-hidden="true">E</span><div><p class="eyebrow">Operations</p><h2 id="orders-title" tabindex="-1">Purchase orders — {active_store(@stores, @store_id)}</h2></div></div><div class="form-actions"><button class="btn" type="button" data-variant="default" phx-click="open_create">Create purchase order</button><button class="btn" type="button" data-variant="default" phx-click="open_move">Move Product</button></div></header><p class="operations-status" role="status">{@status}</p></div>

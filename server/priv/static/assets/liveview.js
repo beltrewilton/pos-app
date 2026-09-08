@@ -4,6 +4,29 @@ const csrfToken = document.querySelector("meta[name='csrf-token']")?.getAttribut
 const hooks = {
   LoginScreen: window.LoginScreenHook,
   CompanySettings: window.CompanySettingsHook,
+  CustomerDialog: dialogHook(),
+  CustomerScreen: {
+    mounted() {
+      this.customerScrollTop = 0
+      this.handleEvent("customer:detail-opened", () => {
+        const catalog = this.el.querySelector(".catalog-panel")
+        this.customerScrollTop = catalog?.scrollTop || 0
+        if (catalog) catalog.scrollTop = 0
+        requestAnimationFrame(() => this.el.querySelector("#customer-detail-title")?.focus())
+      })
+      this.handleEvent("customer:list-restored", () => {
+        requestAnimationFrame(() => {
+          const catalog = this.el.querySelector(".catalog-panel")
+          if (catalog) catalog.scrollTop = this.customerScrollTop || 0
+          this.el.querySelector("#customers-table-body [phx-click='open_customer_detail']")?.focus()
+        })
+      })
+      requestAnimationFrame(() => {
+        const target = window.matchMedia("(max-width: 640px)").matches ? "#customer-search" : "#customers-title"
+        this.el.querySelector(target)?.focus()
+      })
+    }
+  },
   InfiniteInvoices: {
     mounted() {
       this.observer = new IntersectionObserver(entries => {
@@ -42,6 +65,7 @@ const hooks = {
     destroyed() { this.observer?.disconnect(); }
   },
   PurchaseOrderLines: purchaseOrderLinesHook(),
+  PurchaseOrders: purchaseOrdersHook(),
   OrderProductDialog: dialogHook(),
   PosTheme: {
     mounted() {
@@ -332,6 +356,9 @@ function dialogHook() {
 }
 function purchaseOrderLinesHook() {
   return { mounted() { initializePurchaseOrderLines(this); }, updated() { initializePurchaseOrderLines(this); if (!this.focusNewLine) return; this.focusNewLine = false; this.el.querySelector("[data-order-line]:last-child [role='combobox']")?.focus(); } };
+}
+function purchaseOrdersHook() {
+  return { mounted() { this.onObservedKeydown = event => { if (!event.target.matches("[data-observed-input], .observed-input") || !["Enter", "ArrowDown", "ArrowUp"].includes(event.key)) return; event.preventDefault(); event.stopImmediatePropagation(); const inputs = [...this.el.querySelectorAll("[data-observed-input], .observed-input")].filter(input => !input.disabled); const index = inputs.indexOf(event.target), next = inputs[Math.max(0, Math.min(inputs.length - 1, index + (event.key === "ArrowUp" ? -1 : 1)))]; next?.scrollIntoView({block: "center", behavior: "smooth"}); next?.focus({preventScroll: true}); }; this.el.addEventListener("keydown", this.onObservedKeydown, true); this.onProcessOrder = event => { const button = event.target.closest("button[form='receive-order-form']"); if (!button) return; event.preventDefault(); event.stopImmediatePropagation(); button.disabled = true; const observed = Object.fromEntries([...this.el.querySelectorAll("[name^='observed']")].map(input => [input.name.match(/\[(.+)\]/)?.[1], input.value]).filter(([id]) => id)); this.pushEvent("receive_order", {observed}); }; this.el.addEventListener("click", this.onProcessOrder, true); }, destroyed() { this.el.removeEventListener("keydown", this.onObservedKeydown, true); this.el.removeEventListener("click", this.onProcessOrder, true); } };
 }
 function initializePurchaseOrderLines(hook) {
   hook.boundLines ||= new WeakSet();
