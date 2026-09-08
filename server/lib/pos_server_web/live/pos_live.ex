@@ -188,6 +188,12 @@ defmodule PosServerWeb.PosLive do
   def handle_event("complete_sale", _, socket) do
     if socket.assigns.selected_customer && (socket.assigns.credit || paid(socket) >= total(socket)) do
       attrs = %{"store_id" => socket.assigns.store_id, "client_id" => socket.assigns.selected_customer.id, "sequence_type" => socket.assigns.sequence, "status" => if(socket.assigns.credit, do: "CREDIT", else: "CASH"), "sale_type" => if(socket.assigns.delivery > 0, do: "FOR_DELIVER", else: "IN_SHOP"), "delivery_charge" => socket.assigns.delivery, "discount" => order_discount_total(socket), "discount_type" => discount_type_for_sale(socket), "discount_input" => socket.assigns.order_discount, "additional_info" => socket.assigns.memo, "lines" => Enum.map(socket.assigns.cart, &%{"product_id" => &1.id, "quantity" => &1.qty, "discount" => line_discount(&1), "discount_type" => if(&1.discount_type == "percent", do: "percentage", else: "money"), "discount_input" => &1.discount}), "payments" => if(socket.assigns.credit, do: [], else: Enum.map(socket.assigns.payments, &%{"type" => &1.type, "amount" => &1.amount}))}
+      # Tauri retains a zero-valued split row in the checkout UI, but omits it
+      # from the completed sale payload (`.filter(line => line.amount)`).
+      # Keep that distinction: the Cash row remains visible until completion,
+      # while persistence receives only actual payments.
+      attrs = Map.update!(attrs, "payments", &Enum.filter(&1, fn payment -> float(payment["amount"]) > 0 end))
+
       case Sales.create_sale(socket.assigns.scope, attrs) do
         {:ok, _} -> {:noreply, socket |> put_flash(:info, "Sale completed.") |> assign(:cart, []) |> assign(:checkout_stage, nil) |> assign(:selected_customer, nil) |> assign(:order_discount, 0.0) |> assign(:delivery, 0.0) |> assign(:delivery_open, false) |> assign(:credit, false) |> assign(:payments, []) |> assign(:memo, "") |> sync()}
         {:error, reason} -> {:noreply, put_flash(socket, :error, "Sale could not be completed: #{inspect(reason)}")}
