@@ -34,6 +34,13 @@ const hooks = {
     },
     destroyed() { this.observer?.disconnect(); }
   },
+  PosTheme: {
+    mounted() {
+      this.onTheme = event => document.documentElement.dataset.theme = event.detail.theme;
+      window.addEventListener("pos:set-theme", this.onTheme);
+    },
+    destroyed() { window.removeEventListener("pos:set-theme", this.onTheme); }
+  },
   PosShell: {
     mounted() {
       this.onKeydown = event => {

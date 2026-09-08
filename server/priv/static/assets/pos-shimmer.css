@@ -1,0 +1,140 @@
+/* Exact shimmer port from client/src/css/app.css. */
+.skeleton {
+  display: block;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    100deg,
+    var(--muted) 30%,
+    color-mix(in oklch, var(--background) 72%, white) 48%,
+    var(--muted) 66%
+  );
+  background-size: 220% 100%;
+  animation: skeleton-shimmer 1.35s ease-in-out infinite;
+}
+.skeleton-line {
+  height: 0.8rem;
+}
+.skeleton-table-row .table-cell {
+  height: 3.4rem;
+  vertical-align: middle;
+}
+.skeleton-table-row .skeleton-line {
+  min-width: 2.5rem;
+}
+@keyframes skeleton-shimmer {
+  to {
+    background-position: -120% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+    background: var(--muted);
+  }
+}
+.product-skeleton-image {
+  width: 100%;
+  height: 132px;
+  border-radius: 0;
+}
+.product-skeleton-card {
+  pointer-events: none;
+}
+.invoice-details-skeleton {
+  display: grid;
+  gap: 0.8rem;
+  min-height: 15rem;
+  align-content: center;
+}
+.invoice-details-skeleton .skeleton-line {
+  height: 0.95rem;
+}
+.operations-screen.is-screen-loading,
+#invoice-report.is-screen-loading {
+  position: relative;
+  min-height: 42rem;
+}
+.is-screen-loading > :not(.screen-loading-skeleton) {
+  visibility: hidden;
+}
+.screen-loading-skeleton {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  padding: 10px 0 28px;
+  background: #f6f7f8;
+}
+.screen-loading-header {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) minmax(14rem, 28rem) 9rem;
+  align-items: center;
+  gap: 10px;
+  min-height: 4.75rem;
+  border-bottom: 1px solid var(--border);
+}
+.skeleton-title {
+  height: 1.7rem;
+}
+.skeleton-control {
+  height: 2.75rem;
+  justify-self: end;
+}
+.screen-loading-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.screen-loading-card {
+  display: grid;
+  align-content: center;
+  gap: 12px;
+  min-height: 9.25rem;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--card);
+}
+.screen-loading-card .skeleton-value {
+  height: 1.6rem;
+}
+.screen-loading-table {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--card);
+}
+.screen-loading-table-row {
+  display: grid;
+  grid-template-columns: 1.65fr repeat(9, minmax(0, 1fr));
+  align-items: center;
+  gap: 16px;
+  min-height: 4.25rem;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+}
+.screen-loading-table-row:last-child {
+  border-bottom: 0;
+}
+
+/* Keep the established skeleton component, with an explicit top-level mobile
+   animation rule for Android WebView's media-query parser. */
+@media (max-width: 640px) and (prefers-reduced-motion: no-preference) {
+  .skeleton {
+    background-repeat: no-repeat;
+    background-size: 240% 100%;
+    background-position: 100% 0;
+    will-change: background-position;
+    animation-name: skeleton-shimmer;
+    animation-duration: 1.15s;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+  }
+
+  @keyframes skeleton-shimmer {
+    from { background-position: 100% 0; }
+    to { background-position: -120% 0; }
+  }
+}
