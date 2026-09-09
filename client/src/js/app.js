@@ -1967,13 +1967,17 @@ function startPrintRelay() {
 async function updatePrinterStatus() {
   try {
     const status = await printer.status();
-    printerStatus.alt = status.connected ? t("printer.connected") : t("printer.disconnected");
-    printerStatus.title = printerStatus.alt;
+    const label = status.connected ? t("printer.connected") : t("printer.disconnected");
+    printerStatus.setAttribute("aria-label", label);
+    printerStatus.title = label;
     printerStatus.classList.toggle("connected", status.connected);
     printerStatus.classList.toggle("disconnected", !status.connected);
     return status.connected;
   } catch (error) {
-    console.error(error); printerStatus.alt = t("printer.disconnected"); printerStatus.title = printerStatus.alt;
+    console.error(error);
+    const label = t("printer.disconnected");
+    printerStatus.setAttribute("aria-label", label);
+    printerStatus.title = label;
     printerStatus.classList.remove("connected"); printerStatus.classList.add("disconnected"); return false;
   }
 }

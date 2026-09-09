@@ -15,7 +15,8 @@ defmodule PosServerWeb.LandingController do
     |> render(:index,
       current_user: current_user,
       page_title: "tigoo",
-      page_description: "Ventas, inventario y facturación electrónica para negocios que quieren avanzar.",
+      page_description:
+        "Ventas, inventario y facturación electrónica para negocios que quieren avanzar.",
       canonical_path: "/"
     )
   end

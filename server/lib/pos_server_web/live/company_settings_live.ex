@@ -27,7 +27,11 @@ defmodule PosServerWeb.CompanySettingsLive do
        |> assign(:editing, nil)
        |> assign(:status, "")}
     else
-      _ -> {:ok, socket |> put_flash(:error, "Company settings access is required.") |> redirect(to: ~p"/pos")}
+      _ ->
+        {:ok,
+         socket
+         |> put_flash(:error, "Company settings access is required.")
+         |> redirect(to: ~p"/pos")}
     end
   end
 
@@ -43,7 +47,8 @@ defmodule PosServerWeb.CompanySettingsLive do
     end
   end
 
-  def handle_event("cancel", _, socket), do: {:noreply, socket |> assign(:editing, nil) |> assign(:status, "")}
+  def handle_event("cancel", _, socket),
+    do: {:noreply, socket |> assign(:editing, nil) |> assign(:status, "")}
 
   def handle_event("change_store", %{"store_id" => id}, socket) do
     with {store_id, ""} <- Integer.parse(id),
@@ -57,15 +62,40 @@ defmodule PosServerWeb.CompanySettingsLive do
   def handle_event("save", %{"kind" => kind} = params, socket) when kind in @kinds do
     result =
       case {kind, socket.assigns.editing} do
-        {"price-list", {"price-list", :new}} -> CompanySettings.create_price_list(socket.assigns.scope, %{"label" => Map.get(params, "name", "")})
-        {"price-list", {"price-list", id}} -> CompanySettings.update_price_list(socket.assigns.scope, id, %{"label" => Map.get(params, "name", "")})
-        {"store", {"store", :new}} -> CompanySettings.create_store(socket.assigns.scope, store_attrs(params))
-        {"store", {"store", id}} -> CompanySettings.update_store(socket.assigns.scope, id, store_attrs(params))
-        {"provider", {"provider", :new}} -> CompanySettings.create_provider(socket.assigns.scope, %{"name" => Map.get(params, "name", "")})
-        {"provider", {"provider", id}} -> CompanySettings.update_provider(socket.assigns.scope, id, %{"name" => Map.get(params, "name", "")})
-        {"sequence", {"sequence", :new}} -> CompanySettings.create_sequence_set(socket.assigns.scope, sequence_attrs(params))
-        {"sequence", {"sequence", id}} -> CompanySettings.update_sequence_set(socket.assigns.scope, id, sequence_attrs(params))
-        _ -> {:error, :invalid_edit}
+        {"price-list", {"price-list", :new}} ->
+          CompanySettings.create_price_list(socket.assigns.scope, %{
+            "label" => Map.get(params, "name", "")
+          })
+
+        {"price-list", {"price-list", id}} ->
+          CompanySettings.update_price_list(socket.assigns.scope, id, %{
+            "label" => Map.get(params, "name", "")
+          })
+
+        {"store", {"store", :new}} ->
+          CompanySettings.create_store(socket.assigns.scope, store_attrs(params))
+
+        {"store", {"store", id}} ->
+          CompanySettings.update_store(socket.assigns.scope, id, store_attrs(params))
+
+        {"provider", {"provider", :new}} ->
+          CompanySettings.create_provider(socket.assigns.scope, %{
+            "name" => Map.get(params, "name", "")
+          })
+
+        {"provider", {"provider", id}} ->
+          CompanySettings.update_provider(socket.assigns.scope, id, %{
+            "name" => Map.get(params, "name", "")
+          })
+
+        {"sequence", {"sequence", :new}} ->
+          CompanySettings.create_sequence_set(socket.assigns.scope, sequence_attrs(params))
+
+        {"sequence", {"sequence", id}} ->
+          CompanySettings.update_sequence_set(socket.assigns.scope, id, sequence_attrs(params))
+
+        _ ->
+          {:error, :invalid_edit}
       end
 
     case result do
@@ -74,17 +104,22 @@ defmodule PosServerWeb.CompanySettingsLive do
     end
   end
 
-  def handle_event("delete", %{"kind" => kind, "id" => id}, socket) when kind in ["price-list", "provider", "sequence"] do
+  def handle_event("delete", %{"kind" => kind, "id" => id}, socket)
+      when kind in ["price-list", "provider", "sequence"] do
     with {id, ""} <- Integer.parse(id) do
-      result = case kind do
-        "price-list" -> CompanySettings.delete_price_list(id)
-        "provider" -> CompanySettings.delete_provider(id)
-        "sequence" -> CompanySettings.delete_sequence_set(id)
-      end
+      result =
+        case kind do
+          "price-list" -> CompanySettings.delete_price_list(id)
+          "provider" -> CompanySettings.delete_provider(id)
+          "sequence" -> CompanySettings.delete_sequence_set(id)
+        end
 
       case result do
-        {:ok, _} -> {:noreply, socket |> assign(:editing, nil) |> assign(:status, "") |> reload()}
-        {:error, reason} -> {:noreply, assign(socket, :status, error_message(reason, kind, :delete))}
+        {:ok, _} ->
+          {:noreply, socket |> assign(:editing, nil) |> assign(:status, "") |> reload()}
+
+        {:error, reason} ->
+          {:noreply, assign(socket, :status, error_message(reason, kind, :delete))}
       end
     else
       _ -> {:noreply, assign(socket, :status, "This item could not be found.")}
@@ -94,19 +129,89 @@ defmodule PosServerWeb.CompanySettingsLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <.pos_layout id="company-settings-live" class="pos-shell invoice-view" active_page={:company_settings} scope={@scope} stores={@stores} store_id={@store_id} phx-hook="CompanySettings" data-editing={editing_key(@editing)}>
-      <section class="catalog-panel" data-view="company-settings" aria-labelledby="company-settings-title">
-        <section id="company-settings-screen" class="company-settings-screen" aria-labelledby="company-settings-title">
+    <.pos_layout
+      id="company-settings-live"
+      class="pos-shell invoice-view"
+      active_page={:company_settings}
+      scope={@scope}
+      stores={@stores}
+      store_id={@store_id}
+      phx-hook="CompanySettings"
+      data-editing={editing_key(@editing)}
+    >
+      <section
+        class="catalog-panel"
+        data-view="company-settings"
+        aria-labelledby="company-settings-title"
+      >
+        <section
+          id="company-settings-screen"
+          class="company-settings-screen"
+          aria-labelledby="company-settings-title"
+        >
           <div class="company-settings-fixed">
-            <header class="topbar company-settings-topbar"><div class="brand-lockup"><span class="brand-mark" aria-hidden="true">E</span><div><p class="eyebrow">Company</p><h2 id="company-settings-title" tabindex="-1">Company settings</h2></div></div></header>
-            <article class="card company-summary" aria-labelledby="company-summary-title"><div class="card-header"><h3 id="company-summary-title" class="card-title">Current company</h3><p id="company-settings-company" class="card-description">{company_name(@overview.company)}</p></div></article>
-            <p id="company-settings-status" class="company-settings-status" role="status">{@status}</p>
+            <header class="topbar company-settings-topbar">
+              <div class="brand-lockup">
+                <span class="brand-mark" aria-hidden="true">E</span>
+                <div>
+                  <p class="eyebrow">Company</p>
+                  <h2 id="company-settings-title" tabindex="-1">Company settings</h2>
+                </div>
+              </div>
+            </header>
+            <article class="card company-summary" aria-labelledby="company-summary-title">
+              <div class="card-header">
+                <h3 id="company-summary-title" class="card-title">Current company</h3>
+                <p id="company-settings-company" class="card-description">
+                  {company_name(@overview.company)}
+                </p>
+              </div>
+            </article>
+            <p id="company-settings-status" class="company-settings-status" role="status">
+              {@status}
+            </p>
           </div>
           <div class="company-settings-cards">
-            <.settings_card kind="price-list" title="Price lists" description="Manage the labels used for product prices." add_label="Add price list" entries={@overview.price_lists} editing={@editing} empty="No price lists yet." company={@overview.company}/>
-            <.settings_card kind="store" title="Stores" description="Manage your company’s store locations." add_label="Add store" entries={@overview.stores} editing={@editing} empty="No stores yet." company={@overview.company}/>
-            <.settings_card kind="sequence" title="Sequence sets" description="Set the invoice sequences used for CF, VF, and DV sales." add_label="Add sequence" entries={@overview.sequence_sets} editing={@editing} empty="No sequences configured. Add CF, VF, and DV to complete sales." company={@overview.company}/>
-            <.settings_card kind="provider" title="Providers" description="Manage the providers used for purchase orders." add_label="Add provider" entries={@overview.providers} editing={@editing} empty="No providers yet." company={@overview.company}/>
+            <.settings_card
+              kind="price-list"
+              title="Price lists"
+              description="Manage the labels used for product prices."
+              add_label="Add price list"
+              entries={@overview.price_lists}
+              editing={@editing}
+              empty="No price lists yet."
+              company={@overview.company}
+            />
+            <.settings_card
+              kind="store"
+              title="Stores"
+              description="Manage your company’s store locations."
+              add_label="Add store"
+              entries={@overview.stores}
+              editing={@editing}
+              empty="No stores yet."
+              company={@overview.company}
+            />
+            <.settings_card
+              kind="sequence"
+              title="Sequence sets"
+              description="Set the invoice sequences used for CF, VF, and DV sales."
+              add_label="Add sequence"
+              entries={@overview.sequence_sets}
+              editing={@editing}
+              empty="No sequences configured. Add CF, VF, and DV to complete sales."
+              company={@overview.company}
+            />
+            <.settings_card
+              kind="provider"
+              title="Providers"
+              description="Manage the providers used for purchase orders."
+              add_label="Add provider"
+              entries={@overview.providers}
+              editing={@editing}
+              empty="No providers yet."
+              company={@overview.company}
+            />
           </div>
         </section>
       </section>
@@ -122,17 +227,44 @@ defmodule PosServerWeb.CompanySettingsLive do
   attr :editing, :any, required: true
   attr :empty, :string, required: true
   attr :company, :map, required: true
+
   defp settings_card(assigns) do
     ~H"""
     <article class="card company-settings-card" aria-labelledby={title_id(@kind)}>
-      <div class="card-header company-settings-card-header"><div><h3 id={title_id(@kind)} class="card-title">{@title}</h3><p class="card-description">{@description}</p></div><button id={add_id(@kind)} class="btn" type="button" data-variant="default" data-size="sm" phx-click="add" phx-value-kind={@kind}>{@add_label}</button></div>
+      <div class="card-header company-settings-card-header">
+        <div>
+          <h3 id={title_id(@kind)} class="card-title">{@title}</h3>
+          <p class="card-description">{@description}</p>
+        </div>
+        <button
+          id={add_id(@kind)}
+          class="btn"
+          type="button"
+          data-variant="default"
+          data-size="sm"
+          phx-click="add"
+          phx-value-kind={@kind}
+        >
+          {@add_label}
+        </button>
+      </div>
       <div id={content_id(@kind)} class="card-content">
-        <.setting_form :if={@editing == {@kind, :new}} kind={@kind} entry={nil} company={@company}/>
+        <.setting_form :if={@editing == {@kind, :new}} kind={@kind} entry={nil} company={@company} />
         <%= for entry <- @entries do %>
-          <.setting_form :if={@editing == {@kind, entry.id}} kind={@kind} entry={entry} company={@company}/>
-          <.setting_row :if={@editing != {@kind, entry.id}} kind={@kind} entry={entry}/>
+          <.setting_form
+            :if={@editing == {@kind, entry.id}}
+            kind={@kind}
+            entry={entry}
+            company={@company}
+          />
+          <.setting_row :if={@editing != {@kind, entry.id}} kind={@kind} entry={entry} />
         <% end %>
-        <p :if={@entries == [] and @editing != {@kind, :new}} class="field-description company-settings-empty">{@empty}</p>
+        <p
+          :if={@entries == [] and @editing != {@kind, :new}}
+          class="field-description company-settings-empty"
+        >
+          {@empty}
+        </p>
       </div>
     </article>
     """
@@ -141,20 +273,89 @@ defmodule PosServerWeb.CompanySettingsLive do
   attr :kind, :string, required: true
   attr :entry, :any, required: true
   attr :company, :map, required: true
+
   defp setting_form(assigns) do
     ~H"""
     <form class="form company-setting-form" phx-submit="save" phx-value-kind={@kind}>
-      <input type="hidden" name="kind" value={@kind}/>
+      <input type="hidden" name="kind" value={@kind} />
       <%= if @kind == "sequence" do %>
-        <.field label="Name" name="name" value={value(@entry, :name)} required/><.field label="Code" name="code" value={value(@entry, :code)} required/><.field label="Prefix" name="prefix" value={value(@entry, :prefix)} required/><.field label="Digits" name="fill" value={value(@entry, :fill) || 8} type="number" required/><.field label="Increment" name="increment_by" value={value(@entry, :increment_by) || 1} type="number" required/><.field label="Next number" name="current_seq" value={value(@entry, :current_seq) || 0} type="number" required/>
+        <.field label="Name" name="name" value={value(@entry, :name)} required /><.field
+          label="Code"
+          name="code"
+          value={value(@entry, :code)}
+          required
+        /><.field label="Prefix" name="prefix" value={value(@entry, :prefix)} required /><.field
+          label="Digits"
+          name="fill"
+          value={value(@entry, :fill) || 8}
+          type="number"
+          required
+        /><.field
+          label="Increment"
+          name="increment_by"
+          value={value(@entry, :increment_by) || 1}
+          type="number"
+          required
+        /><.field
+          label="Next number"
+          name="current_seq"
+          value={value(@entry, :current_seq) || 0}
+          type="number"
+          required
+        />
       <% else %>
-        <.field label={setting_name_label(@kind)} name="name" value={value(@entry, setting_name_key(@kind))} required/>
+        <.field
+          label={setting_name_label(@kind)}
+          name="name"
+          value={value(@entry, setting_name_key(@kind))}
+          required
+        />
         <%= if @kind == "store" do %>
-          <p class="field-description store-company-context">Company: {value(@company, :name) || "Current company"}</p><.field label="Slogan" name="slogan" value={value(@entry, :slogan)}/><.field label="Address" name="address" value={value(@entry, :address)} multiline/>
-          <div id={"store-logo-field-#{value(@entry, :id) || "new"}"} class="form-field store-logo-field" phx-update="ignore"><div class="product-image-dropzone store-logo-dropzone" tabindex="0" role="button"><img class="product-image-preview store-logo-preview" src={value(@entry, :logo)} alt="Store logo preview" hidden={is_nil(value(@entry, :logo))}/><label class="label">Store logo</label><p class="field-description">Drop an image here or choose a file (max 10 MB). It will be resized and stored as Base64.</p><input class="input" type="file" accept="image/*"/></div><input class="store-logo-value" type="hidden" name="logo" value={value(@entry, :logo)}/><button :if={value(@entry, :logo)} class="btn store-logo-remove" type="button" data-variant="outline" data-remove-store-logo>Remove logo</button></div>
+          <p class="field-description store-company-context">
+            Company: {value(@company, :name) || "Current company"}
+          </p>
+          <.field label="Slogan" name="slogan" value={value(@entry, :slogan)} /><.field
+            label="Address"
+            name="address"
+            value={value(@entry, :address)}
+            multiline
+          />
+          <div
+            id={"store-logo-field-#{value(@entry, :id) || "new"}"}
+            class="form-field store-logo-field"
+            phx-update="ignore"
+          >
+            <div class="product-image-dropzone store-logo-dropzone" tabindex="0" role="button">
+              <img
+                class="product-image-preview store-logo-preview"
+                src={value(@entry, :logo)}
+                alt="Store logo preview"
+                hidden={is_nil(value(@entry, :logo))}
+              /><label class="label">Store logo</label>
+              <p class="field-description">
+                Drop an image here or choose a file (max 10 MB). It will be resized and stored as Base64.
+              </p>
+              <input class="input" type="file" accept="image/*" />
+            </div>
+            <input class="store-logo-value" type="hidden" name="logo" value={value(@entry, :logo)} /><button
+              :if={value(@entry, :logo)}
+              class="btn store-logo-remove"
+              type="button"
+              data-variant="outline"
+              data-remove-store-logo
+            >
+              Remove logo
+            </button>
+          </div>
         <% end %>
       <% end %>
-      <div class="form-actions"><button class="btn" type="button" data-variant="outline" phx-click="cancel">Cancel</button><button class="btn" type="submit" data-variant="default">{submit_label(@kind, @entry)}</button></div>
+      <div class="form-actions">
+        <button class="btn" type="button" data-variant="outline" phx-click="cancel">Cancel</button><button
+          class="btn"
+          type="submit"
+          data-variant="default"
+        >{submit_label(@kind, @entry)}</button>
+      </div>
     </form>
     """
   end
@@ -165,17 +366,66 @@ defmodule PosServerWeb.CompanySettingsLive do
   attr :type, :string, default: "text"
   attr :required, :boolean, default: false
   attr :multiline, :boolean, default: false
+
   defp field(assigns) do
     ~H"""
-    <div class="form-field"><label class="label" for={"company-setting-#{@name}"}>{@label}</label><textarea :if={@multiline} id={"company-setting-#{@name}"} class="input" name={@name}>{@value}</textarea><input :if={!@multiline} id={"company-setting-#{@name}"} class="input" name={@name} type={@type} value={@value} required={@required}/></div>
+    <div class="form-field">
+      <label class="label" for={"company-setting-#{@name}"}>{@label}</label><textarea
+        :if={@multiline}
+        id={"company-setting-#{@name}"}
+        class="input"
+        name={@name}
+      >{@value}</textarea><input
+        :if={!@multiline}
+        id={"company-setting-#{@name}"}
+        class="input"
+        name={@name}
+        type={@type}
+        value={@value}
+        required={@required}
+      />
+    </div>
     """
   end
 
   attr :kind, :string, required: true
   attr :entry, :map, required: true
+
   defp setting_row(assigns) do
     ~H"""
-    <div class="company-setting-row"><div><img :if={@kind == "store" and value(@entry, :logo)} class="store-logo-thumbnail" src={value(@entry, :logo)} alt=""/><strong>{row_title(@kind, @entry)}</strong><p class="field-description">{row_description(@kind, @entry)}</p></div><div class="company-setting-actions"><button class="btn" type="button" data-variant="outline" data-size="sm" phx-click="edit" phx-value-kind={@kind} phx-value-id={@entry.id}>Edit</button><button :if={@kind != "store"} class="btn" type="button" data-variant="destructive" data-size="sm" data-company-settings-confirm={delete_message(@kind)} data-delete-kind={@kind} data-delete-id={@entry.id}>Delete</button></div></div>
+    <div class="company-setting-row">
+      <div>
+        <img
+          :if={@kind == "store" and value(@entry, :logo)}
+          class="store-logo-thumbnail"
+          src={value(@entry, :logo)}
+          alt=""
+        /><strong>{row_title(@kind, @entry)}</strong>
+        <p class="field-description">{row_description(@kind, @entry)}</p>
+      </div>
+      <div class="company-setting-actions">
+        <button
+          class="btn"
+          type="button"
+          data-variant="outline"
+          data-size="sm"
+          phx-click="edit"
+          phx-value-kind={@kind}
+          phx-value-id={@entry.id}
+        >
+          Edit
+        </button><button
+          :if={@kind != "store"}
+          class="btn"
+          type="button"
+          data-variant="destructive"
+          data-size="sm"
+          data-company-settings-confirm={delete_message(@kind)}
+          data-delete-kind={@kind}
+          data-delete-id={@entry.id}
+        >Delete</button>
+      </div>
+    </div>
     """
   end
 
@@ -185,11 +435,14 @@ defmodule PosServerWeb.CompanySettingsLive do
         stores = overview.stores
         store_id = selected_store_id(stores, socket.assigns.store_id)
         assign(socket, overview: overview, stores: stores, store_id: store_id)
-      _ -> assign(socket, :status, "Company settings could not be loaded.")
+
+      _ ->
+        assign(socket, :status, "Company settings could not be loaded.")
     end
   end
 
   defp store_attrs(params), do: Map.take(params, ["name", "slogan", "address", "logo"])
+
   defp sequence_attrs(params) do
     numeric_values =
       Enum.into(~w(fill increment_by current_seq), %{}, fn key ->
@@ -210,8 +463,14 @@ defmodule PosServerWeb.CompanySettingsLive do
 
   defp selected_store_id(stores, selected_id) do
     case Integer.parse(to_string(selected_id || "")) do
-      {id, ""} -> if(Enum.any?(stores, &(&1.id == id)), do: id, else: stores |> List.first() |> then(&(&1 && &1.id)))
-      _ -> stores |> List.first() |> then(&(&1 && &1.id))
+      {id, ""} ->
+        if(Enum.any?(stores, &(&1.id == id)),
+          do: id,
+          else: stores |> List.first() |> then(&(&1 && &1.id))
+        )
+
+      _ ->
+        stores |> List.first() |> then(&(&1 && &1.id))
     end
   end
 
@@ -221,7 +480,13 @@ defmodule PosServerWeb.CompanySettingsLive do
   defp entry(overview, "sequence", id), do: Enum.find(overview.sequence_sets, &(&1.id == id))
   defp value(nil, _key), do: nil
   defp value(entry, key), do: Map.get(entry, key) || Map.get(entry, Atom.to_string(key))
-  defp company_name(company), do: [value(company, :name), if(value(company, :rnc), do: "RNC #{value(company, :rnc)}")] |> Enum.reject(&is_nil/1) |> Enum.join(" · ")
+
+  defp company_name(company),
+    do:
+      [value(company, :name), if(value(company, :rnc), do: "RNC #{value(company, :rnc)}")]
+      |> Enum.reject(&is_nil/1)
+      |> Enum.join(" · ")
+
   defp editing_key(nil), do: ""
   defp editing_key({kind, id}), do: "#{kind}:#{id}"
   defp title_id("price-list"), do: "price-lists-title"
@@ -247,13 +512,20 @@ defmodule PosServerWeb.CompanySettingsLive do
   defp row_title("sequence", entry), do: "#{value(entry, :code)} · #{value(entry, :name)}"
   defp row_title("price-list", entry), do: value(entry, :label)
   defp row_title(_, entry), do: value(entry, :name)
+
   defp row_description("store", entry) do
-    case [value(entry, :slogan), value(entry, :address)] |> Enum.reject(&(&1 in [nil, ""])) |> Enum.join(" · ") do
+    case [value(entry, :slogan), value(entry, :address)]
+         |> Enum.reject(&(&1 in [nil, ""]))
+         |> Enum.join(" · ") do
       "" -> "No store details provided"
       text -> text
     end
   end
-  defp row_description("sequence", entry), do: "#{value(entry, :prefix)}#{String.pad_leading(to_string(value(entry, :current_seq)), value(entry, :fill), "0")} · increments by #{value(entry, :increment_by)}"
+
+  defp row_description("sequence", entry),
+    do:
+      "#{value(entry, :prefix)}#{String.pad_leading(to_string(value(entry, :current_seq)), value(entry, :fill), "0")} · increments by #{value(entry, :increment_by)}"
+
   defp row_description("price-list", entry), do: value(entry, :price_key) || ""
   defp row_description(_, _), do: ""
   defp delete_message("price-list"), do: "Delete this price list?"

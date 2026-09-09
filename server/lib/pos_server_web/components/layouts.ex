@@ -11,6 +11,9 @@ defmodule PosServerWeb.Layouts do
   # and other static content.
   embed_templates "layouts/*"
 
+  def pos_pwa_path?(%{conn: %{request_path: "/pos" <> _}}), do: true
+  def pos_pwa_path?(_assigns), do: false
+
   @doc """
   Renders your app layout.
 

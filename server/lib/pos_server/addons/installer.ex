@@ -45,7 +45,9 @@ defmodule PosServer.Addons.Installer do
   end
 
   def install(identifier, tenant) when is_binary(tenant) and tenant != "" do
-    if Addons.installed?(identifier, tenant), do: :ok, else: discover_load_and_register(identifier, tenant)
+    if Addons.installed?(identifier, tenant),
+      do: :ok,
+      else: discover_load_and_register(identifier, tenant)
   end
 
   def install(_identifier, _tenant), do: {:error, :missing_tenant}
@@ -131,7 +133,8 @@ defmodule PosServer.Addons.Installer do
 
   defp safely_unload(handler) do
     case :code.is_loaded(handler) do
-      false -> :purged
+      false ->
+        :purged
 
       _loaded ->
         # A previous replacement may have left old code behind. Do not delete
@@ -177,16 +180,27 @@ defmodule PosServer.Addons.Installer do
   end
 
   defp rewrite_root_module(source, handler) do
-    Regex.replace(~r/defmodule\s+[A-Za-z0-9_.]+\s+do/, source, "defmodule #{inspect(handler)} do", global: false)
+    Regex.replace(~r/defmodule\s+[A-Za-z0-9_.]+\s+do/, source, "defmodule #{inspect(handler)} do",
+      global: false
+    )
   end
 
   defp revision_module(identifier, tenant, revision) do
-    tenant_part = tenant |> String.replace(~r/[^a-zA-Z0-9]/, "_") |> Macro.camelize() |> String.slice(0, 40)
-    tenant_hash = :crypto.hash(:sha256, tenant) |> Base.encode16(case: :lower) |> String.slice(0, 10)
+    tenant_part =
+      tenant |> String.replace(~r/[^a-zA-Z0-9]/, "_") |> Macro.camelize() |> String.slice(0, 40)
+
+    tenant_hash =
+      :crypto.hash(:sha256, tenant) |> Base.encode16(case: :lower) |> String.slice(0, 10)
+
     addon_part = identifier |> String.replace(~r/[^a-zA-Z0-9]/, "_") |> Macro.camelize()
     revision_part = revision |> String.replace("-", "")
 
-    Module.concat([PosServer, :TenantAddons, "Tenant#{tenant_part}#{tenant_hash}", "#{addon_part}Revision#{revision_part}"])
+    Module.concat([
+      PosServer,
+      :TenantAddons,
+      "Tenant#{tenant_part}#{tenant_hash}",
+      "#{addon_part}Revision#{revision_part}"
+    ])
   end
 
   # Reinstalling unchanged source reuses its module name. A code change gets a
@@ -211,8 +225,13 @@ defmodule PosServer.Addons.Installer do
     end
   end
 
-  defp validate_manifest(%{identifier: identifier, route: "/addons/" <> identifier, handler: handler}, identifier, handler)
-       when is_atom(handler), do: :ok
+  defp validate_manifest(
+         %{identifier: identifier, route: "/addons/" <> identifier, handler: handler},
+         identifier,
+         handler
+       )
+       when is_atom(handler),
+       do: :ok
 
   defp validate_manifest(_, _, _), do: {:error, :invalid_manifest}
 

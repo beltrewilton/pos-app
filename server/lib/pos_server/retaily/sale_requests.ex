@@ -79,11 +79,29 @@ defmodule PosServer.Retaily.SaleRequests.Checkout do
 
   def changeset(checkout, attrs) do
     checkout
-    |> cast(attrs, [:store_id, :client_id, :sequence_type, :status, :sale_type, :delivery_charge, :discount, :discount_type, :discount_input, :additional_info])
+    |> cast(attrs, [
+      :store_id,
+      :client_id,
+      :sequence_type,
+      :status,
+      :sale_type,
+      :delivery_charge,
+      :discount,
+      :discount_type,
+      :discount_input,
+      :additional_info
+    ])
     |> update_change(:additional_info, &String.trim/1)
     |> cast_embed(:lines, required: true)
     |> cast_embed(:payments)
-    |> validate_required([:store_id, :client_id, :sequence_type, :status, :sale_type, :delivery_charge])
+    |> validate_required([
+      :store_id,
+      :client_id,
+      :sequence_type,
+      :status,
+      :sale_type,
+      :delivery_charge
+    ])
     |> validate_number(:store_id, greater_than: 0)
     |> validate_number(:client_id, greater_than: 0)
     |> validate_number(:delivery_charge, greater_than_or_equal_to: 0)

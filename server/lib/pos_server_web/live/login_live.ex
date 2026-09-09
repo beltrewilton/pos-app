@@ -8,7 +8,9 @@ defmodule PosServerWeb.LoginLive do
   @impl true
   def mount(_params, session, socket) do
     case session["user_token"] && Authentication.authenticate(session["user_token"]) do
-      {:ok, _scope} -> {:ok, redirect(socket, to: ~p"/pos")}
+      {:ok, _scope} ->
+        {:ok, redirect(socket, to: ~p"/pos")}
+
       _ ->
         {:ok,
          socket
@@ -30,12 +32,22 @@ defmodule PosServerWeb.LoginLive do
         TenantContext.put_tenant(scope.tenant)
 
         case InventoryContext.stores(scope) do
-          {:ok, []} -> {:noreply, assign(socket, :error, "No store is available for this account.")}
-          {:ok, stores} -> {:noreply, socket |> assign(:phase, :store_selection) |> assign(:pending_token, token) |> assign(:stores, stores)}
-          _ -> {:noreply, assign(socket, :error, "Stores could not be loaded.")}
+          {:ok, []} ->
+            {:noreply, assign(socket, :error, "No store is available for this account.")}
+
+          {:ok, stores} ->
+            {:noreply,
+             socket
+             |> assign(:phase, :store_selection)
+             |> assign(:pending_token, token)
+             |> assign(:stores, stores)}
+
+          _ ->
+            {:noreply, assign(socket, :error, "Stores could not be loaded.")}
         end
 
-      {:error, :invalid_credentials} -> {:noreply, assign(socket, :error, "The username/email or password is incorrect.")}
+      {:error, :invalid_credentials} ->
+        {:noreply, assign(socket, :error, "The username/email or password is incorrect.")}
     end
   end
 
@@ -43,44 +55,136 @@ defmodule PosServerWeb.LoginLive do
     case {socket.assigns.pending_token, Integer.parse(to_string(store_id))} do
       {token, {id, ""}} when is_binary(token) and id > 0 ->
         if Enum.any?(socket.assigns.stores, &(&1.id == id)) do
-          {:noreply, socket |> assign(:submitting?, true) |> push_event("login:complete", %{token: token, store_id: id})}
+          {:noreply,
+           socket
+           |> assign(:submitting?, true)
+           |> push_event("login:complete", %{token: token, store_id: id})}
         else
           {:noreply, assign(socket, :error, "Select a store to continue.")}
         end
 
-      _ -> {:noreply, assign(socket, :error, "Select a store to continue.")}
+      _ ->
+        {:noreply, assign(socket, :error, "Select a store to continue.")}
     end
   end
 
-  def handle_event("google_unavailable", _, socket), do: {:noreply, assign(socket, :error, "Google sign-in is available in the desktop or mobile app.")}
-  def handle_event("session_failed", _, socket), do: {:noreply, socket |> assign(:submitting?, false) |> assign(:error, "Unable to sign in.")}
+  def handle_event("google_unavailable", _, socket),
+    do:
+      {:noreply,
+       assign(socket, :error, "Google sign-in is available in the desktop or mobile app.")}
+
+  def handle_event("session_failed", _, socket),
+    do: {:noreply, socket |> assign(:submitting?, false) |> assign(:error, "Unable to sign in.")}
 
   @impl true
   def render(assigns) do
     ~H"""
-    <section id="login-screen" class="login-screen" aria-labelledby="login-title" phx-hook="LoginScreen" data-phase={@phase}>
+    <section
+      id="login-screen"
+      class="login-screen"
+      aria-labelledby="login-title"
+      phx-hook="LoginScreen"
+      data-phase={@phase}
+    >
       <.login_effects />
-      <div class="login-panel"><div class="card login-card"><div class="card-header"><h1 id="login-title" class="card-title">Sign in</h1><p class="card-description">Use your username or email and password to continue.</p></div><div class="card-content"><form id="login-form" class="form" novalidate phx-submit={if @phase == :credentials, do: "login", else: "select_store"}>
-        <.login_error error={@error}/>
-        <div class="form-field"><label class="label" for="login-identifier">Username or email</label><input id="login-identifier" class="input" name="identifier" autocomplete="username" required autofocus disabled={@phase == :store_selection}/></div>
-        <div class="form-field"><label class="label" for="login-password">Password</label><input id="login-password" class="input" name="password" type="password" autocomplete="current-password" required disabled={@phase == :store_selection}/></div>
-        <div :if={@phase == :store_selection} id="login-store-field" class="form-field"><label class="label" for="login-store">Store</label><select id="login-store" class="select" name="store_id" required><option value="" disabled selected>Select a store</option><option :for={store <- @stores} value={store.id}>{store.name}</option></select></div>
-        <div class="form-actions"><button id="login-submit" class="btn login-submit" type="submit" data-variant="default" disabled={@submitting?}>{if @phase == :store_selection, do: "Continue", else: "Sign in"}</button><button id="google-login" class="btn login-submit" type="button" data-variant="outline" disabled={@phase == :store_selection or @submitting?} phx-click="google_unavailable">Continue with Google</button></div>
-      </form></div></div></div>
+      <div class="login-panel">
+        <div class="card login-card">
+          <div class="card-header">
+            <h1 id="login-title" class="card-title">Sign in</h1>
+            <p class="card-description">Use your username or email and password to continue.</p>
+          </div>
+          <div class="card-content">
+            <form
+              id="login-form"
+              class="form"
+              novalidate
+              phx-submit={if @phase == :credentials, do: "login", else: "select_store"}
+            >
+              <.login_error error={@error} />
+              <div class="form-field">
+                <label class="label" for="login-identifier">Username or email</label>
+                <input
+                  id="login-identifier"
+                  class="input"
+                  name="identifier"
+                  autocomplete="username"
+                  required
+                  autofocus
+                  disabled={@phase == :store_selection}
+                />
+              </div>
+              <div class="form-field">
+                <label class="label" for="login-password">Password</label>
+                <input
+                  id="login-password"
+                  class="input"
+                  name="password"
+                  type="password"
+                  autocomplete="current-password"
+                  required
+                  disabled={@phase == :store_selection}
+                />
+              </div>
+              <div :if={@phase == :store_selection} id="login-store-field" class="form-field">
+                <label class="label" for="login-store">Store</label><select
+                  id="login-store"
+                  class="select"
+                  name="store_id"
+                  required
+                ><option value="" disabled selected>Select a store</option><option
+                  :for={store <- @stores}
+                  value={store.id}
+                >{store.name}</option></select>
+              </div>
+              <div class="form-actions">
+                <button
+                  id="login-submit"
+                  class="btn login-submit"
+                  type="submit"
+                  data-variant="default"
+                  disabled={@submitting?}
+                >
+                  {if @phase == :store_selection, do: "Continue", else: "Sign in"}
+                </button><button
+                  id="google-login"
+                  class="btn login-submit"
+                  type="button"
+                  data-variant="outline"
+                  disabled={@phase == :store_selection or @submitting?}
+                  phx-click="google_unavailable"
+                >Continue with Google</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
     </section>
     """
   end
 
   defp login_effects(assigns) do
     ~H"""
-    <div class="login-effects" aria-hidden="true"><i class="login-travel-layer login-travel-layer-far"></i><i class="login-travel-layer login-travel-layer-mid"></i><i class="login-travel-layer login-travel-layer-near"></i><i class="login-travel-flyby"></i></div>
+    <div class="login-effects" aria-hidden="true">
+      <i class="login-travel-layer login-travel-layer-far"></i><i class="login-travel-layer login-travel-layer-mid"></i><i class="login-travel-layer login-travel-layer-near"></i><i class="login-travel-flyby"></i>
+    </div>
     """
   end
 
   attr :error, :string, required: true
+
   defp login_error(assigns) do
     ~H"""
-    <div id="login-error" class="alert login-error" data-variant="destructive" role="alert" hidden={@error == ""}><div class="alert-content"><p id="login-error-message" class="alert-description">{@error}</p></div></div>
+    <div
+      id="login-error"
+      class="alert login-error"
+      data-variant="destructive"
+      role="alert"
+      hidden={@error == ""}
+    >
+      <div class="alert-content">
+        <p id="login-error-message" class="alert-description">{@error}</p>
+      </div>
+    </div>
     """
   end
 end

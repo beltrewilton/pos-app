@@ -48,6 +48,7 @@
       <symbol id="nav-icon-company" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 2-5h14l2 5"/><path d="M3 9h18v11H3z"/><path d="M7 20v-6h4v6"/><path d="M3 9c0 2 2 3 4 3s4-1 4-3c0 2 2 3 4 3s4-1 4-3"/></symbol>
       <symbol id="ui-icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></symbol>
       <symbol id="ui-icon-language" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 3.7 5.5 3.7 9S14.5 18.5 12 21c-2.5-2.5-3.7-5.5-3.7-9S9.5 5.5 12 3Z"/></symbol>
+      <symbol id="ui-icon-printer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v7H6z"/></symbol>
       <symbol id="ui-icon-network" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/></symbol>
     </svg>
     <main class="pos-shell" id="app-shell" hidden>
@@ -105,12 +106,12 @@
         </details>
       </nav>
       <div class="status-strip" aria-label="System status" data-i18n-aria-label="status.system">
-        <img
+        <svg
           id="printer-status"
           class="printer-status"
-          src="./assets/icons/printer.svg"
-          alt="Checking printer status" data-i18n-alt="status.printerChecking"
-        /><svg class="network-status" role="img" aria-label="Network status unavailable" data-i18n-aria-label="status.networkUnavailable"><use href="#ui-icon-network"/></svg>
+          role="img"
+          aria-label="Checking printer status" data-i18n-aria-label="status.printerChecking"
+        ><use href="#ui-icon-printer"/></svg><svg class="network-status" role="img" aria-label="Network status unavailable" data-i18n-aria-label="status.networkUnavailable"><use href="#ui-icon-network"/></svg>
         <span id="session-store-status" class="session-store-status" aria-live="polite"></span>
         <details class="language-switcher" id="language-switcher">
           <summary aria-label="Change display language">

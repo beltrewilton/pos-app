@@ -463,6 +463,8 @@ button {
 }
 .printer-status {
   right: 34px;
+  cursor: pointer;
+  color: var(--muted-foreground);
 }
 .network-status {
   right: 11px;
@@ -470,13 +472,11 @@ button {
   color: var(--muted-foreground);
 }
 .printer-status.connected {
-  filter: invert(37%) sepia(35%) saturate(982%) hue-rotate(94deg)
-    brightness(89%) contrast(90%);
+  color: var(--success, #22863a);
   opacity: 1;
 }
 .printer-status.disconnected {
-  filter: invert(19%) sepia(99%) saturate(3131%) hue-rotate(344deg)
-    brightness(91%) contrast(90%);
+  color: var(--destructive, #d1242f);
   opacity: 1;
 }
 .catalog-panel {

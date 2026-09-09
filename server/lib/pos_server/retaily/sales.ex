@@ -74,7 +74,19 @@ defmodule PosServer.Retaily.Sale do
         :store_id,
         :additional_info
       ])
-      |> validate_required([:amount, :sub, :discount, :tax_amount, :sequence, :sequence_type, :status, :sale_type, :login, :client_id, :store_id])
+      |> validate_required([
+        :amount,
+        :sub,
+        :discount,
+        :tax_amount,
+        :sequence,
+        :sequence_type,
+        :status,
+        :sale_type,
+        :login,
+        :client_id,
+        :store_id
+      ])
       |> update_change(:additional_info, &String.trim/1)
       |> validate_length(:additional_info, max: 1000)
       |> validate_inclusion(:discount_type, ["money", "percentage"])
@@ -103,8 +115,26 @@ defmodule PosServer.Retaily.SaleLine do
 
     def changeset(line, attrs) do
       line
-      |> cast(attrs, [:amount, :tax_amount, :discount, :discount_type, :discount_input, :quantity, :total_amount, :sale_id, :product_id])
-      |> validate_required([:amount, :tax_amount, :discount, :quantity, :total_amount, :sale_id, :product_id])
+      |> cast(attrs, [
+        :amount,
+        :tax_amount,
+        :discount,
+        :discount_type,
+        :discount_input,
+        :quantity,
+        :total_amount,
+        :sale_id,
+        :product_id
+      ])
+      |> validate_required([
+        :amount,
+        :tax_amount,
+        :discount,
+        :quantity,
+        :total_amount,
+        :sale_id,
+        :product_id
+      ])
       |> validate_inclusion(:discount_type, ["money", "percentage"])
       |> check_constraint(:discount_type, name: :sale_line_discount_type_valid)
     end

@@ -17,7 +17,10 @@ defmodule PosServerWeb.Plugs.FetchCurrentScope do
   end
 
   defp authorization_token(conn) do
-    case Plug.Conn.get_req_header(conn, "authorization") |> List.first() |> to_string() |> String.split(" ", parts: 2) do
+    case Plug.Conn.get_req_header(conn, "authorization")
+         |> List.first()
+         |> to_string()
+         |> String.split(" ", parts: 2) do
       ["Bearer", token] -> token
       _ -> nil
     end

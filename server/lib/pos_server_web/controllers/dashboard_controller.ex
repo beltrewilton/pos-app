@@ -33,7 +33,10 @@ defmodule PosServerWeb.DashboardController do
             |> redirect(to: ~p"/dash")
 
           {:error, :tenant, changeset} ->
-            render_dashboard(conn, user, tenant_changeset: changeset, company_attrs: company_attrs)
+            render_dashboard(conn, user,
+              tenant_changeset: changeset,
+              company_attrs: company_attrs
+            )
 
           {:error, :company, changeset} ->
             render_dashboard(conn, user, tenant_attrs: tenant_attrs, company_changeset: changeset)
@@ -59,8 +62,19 @@ defmodule PosServerWeb.DashboardController do
   def create(conn, _params), do: redirect(conn, to: ~p"/")
 
   defp render_dashboard(conn, user, opts \\ []) do
-    tenant_changeset = Keyword.get(opts, :tenant_changeset, Accounts.change_tenant(user, Keyword.get(opts, :tenant_attrs, %{})))
-    company_changeset = Keyword.get(opts, :company_changeset, Accounts.change_company(%Company{}, Keyword.get(opts, :company_attrs, %{})))
+    tenant_changeset =
+      Keyword.get(
+        opts,
+        :tenant_changeset,
+        Accounts.change_tenant(user, Keyword.get(opts, :tenant_attrs, %{}))
+      )
+
+    company_changeset =
+      Keyword.get(
+        opts,
+        :company_changeset,
+        Accounts.change_company(%Company{}, Keyword.get(opts, :company_attrs, %{}))
+      )
 
     render(conn, :index,
       user: user,

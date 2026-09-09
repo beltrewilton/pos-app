@@ -12,11 +12,25 @@
           <div class="form-grid">
             <div class="form-field">
               <label class="label" for="admin-username">Username</label>
-              <input class="input" id="admin-username" name="admin[username]" type="text" required autocomplete="username" />
+              <input
+                class="input"
+                id="admin-username"
+                name="admin[username]"
+                type="text"
+                required
+                autocomplete="username"
+              />
             </div>
             <div class="form-field">
               <label class="label" for="admin-password">Password</label>
-              <input class="input" id="admin-password" name="admin[password]" type="password" required autocomplete="current-password" />
+              <input
+                class="input"
+                id="admin-password"
+                name="admin[password]"
+                type="password"
+                required
+                autocomplete="current-password"
+              />
             </div>
           </div>
           <p :if={@flash["error"]} class="field-error" role="alert">{@flash["error"]}</p>

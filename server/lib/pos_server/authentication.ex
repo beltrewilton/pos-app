@@ -39,7 +39,8 @@ defmodule PosServer.Authentication do
   end
 
   @doc "Creates a short-lived, single-use code for returning a browser OAuth result to Tauri."
-  def create_tauri_handoff(%User{} = user, platform, attempt_id \\ nil) when platform in ["desktop", "mobile"] do
+  def create_tauri_handoff(%User{} = user, platform, attempt_id \\ nil)
+      when platform in ["desktop", "mobile"] do
     code = :crypto.strong_rand_bytes(32) |> Base.url_encode64(padding: false)
 
     attrs = %{
@@ -94,7 +95,13 @@ defmodule PosServer.Authentication do
     token = :crypto.strong_rand_bytes(32) |> Base.url_encode64(padding: false)
     attempt_id = Ecto.UUID.generate()
 
-    attrs = %{id: attempt_id, channel_token_digest: handoff_digest(token), platform: platform, status: "pending", expires_at: DateTime.add(DateTime.utc_now(), 300, :second)}
+    attrs = %{
+      id: attempt_id,
+      channel_token_digest: handoff_digest(token),
+      platform: platform,
+      status: "pending",
+      expires_at: DateTime.add(DateTime.utc_now(), 300, :second)
+    }
 
     case %OAuthLoginAttempt{} |> OAuthLoginAttempt.changeset(attrs) |> Repo.insert() do
       {:ok, _} -> {:ok, %{attempt_id: attempt_id, channel_token: token, expires_in: 300}}
@@ -102,12 +109,19 @@ defmodule PosServer.Authentication do
     end
   end
 
-  def authenticate_tauri_login_attempt(attempt_id, token) when is_binary(attempt_id) and is_binary(token) do
+  def authenticate_tauri_login_attempt(attempt_id, token)
+      when is_binary(attempt_id) and is_binary(token) do
     case Repo.get(OAuthLoginAttempt, attempt_id) do
-      %OAuthLoginAttempt{status: status, expires_at: expires_at, channel_token_digest: digest} = attempt
+      %OAuthLoginAttempt{status: status, expires_at: expires_at, channel_token_digest: digest} =
+          attempt
       when status in ["pending", "success", "error"] ->
-        if DateTime.compare(expires_at, DateTime.utc_now()) == :gt and Plug.Crypto.secure_compare(digest, handoff_digest(token)), do: {:ok, attempt}, else: {:error, :unauthorized}
-      _ -> {:error, :unauthorized}
+        if DateTime.compare(expires_at, DateTime.utc_now()) == :gt and
+             Plug.Crypto.secure_compare(digest, handoff_digest(token)),
+           do: {:ok, attempt},
+           else: {:error, :unauthorized}
+
+      _ ->
+        {:error, :unauthorized}
     end
   end
 
@@ -115,15 +129,25 @@ defmodule PosServer.Authentication do
 
   def valid_tauri_login_attempt?(attempt_id) when is_binary(attempt_id) do
     case Repo.get(OAuthLoginAttempt, attempt_id) do
-      %OAuthLoginAttempt{status: "pending", expires_at: expires_at} -> DateTime.compare(expires_at, DateTime.utc_now()) == :gt
-      _ -> false
+      %OAuthLoginAttempt{status: "pending", expires_at: expires_at} ->
+        DateTime.compare(expires_at, DateTime.utc_now()) == :gt
+
+      _ ->
+        false
     end
   end
+
   def valid_tauri_login_attempt?(_), do: false
 
   def complete_tauri_login_attempt(attempt_id, %User{} = user) do
     now = DateTime.utc_now()
-    case Repo.update_all(from(a in OAuthLoginAttempt, where: a.id == ^attempt_id and a.status == "pending" and a.expires_at > ^now), set: [status: "success", user_id: user.id]) do
+
+    case Repo.update_all(
+           from(a in OAuthLoginAttempt,
+             where: a.id == ^attempt_id and a.status == "pending" and a.expires_at > ^now
+           ),
+           set: [status: "success", user_id: user.id]
+         ) do
       {1, _} -> login_attempt_result(attempt_id)
       _ -> {:error, :login_attempt_expired}
     end
@@ -131,19 +155,42 @@ defmodule PosServer.Authentication do
 
   def fail_tauri_login_attempt(attempt_id, error_code) do
     now = DateTime.utc_now()
-    Repo.update_all(from(a in OAuthLoginAttempt, where: a.id == ^attempt_id and a.status == "pending" and a.expires_at > ^now), set: [status: "error", error_code: error_code])
+
+    Repo.update_all(
+      from(a in OAuthLoginAttempt,
+        where: a.id == ^attempt_id and a.status == "pending" and a.expires_at > ^now
+      ),
+      set: [status: "error", error_code: error_code]
+    )
+
     login_attempt_result(attempt_id)
   end
 
   def login_attempt_result(attempt_id) do
     case Repo.get(OAuthLoginAttempt, attempt_id) do
-      %OAuthLoginAttempt{status: "success", user_id: user_id, platform: platform, expires_at: expires_at} when not is_nil(user_id) ->
-        with :gt <- DateTime.compare(expires_at, DateTime.utc_now()), %User{} = user <- Repo.get(User, user_id), {:ok, code} <- create_tauri_handoff(user, platform, attempt_id) do
+      %OAuthLoginAttempt{
+        status: "success",
+        user_id: user_id,
+        platform: platform,
+        expires_at: expires_at
+      }
+      when not is_nil(user_id) ->
+        with :gt <- DateTime.compare(expires_at, DateTime.utc_now()),
+             %User{} = user <- Repo.get(User, user_id),
+             {:ok, code} <- create_tauri_handoff(user, platform, attempt_id) do
           {:ok, %{status: "success", attempt_id: attempt_id, exchange_code: code}}
-        else _ -> {:error, :login_attempt_expired} end
-      %OAuthLoginAttempt{status: "error", error_code: code} -> {:ok, %{status: "error", attempt_id: attempt_id, error: code || "google_sign_in_failed"}}
-      %OAuthLoginAttempt{status: "pending"} -> {:ok, %{status: "pending", attempt_id: attempt_id}}
-      _ -> {:error, :login_attempt_expired}
+        else
+          _ -> {:error, :login_attempt_expired}
+        end
+
+      %OAuthLoginAttempt{status: "error", error_code: code} ->
+        {:ok, %{status: "error", attempt_id: attempt_id, error: code || "google_sign_in_failed"}}
+
+      %OAuthLoginAttempt{status: "pending"} ->
+        {:ok, %{status: "pending", attempt_id: attempt_id}}
+
+      _ ->
+        {:error, :login_attempt_expired}
     end
   end
 
@@ -202,7 +249,9 @@ defmodule PosServer.Authentication do
 
     case {employee, verified?} do
       {%Employee{is_active: 1} = employee, true} ->
-        employee = Repo.update!(Ecto.Changeset.change(employee, last_login: now()), prefix: tenant)
+        employee =
+          Repo.update!(Ecto.Changeset.change(employee, last_login: now()), prefix: tenant)
+
         scope = employee_scope(employee, tenant)
         {:ok, issue(scope), scope}
 
@@ -219,10 +268,21 @@ defmodule PosServer.Authentication do
     do: %{actor: :employee, found?: false, tenant: tenant}
 
   defp employee_lookup_summary(employee, tenant),
-    do: %{actor: :employee, found?: true, id: employee.id, active?: employee.is_active == 1, tenant: tenant}
+    do: %{
+      actor: :employee,
+      found?: true,
+      id: employee.id,
+      active?: employee.is_active == 1,
+      tenant: tenant
+    }
 
   defp login_result_summary({:ok, _token, scope}),
-    do: %{authenticated?: true, actor: scope.actor, actor_id: scope.actor_id, tenant: scope.tenant}
+    do: %{
+      authenticated?: true,
+      actor: scope.actor,
+      actor_id: scope.actor_id,
+      tenant: scope.tenant
+    }
 
   defp login_result_summary({:error, reason}), do: %{authenticated?: false, reason: reason}
 

@@ -11,15 +11,23 @@ defmodule PosServerWeb.CustomerControllerTest do
   setup do
     Process.delete(:current_tenant)
 
-    Enum.each([{30_218, "EXISTING CUSTOMER"}, {30_219, "OLDER CUSTOMER"}, {30_220, "MARIA CUSTOMER"}], fn {id, name} ->
-      Repo.insert!(%Client{id: id, name: name, celphone: if(id == 30_220, do: "809-555-0199", else: nil)}, prefix: @prefix)
-    end)
+    Enum.each(
+      [{30_218, "EXISTING CUSTOMER"}, {30_219, "OLDER CUSTOMER"}, {30_220, "MARIA CUSTOMER"}],
+      fn {id, name} ->
+        Repo.insert!(
+          %Client{id: id, name: name, celphone: if(id == 30_220, do: "809-555-0199", else: nil)},
+          prefix: @prefix
+        )
+      end
+    )
 
     {:ok, token} = token_for("walex")
     %{walex_conn: authenticated_conn(token)}
   end
 
-  test "lists the most recently registered customers and filters by name or phone", %{walex_conn: conn} do
+  test "lists the most recently registered customers and filters by name or phone", %{
+    walex_conn: conn
+  } do
     customers = conn |> get(~p"/api/customers") |> json_response(:ok)
     assert Enum.take(Enum.map(customers["entries"], & &1["id"]), 2) == [30_220, 30_219]
 
@@ -74,5 +82,6 @@ defmodule PosServerWeb.CustomerControllerTest do
     authenticated_conn(token)
   end
 
-  defp authenticated_conn(token), do: build_conn() |> put_req_header("authorization", "Bearer #{token}")
+  defp authenticated_conn(token),
+    do: build_conn() |> put_req_header("authorization", "Bearer #{token}")
 end

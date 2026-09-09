@@ -17,7 +17,15 @@ defmodule PosServer.Accounts.OAuthLoginAttempt do
 
   def changeset(attempt, attrs) do
     attempt
-    |> cast(attrs, [:id, :user_id, :channel_token_digest, :platform, :status, :error_code, :expires_at])
+    |> cast(attrs, [
+      :id,
+      :user_id,
+      :channel_token_digest,
+      :platform,
+      :status,
+      :error_code,
+      :expires_at
+    ])
     |> validate_required([:id, :channel_token_digest, :platform, :status, :expires_at])
     |> validate_inclusion(:platform, ["desktop", "mobile"])
     |> validate_inclusion(:status, ["pending", "success", "error"])

@@ -468,7 +468,8 @@ defmodule PosServerWeb.PosLive do
   def handle_event("printer_result", _params, socket),
     do: {:noreply, update_print_prompt(socket, "Print failed.", false)}
 
-  def handle_event("skip_print", _params, socket), do: {:noreply, assign(socket, :print_prompt, nil)}
+  def handle_event("skip_print", _params, socket),
+    do: {:noreply, assign(socket, :print_prompt, nil)}
 
   def handle_event("confirm_print", _params, %{assigns: %{print_prompt: nil}} = socket),
     do: {:noreply, socket}
@@ -495,124 +496,957 @@ defmodule PosServerWeb.PosLive do
     assigns = Map.put(assigns, :socket, assigns)
 
     ~H"""
-    <.pos_layout id="pos-live" class="pos-shell" active_page={:pos} scope={@scope} stores={@stores} store_id={@store_id} phx-hook="PosShell" data-mobile-cart-open={to_string(@mobile_cart_open)} data-checkout-stage={@checkout_stage || ""}>
+    <.pos_layout
+      id="pos-live"
+      class="pos-shell"
+      active_page={:pos}
+      scope={@scope}
+      stores={@stores}
+      store_id={@store_id}
+      phx-hook="PosShell"
+      data-mobile-cart-open={to_string(@mobile_cart_open)}
+      data-checkout-stage={@checkout_stage || ""}
+    >
       <:before_layout>
-      <svg class="navigation-icon-sprite" aria-hidden="true" focusable="false">
-        <symbol id="ui-icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></symbol>
-      </svg>
-      <div
-        :if={message = Phoenix.Flash.get(@flash, :info)}
-        id="toast-container"
-        class="toast-container"
-        data-position="bottom-right"
-        aria-label="Notifications"
-      >
+        <svg class="navigation-icon-sprite" aria-hidden="true" focusable="false">
+          <symbol
+            id="ui-icon-search"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+          >
+            <circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" />
+          </symbol>
+        </svg>
         <div
-          id="discount-order-active"
-          class="toast"
-          data-variant="info"
-          popover="manual"
-          phx-hook="FlashToast"
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
+          :if={message = Phoenix.Flash.get(@flash, :info)}
+          id="toast-container"
+          class="toast-container"
+          data-position="bottom-right"
+          aria-label="Notifications"
         >
-          <div class="toast-content">
-            <svg class="toast-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-            <div class="toast-text"><p class="toast-description">{message}</p></div>
-            <button class="toast-close" type="button" phx-click="clear_pos_flash" aria-label="Dismiss notification">×</button>
+          <div
+            id="discount-order-active"
+            class="toast"
+            data-variant="info"
+            popover="manual"
+            phx-hook="FlashToast"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            <div class="toast-content">
+              <svg
+                class="toast-icon"
+                aria-hidden="true"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" />
+              </svg>
+              <div class="toast-text">
+                <p class="toast-description">{message}</p>
+              </div>
+              <button
+                class="toast-close"
+                type="button"
+                phx-click="clear_pos_flash"
+                aria-label="Dismiss notification"
+              >
+                ×
+              </button>
+            </div>
           </div>
         </div>
-      </div>
       </:before_layout>
-      <section class="catalog-panel" aria-labelledby="pos-title" inert={if @mobile_cart_open, do: true}>
+      <section
+        class="catalog-panel"
+        aria-labelledby="pos-title"
+        inert={if @mobile_cart_open, do: true}
+      >
         <div :if={is_nil(@checkout_stage) and @dialog != :customer_picker} class="catalog-content">
-          <header class="topbar"><div class="brand-lockup"><span class="brand-mark">T</span><div><p class="eyebrow">Tigoo</p><h1 id="pos-title">Point of Sale — {active_store_name(assigns)}</h1></div></div><button class="btn mobile-topbar-cart" type="button" phx-click="open_mobile_cart" aria-label="Open current sale">🛒<span :if={items(assigns) > 0} class="mobile-cart-count">{items(assigns)}</span></button><div class="topbar-search"><div class="search-field"><svg class="search-icon" aria-hidden="true"><use href="#ui-icon-search"/></svg><input id="product-search" class="input" type="search" value={@product_search} phx-keyup="search_products" phx-debounce="0" placeholder="Search products or scan a barcode" autocomplete="off"/><button :if={@product_search != ""} class="btn search-clear" type="button" phx-click="clear_product_search">×</button></div><button class="btn" type="button" data-variant="outline" data-size="icon" phx-click={JS.focus(to: "#product-search")} aria-label="Focus product search"><svg aria-hidden="true"><use href="#ui-icon-search"/></svg></button></div></header>
-          <div class="catalog-heading"><div><p class="eyebrow">Catalog</p><h2 class="h3">Products</h2></div><p class="products-status" role="status">{product_status(assigns)}</p></div>
-          <button class="btn mobile-cart-trigger" type="button" phx-click="open_mobile_cart">View sale</button>
+          <header class="topbar">
+            <div class="brand-lockup">
+              <span class="brand-mark">T</span>
+              <div>
+                <p class="eyebrow">Tigoo</p>
+                <h1 id="pos-title">Point of Sale — {active_store_name(assigns)}</h1>
+              </div>
+            </div>
+            <button
+              class="btn mobile-topbar-cart"
+              type="button"
+              phx-click="open_mobile_cart"
+              aria-label="Open current sale"
+            >
+              🛒<span :if={items(assigns) > 0} class="mobile-cart-count">{items(assigns)}</span>
+            </button>
+            <div class="topbar-search">
+              <div class="search-field">
+                <svg class="search-icon" aria-hidden="true"><use href="#ui-icon-search" /></svg>
+                <input
+                  id="product-search"
+                  class="input"
+                  type="search"
+                  value={@product_search}
+                  phx-keyup="search_products"
+                  phx-debounce="0"
+                  placeholder="Search products or scan a barcode"
+                  autocomplete="off"
+                /><button
+                  :if={@product_search != ""}
+                  class="btn search-clear"
+                  type="button"
+                  phx-click="clear_product_search"
+                >
+                  ×
+                </button>
+              </div>
+              <button
+                class="btn"
+                type="button"
+                data-variant="outline"
+                data-size="icon"
+                phx-click={JS.focus(to: "#product-search")}
+                aria-label="Focus product search"
+              >
+                <svg aria-hidden="true"><use href="#ui-icon-search" /></svg>
+              </button>
+            </div>
+          </header>
+          <div class="catalog-heading">
+            <div>
+              <p class="eyebrow">Catalog</p>
+              <h2 class="h3">Products</h2>
+            </div>
+            <p class="products-status" role="status">{product_status(assigns)}</p>
+          </div>
+          <button class="btn mobile-cart-trigger" type="button" phx-click="open_mobile_cart">
+            View sale
+          </button>
           <div id="product-grid" class="product-grid" aria-live="polite">
-            <article :for={product <- visible_products(assigns)} class="card product" tabindex="0" role="button" phx-click="add_product" phx-value-id={product.id} phx-keydown="add_product" phx-key="Enter" phx-value-id={product.id} aria-label={"Add #{product.name}"}>
-              <img :if={product.image_raw} class="product-image" src={image_source(product.image_raw)} alt="" loading="lazy"/>
-              <div :if={!product.image_raw} class="product-image product-image-placeholder" aria-hidden="true">{String.first(product.name || "?")}</div>
-              <div class="card-content product-content"><h2 class="card-title product-name">{product.name || "Unnamed product"}</h2><p class="product-code">{if product.code, do: "SKU #{product.code}", else: "Tap to add"}</p><div class="product-footer"><strong class="product-price numeric">{money(float(product.price))}</strong><span class={["inventory-badge", if(float(product.inventory_quantity) <= 0, do: "inventory-badge-low")]}>Stock {product.inventory_quantity || 0}</span></div></div>
+            <article
+              :for={product <- visible_products(assigns)}
+              class="card product"
+              tabindex="0"
+              role="button"
+              phx-click="add_product"
+              phx-value-id={product.id}
+              phx-keydown="add_product"
+              phx-key="Enter"
+              phx-value-id={product.id}
+              aria-label={"Add #{product.name}"}
+            >
+              <img
+                :if={product.image_raw}
+                class="product-image"
+                src={image_source(product.image_raw)}
+                alt=""
+                loading="lazy"
+              />
+              <div
+                :if={!product.image_raw}
+                class="product-image product-image-placeholder"
+                aria-hidden="true"
+              >
+                {String.first(product.name || "?")}
+              </div>
+              <div class="card-content product-content">
+                <h2 class="card-title product-name">{product.name || "Unnamed product"}</h2>
+                <p class="product-code">
+                  {if product.code, do: "SKU #{product.code}", else: "Tap to add"}
+                </p>
+                <div class="product-footer">
+                  <strong class="product-price numeric">{money(float(product.price))}</strong><span class={[
+                    "inventory-badge",
+                    if(float(product.inventory_quantity) <= 0, do: "inventory-badge-low")
+                  ]}>Stock {product.inventory_quantity || 0}</span>
+                </div>
+              </div>
             </article>
             <.product_skeleton_cards :if={@loading_products and @products == []} />
           </div>
           <div id="products-sentinel" phx-hook="InfiniteCatalog" aria-hidden="true"></div>
         </div>
-        <section :if={@dialog == :customer_picker} id="customers-screen" class="customers-screen" aria-labelledby="customers-title">
+        <section
+          :if={@dialog == :customer_picker}
+          id="customers-screen"
+          class="customers-screen"
+          aria-labelledby="customers-title"
+        >
           <header class="topbar invoice-topbar customers-header">
-            <div class="brand-lockup"><span class="brand-mark" aria-hidden="true">E</span><div><p class="eyebrow">Customers</p><h2 id="customers-title" class="h3" tabindex="-1">Customer list</h2></div></div>
-            <div class="customers-header-actions"><button id="create-customer" class="btn" type="button" data-variant="default" phx-click="open_customer_dialog" aria-haspopup="dialog">Crear client</button><button class="btn" type="button" data-variant="outline" phx-click="close_dialog">Back</button></div>
+            <div class="brand-lockup">
+              <span class="brand-mark" aria-hidden="true">E</span>
+              <div>
+                <p class="eyebrow">Customers</p>
+                <h2 id="customers-title" class="h3" tabindex="-1">Customer list</h2>
+              </div>
+            </div>
+            <div class="customers-header-actions">
+              <button
+                id="create-customer"
+                class="btn"
+                type="button"
+                data-variant="default"
+                phx-click="open_customer_dialog"
+                aria-haspopup="dialog"
+              >
+                Crear client
+              </button><button
+                class="btn"
+                type="button"
+                data-variant="outline"
+                phx-click="close_dialog"
+              >Back</button>
+            </div>
           </header>
           <div class="customer-search-field">
             <label class="sr-only" for="customer-search">Search customers</label>
-            <input id="customer-search" class="input" type="search" value={@customer_search} phx-keyup="search_customers" phx-debounce="220" phx-mounted={JS.focus(to: "#customer-search")} autocomplete="off" placeholder="Search customers by name or phone"/>
+            <input
+              id="customer-search"
+              class="input"
+              type="search"
+              value={@customer_search}
+              phx-keyup="search_customers"
+              phx-debounce="220"
+              phx-mounted={JS.focus(to: "#customer-search")}
+              autocomplete="off"
+              placeholder="Search customers by name or phone"
+            />
           </div>
           <p :if={@customers == []} class="customers-status" role="status">No customers found.</p>
           <div class="table-container customer-table-container">
             <table class="table customer-table">
               <caption class="table-caption">Customer accounts and purchase activity.</caption>
-              <thead><tr class="table-row"><th class="table-head" scope="col">Name</th><th class="table-head" scope="col">Document ID</th><th class="table-head" scope="col">Phone</th><th class="table-head" scope="col"><span class="sr-only">Customer action</span></th></tr></thead>
+              <thead>
+                <tr class="table-row">
+                  <th class="table-head" scope="col">Name</th>
+                  <th class="table-head" scope="col">Document ID</th>
+                  <th class="table-head" scope="col">Phone</th>
+                  <th class="table-head" scope="col"><span class="sr-only">Customer action</span></th>
+                </tr>
+              </thead>
               <tbody id="customers-table-body">
                 <tr :for={customer <- @customers} class="table-row">
-                  <td class="table-cell" data-label="Name">{customer.name || "—"}</td><td class="table-cell" data-label="Document ID">{customer.document_id || "—"}</td><td class="table-cell" data-label="Phone">{customer.celphone || "—"}</td><td class="table-cell customer-action"><button class="btn" type="button" data-variant="outline" data-size="sm" phx-click="select_customer" phx-value-id={customer.id} aria-label={"Choose: #{customer.name || "customer"}"}>Choose</button></td>
+                  <td class="table-cell" data-label="Name">{customer.name || "—"}</td>
+                  <td class="table-cell" data-label="Document ID">{customer.document_id || "—"}</td>
+                  <td class="table-cell" data-label="Phone">{customer.celphone || "—"}</td>
+                  <td class="table-cell customer-action">
+                    <button
+                      class="btn"
+                      type="button"
+                      data-variant="outline"
+                      data-size="sm"
+                      phx-click="select_customer"
+                      phx-value-id={customer.id}
+                      aria-label={"Choose: #{customer.name || "customer"}"}
+                    >
+                      Choose
+                    </button>
+                  </td>
                 </tr>
               </tbody>
             </table>
           </div>
         </section>
-        <section :if={not is_nil(@checkout_stage) and @dialog != :customer_picker} id="checkout-flow" class="checkout-flow" aria-live="polite">
-          <header class="checkout-header"><div><p class="eyebrow">Checkout</p><h1 id="checkout-title" class="h3">{if @checkout_stage == :customer, do: "Customer — #{active_store_name(assigns)}", else: "Payment & completion — #{active_store_name(assigns)}"}</h1></div><button class="btn" type="button" data-variant="outline" phx-click="close_checkout">Back to sale</button></header>
-          <ol class="checkout-steps" aria-label="Checkout progress"><li aria-current={if @checkout_stage == :customer, do: "step"}>1. Customer</li><li aria-current={if @checkout_stage == :payment, do: "step"}>2. Payment</li></ol>
+        <section
+          :if={not is_nil(@checkout_stage) and @dialog != :customer_picker}
+          id="checkout-flow"
+          class="checkout-flow"
+          aria-live="polite"
+        >
+          <header class="checkout-header">
+            <div>
+              <p class="eyebrow">Checkout</p>
+              <h1 id="checkout-title" class="h3">
+                {if @checkout_stage == :customer,
+                  do: "Customer — #{active_store_name(assigns)}",
+                  else: "Payment & completion — #{active_store_name(assigns)}"}
+              </h1>
+            </div>
+            <button class="btn" type="button" data-variant="outline" phx-click="close_checkout">
+              Back to sale
+            </button>
+          </header>
+          <ol class="checkout-steps" aria-label="Checkout progress">
+            <li aria-current={if @checkout_stage == :customer, do: "step"}>1. Customer</li>
+            <li aria-current={if @checkout_stage == :payment, do: "step"}>2. Payment</li>
+          </ol>
           <div class="checkout-stage-wrap">
-            <section :if={@checkout_stage == :customer} class="checkout-stage" data-stage="customer" aria-labelledby="customer-stage-title"><div class="checkout-stage-copy"><p class="eyebrow">1. Customer</p><h2 id="customer-stage-title" class="h2" tabindex="-1">Customer</h2><button id="customer-picker" class="customer-choice btn" type="button" data-variant="outline" phx-click="open_customer_picker">{(@selected_customer && @selected_customer.name) || "Pick a customer…"}</button><div :if={@selected_customer} id="customer-details" class="customer-details">{@selected_customer.name} · {@selected_customer.celphone || ""} · {@selected_customer.address || ""}</div></div><div class="checkout-actions"><button class="btn" type="button" data-variant="outline" phx-click="close_checkout">Back</button><button id="customer-continue" class="btn" type="button" data-variant="default" phx-click="checkout_customer_continue" disabled={is_nil(@selected_customer)}>Continue</button></div></section>
-            <section :if={@checkout_stage == :payment} class="checkout-stage" data-stage="payment" aria-labelledby="payment-stage-title"><div class="checkout-stage-copy"><p class="eyebrow">2. Payment</p><h2 id="payment-stage-title" class="h2" tabindex="-1">Payment & completion</h2><p class="checkout-total-due"><span>Total</span><strong id="checkout-total" class="numeric">{money(total(@socket))}</strong></p><div class="form-group checkout-payment"><button id="delivery-toggle" class="btn" type="button" data-variant={if @delivery_open, do: "default", else: "outline"} aria-pressed={to_string(@delivery_open)} phx-click="toggle_delivery">Delivery</button><div :if={@delivery_open} id="delivery-options" class="delivery-options"><button :for={amount <- [100, 150, 200, 250, 300, 400, 500, 600]} class="btn" type="button" data-variant={if @delivery == amount, do: "default", else: "secondary"} phx-click="set_delivery" phx-value-amount={amount}>{money(amount)}</button></div><button id="credit-toggle" class="btn" type="button" data-variant={if @credit, do: "default", else: "outline"} aria-pressed={to_string(@credit)} phx-click="toggle_credit">Pay on Credit</button><div :if={!@credit} id="payment-inputs"><fieldset class="form-fieldset"><legend>Sequence type</legend><div class="sequence-options" role="group"><div class="sequence-option-buttons"><button :for={sequence <- ["CF", "DV", "VF"]} class="btn" type="button" data-variant={if @sequence == sequence, do: "default", else: "secondary"} phx-click="select_sequence" phx-value-sequence={sequence}>{sequence}</button></div><span class="sequence-option-description">{sequence_description(@sequence)}</span></div></fieldset><fieldset class="form-fieldset"><legend>Payments</legend><div id="payment-lines" class="payment-lines" phx-hook="PaymentAmounts" data-sale-total={total(@socket)}><div :for={payment <- @payments} class="payment-line" data-payment-line-id={payment.id} data-split-source={Map.get(payment, :split_source, "")}><select class="select" phx-change="change_payment" phx-value-id={payment.id} phx-value-field="type"><option value="CASH" selected={payment.type == "CASH"}>Cash</option><option value="CC" selected={payment.type == "CC"}>Credit Card</option></select><input class="input numeric" type="number" inputmode="decimal" min="0.01" step="0.01" value={payment_amount_input(payment.amount)} data-previous-amount={payment_amount_input(payment.amount)} phx-input="change_payment" phx-value-id={payment.id} phx-value-field="amount"/><button class="btn" type="button" data-variant="ghost" phx-click="remove_payment_line" phx-value-id={payment.id} aria-label="Remove payment">×</button></div></div><button id="add-payment-line" class="btn" type="button" data-variant="outline" phx-click="add_payment_line">Add payment</button><p id="payment-balance" class="field-description">Remaining: {money(remaining(@socket))}</p><p :if={paid(@socket) > total(@socket)} id="payment-change" class="payment-change" role="status">Change: {money(paid(@socket) - total(@socket))}</p></fieldset></div></div></div><div class="checkout-actions"><button class="btn checkout-back" type="button" data-variant="outline" phx-click="checkout_payment_back">Back</button><button id="complete-sale" class="btn" type="button" data-variant="default" phx-click="complete_sale" disabled={!@credit && paid(@socket) < total(@socket)}>Complete</button></div><div class="form-group checkout-memo"><label class="label" for="sale-additional-info">Memo (optional)</label><textarea id="sale-additional-info" class="input" rows="3" maxlength="1000" phx-change="change_memo">{@memo}</textarea><p class="field-description">Up to 1000 characters.</p></div></section>
+            <section
+              :if={@checkout_stage == :customer}
+              class="checkout-stage"
+              data-stage="customer"
+              aria-labelledby="customer-stage-title"
+            >
+              <div class="checkout-stage-copy">
+                <p class="eyebrow">1. Customer</p>
+                <h2 id="customer-stage-title" class="h2" tabindex="-1">Customer</h2>
+                <button
+                  id="customer-picker"
+                  class="customer-choice btn"
+                  type="button"
+                  data-variant="outline"
+                  phx-click="open_customer_picker"
+                >
+                  {(@selected_customer && @selected_customer.name) || "Pick a customer…"}
+                </button>
+                <div :if={@selected_customer} id="customer-details" class="customer-details">
+                  {@selected_customer.name} · {@selected_customer.celphone || ""} · {@selected_customer.address ||
+                    ""}
+                </div>
+              </div>
+              <div class="checkout-actions">
+                <button class="btn" type="button" data-variant="outline" phx-click="close_checkout">
+                  Back
+                </button><button
+                  id="customer-continue"
+                  class="btn"
+                  type="button"
+                  data-variant="default"
+                  phx-click="checkout_customer_continue"
+                  disabled={is_nil(@selected_customer)}
+                >Continue</button>
+              </div>
+            </section>
+            <section
+              :if={@checkout_stage == :payment}
+              class="checkout-stage"
+              data-stage="payment"
+              aria-labelledby="payment-stage-title"
+            >
+              <div class="checkout-stage-copy">
+                <p class="eyebrow">2. Payment</p>
+                <h2 id="payment-stage-title" class="h2" tabindex="-1">Payment & completion</h2>
+                <p class="checkout-total-due">
+                  <span>Total</span><strong id="checkout-total" class="numeric">{money(total(@socket))}</strong>
+                </p>
+                <div class="form-group checkout-payment">
+                  <button
+                    id="delivery-toggle"
+                    class="btn"
+                    type="button"
+                    data-variant={if @delivery_open, do: "default", else: "outline"}
+                    aria-pressed={to_string(@delivery_open)}
+                    phx-click="toggle_delivery"
+                  >
+                    Delivery
+                  </button>
+                  <div :if={@delivery_open} id="delivery-options" class="delivery-options">
+                    <button
+                      :for={amount <- [100, 150, 200, 250, 300, 400, 500, 600]}
+                      class="btn"
+                      type="button"
+                      data-variant={if @delivery == amount, do: "default", else: "secondary"}
+                      phx-click="set_delivery"
+                      phx-value-amount={amount}
+                    >
+                      {money(amount)}
+                    </button>
+                  </div>
+                  <button
+                    id="credit-toggle"
+                    class="btn"
+                    type="button"
+                    data-variant={if @credit, do: "default", else: "outline"}
+                    aria-pressed={to_string(@credit)}
+                    phx-click="toggle_credit"
+                  >
+                    Pay on Credit
+                  </button>
+                  <div :if={!@credit} id="payment-inputs">
+                    <fieldset class="form-fieldset">
+                      <legend>Sequence type</legend>
+                      <div class="sequence-options" role="group">
+                        <div class="sequence-option-buttons">
+                          <button
+                            :for={sequence <- ["CF", "DV", "VF"]}
+                            class="btn"
+                            type="button"
+                            data-variant={if @sequence == sequence, do: "default", else: "secondary"}
+                            phx-click="select_sequence"
+                            phx-value-sequence={sequence}
+                          >
+                            {sequence}
+                          </button>
+                        </div>
+                        <span class="sequence-option-description">
+                          {sequence_description(@sequence)}
+                        </span>
+                      </div>
+                    </fieldset>
+                    <fieldset class="form-fieldset">
+                      <legend>Payments</legend>
+                      <div
+                        id="payment-lines"
+                        class="payment-lines"
+                        phx-hook="PaymentAmounts"
+                        data-sale-total={total(@socket)}
+                      >
+                        <div
+                          :for={payment <- @payments}
+                          class="payment-line"
+                          data-payment-line-id={payment.id}
+                          data-split-source={Map.get(payment, :split_source, "")}
+                        >
+                          <select
+                            class="select"
+                            phx-change="change_payment"
+                            phx-value-id={payment.id}
+                            phx-value-field="type"
+                          >
+                            <option value="CASH" selected={payment.type == "CASH"}>Cash</option>
+                            <option value="CC" selected={payment.type == "CC"}>Credit Card</option>
+                          </select>
+                          <input
+                            class="input numeric"
+                            type="number"
+                            inputmode="decimal"
+                            min="0.01"
+                            step="0.01"
+                            value={payment_amount_input(payment.amount)}
+                            data-previous-amount={payment_amount_input(payment.amount)}
+                            phx-input="change_payment"
+                            phx-value-id={payment.id}
+                            phx-value-field="amount"
+                          /><button
+                            class="btn"
+                            type="button"
+                            data-variant="ghost"
+                            phx-click="remove_payment_line"
+                            phx-value-id={payment.id}
+                            aria-label="Remove payment"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </div>
+                      <button
+                        id="add-payment-line"
+                        class="btn"
+                        type="button"
+                        data-variant="outline"
+                        phx-click="add_payment_line"
+                      >
+                        Add payment
+                      </button>
+                      <p id="payment-balance" class="field-description">
+                        Remaining: {money(remaining(@socket))}
+                      </p>
+                      <p
+                        :if={paid(@socket) > total(@socket)}
+                        id="payment-change"
+                        class="payment-change"
+                        role="status"
+                      >
+                        Change: {money(paid(@socket) - total(@socket))}
+                      </p>
+                    </fieldset>
+                  </div>
+                </div>
+              </div>
+              <div class="checkout-actions">
+                <button
+                  class="btn checkout-back"
+                  type="button"
+                  data-variant="outline"
+                  phx-click="checkout_payment_back"
+                >
+                  Back
+                </button><button
+                  id="complete-sale"
+                  class="btn"
+                  type="button"
+                  data-variant="default"
+                  phx-click="complete_sale"
+                  disabled={!@credit && paid(@socket) < total(@socket)}
+                >Complete</button>
+              </div>
+              <div class="form-group checkout-memo">
+                <label class="label" for="sale-additional-info">Memo (optional)</label><textarea
+                  id="sale-additional-info"
+                  class="input"
+                  rows="3"
+                  maxlength="1000"
+                  phx-change="change_memo"
+                >{@memo}</textarea>
+                <p class="field-description">Up to 1000 characters.</p>
+              </div>
+            </section>
           </div>
         </section>
       </section>
-      <aside id="order-panel" class={["order-panel", if(@mobile_cart_open, do: "is-mobile-open")]} phx-hook="CartAmounts" data-order-discount={@order_discount} data-order-discount-type={@order_discount_type} data-delivery={@delivery} aria-labelledby="order-title">
+      <aside
+        id="order-panel"
+        class={["order-panel", if(@mobile_cart_open, do: "is-mobile-open")]}
+        phx-hook="CartAmounts"
+        data-order-discount={@order_discount}
+        data-order-discount-type={@order_discount_type}
+        data-delivery={@delivery}
+        aria-labelledby="order-title"
+      >
         <header class="order-header">
-          <div><p class="eyebrow">Current sale</p><div class="customer-picker-wrap"><button :if={is_nil(@checkout_stage)} id="customer-purchases" class="btn" type="button" data-variant="ghost" data-size="icon-xs" phx-click="open_customer_purchases" aria-label="View customer purchases" aria-haspopup="dialog"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16v-4"/><path d="M12 16V8"/><path d="M17 16v-7"/></svg></button><button id="order-title" class="customer-picker" type="button" phx-click="open_customer_picker" disabled={@checkout_stage == :payment}>{(@selected_customer && @selected_customer.name) || "Pick a customer …"}</button><button :if={@selected_customer && is_nil(@checkout_stage)} id="clear-customer" class="btn" type="button" data-variant="ghost" data-size="icon-xs" phx-click="clear_customer" aria-label="Clear customer">×</button></div></div>
-          <button class="btn mobile-cart-close" type="button" data-variant="ghost" data-size="icon" phx-click="close_mobile_cart" aria-label="Close sale">×</button>
-          <button id="clear-order" class="btn" type="button" data-variant="ghost" data-size="sm" phx-click="clear_sale_prompt" disabled={@cart == []}>Clear</button>
+          <div>
+            <p class="eyebrow">Current sale</p>
+            <div class="customer-picker-wrap">
+              <button
+                :if={is_nil(@checkout_stage)}
+                id="customer-purchases"
+                class="btn"
+                type="button"
+                data-variant="ghost"
+                data-size="icon-xs"
+                phx-click="open_customer_purchases"
+                aria-label="View customer purchases"
+                aria-haspopup="dialog"
+              >
+                <svg
+                  aria-hidden="true"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M3 3v18h18" /><path d="M7 16v-4" /><path d="M12 16V8" /><path d="M17 16v-7" />
+                </svg>
+              </button><button
+                id="order-title"
+                class="customer-picker"
+                type="button"
+                phx-click="open_customer_picker"
+                disabled={@checkout_stage == :payment}
+              >{(@selected_customer && @selected_customer.name) || "Pick a customer …"}</button><button
+                :if={@selected_customer && is_nil(@checkout_stage)}
+                id="clear-customer"
+                class="btn"
+                type="button"
+                data-variant="ghost"
+                data-size="icon-xs"
+                phx-click="clear_customer"
+                aria-label="Clear customer"
+              >×</button>
+            </div>
+          </div>
+          <button
+            class="btn mobile-cart-close"
+            type="button"
+            data-variant="ghost"
+            data-size="icon"
+            phx-click="close_mobile_cart"
+            aria-label="Close sale"
+          >
+            ×
+          </button>
+          <button
+            id="clear-order"
+            class="btn"
+            type="button"
+            data-variant="ghost"
+            data-size="sm"
+            phx-click="clear_sale_prompt"
+            disabled={@cart == []}
+          >
+            Clear
+          </button>
         </header>
         <p :if={@cart == []} class="cart-empty">Your order is empty. Select a product to begin.</p>
         <div id="cart" class="cart-lines" aria-live="polite">
-          <article :for={line <- @cart} id={"cart-line-#{line.id}"} class="cart-line" data-cart-item-id={line.id} data-price={line.price} data-sub={line.sub} data-tax={line.tax} data-discount={line.discount} data-discount-type={line.discount_type}>
-            <div class="cart-line-head"><div><p class="cart-line-name cart-line-discount-trigger" title="Apply a discount to this item" role="button" tabindex="0" phx-click="open_line_discount" phx-keydown="open_line_discount" phx-value-id={line.id}>{line.name}<span :if={line.discount > 0} class="line-discount">{if line.discount_type == "percent", do: "#{line.discount}%", else: money(line.discount)} off</span></p><p class="cart-line-breakdown"><span><small>Sub</small><strong class="numeric">{money(line.sub * line_factor(line))}</strong></span><span><small>Tax</small><strong class="numeric">{money(line.tax * line_factor(line))}</strong></span><span><small>Total</small><strong class="numeric">{money(line.price * line_factor(line))}</strong><small>each</small></span></p></div><button class="btn remove-line" type="button" data-variant="ghost" data-size="icon-xs" phx-click="remove_line" phx-value-id={line.id} aria-label={"Remove #{line.name}"} disabled={not is_nil(@checkout_stage)}>×</button></div>
-            <div class="cart-line-footer"><div class="quantity-control" role="group"><button class="btn" type="button" data-variant="outline" data-size="icon-xs" phx-click="decrease_quantity" phx-value-id={line.id} aria-label="Decrease quantity" disabled={not is_nil(@checkout_stage)}>−</button><input class="quantity-input" type="number" inputmode="numeric" min="1" value={line.qty} phx-change="set_quantity" phx-value-id={line.id} aria-label="Item count" disabled={not is_nil(@checkout_stage)}/><button class="btn" type="button" data-variant="outline" data-size="icon-xs" phx-click="increase_quantity" phx-value-id={line.id} aria-label="Increase quantity" disabled={not is_nil(@checkout_stage)}>+</button></div><strong class="cart-line-total cart-line-discount-trigger numeric" title="Apply a discount to this item" role="button" tabindex="0" phx-click="open_line_discount" phx-keydown="open_line_discount" phx-value-id={line.id}>{money(line_gross(line) - line_discount(line))}</strong></div>
+          <article
+            :for={line <- @cart}
+            id={"cart-line-#{line.id}"}
+            class="cart-line"
+            data-cart-item-id={line.id}
+            data-price={line.price}
+            data-sub={line.sub}
+            data-tax={line.tax}
+            data-discount={line.discount}
+            data-discount-type={line.discount_type}
+          >
+            <div class="cart-line-head">
+              <div>
+                <p
+                  class="cart-line-name cart-line-discount-trigger"
+                  title="Apply a discount to this item"
+                  role="button"
+                  tabindex="0"
+                  phx-click="open_line_discount"
+                  phx-keydown="open_line_discount"
+                  phx-value-id={line.id}
+                >
+                  {line.name}<span :if={line.discount > 0} class="line-discount">{if line.discount_type == "percent", do: "#{line.discount}%", else: money(line.discount)} off</span>
+                </p>
+                <p class="cart-line-breakdown">
+                  <span>
+                    <small>Sub</small><strong class="numeric">{money(line.sub * line_factor(line))}</strong>
+                  </span><span><small>Tax</small><strong class="numeric">{money(line.tax * line_factor(line))}</strong></span><span><small>Total</small><strong class="numeric">{money(line.price * line_factor(line))}</strong><small>each</small></span>
+                </p>
+              </div>
+              <button
+                class="btn remove-line"
+                type="button"
+                data-variant="ghost"
+                data-size="icon-xs"
+                phx-click="remove_line"
+                phx-value-id={line.id}
+                aria-label={"Remove #{line.name}"}
+                disabled={not is_nil(@checkout_stage)}
+              >
+                ×
+              </button>
+            </div>
+            <div class="cart-line-footer">
+              <div class="quantity-control" role="group">
+                <button
+                  class="btn"
+                  type="button"
+                  data-variant="outline"
+                  data-size="icon-xs"
+                  phx-click="decrease_quantity"
+                  phx-value-id={line.id}
+                  aria-label="Decrease quantity"
+                  disabled={not is_nil(@checkout_stage)}
+                >
+                  −
+                </button>
+                <input
+                  class="quantity-input"
+                  type="number"
+                  inputmode="numeric"
+                  min="1"
+                  value={line.qty}
+                  phx-change="set_quantity"
+                  phx-value-id={line.id}
+                  aria-label="Item count"
+                  disabled={not is_nil(@checkout_stage)}
+                /><button
+                  class="btn"
+                  type="button"
+                  data-variant="outline"
+                  data-size="icon-xs"
+                  phx-click="increase_quantity"
+                  phx-value-id={line.id}
+                  aria-label="Increase quantity"
+                  disabled={not is_nil(@checkout_stage)}
+                >
+                  +
+                </button>
+              </div>
+              <strong
+                class="cart-line-total cart-line-discount-trigger numeric"
+                title="Apply a discount to this item"
+                role="button"
+                tabindex="0"
+                phx-click="open_line_discount"
+                phx-keydown="open_line_discount"
+                phx-value-id={line.id}
+              >
+                {money(line_gross(line) - line_discount(line))}
+              </strong>
+            </div>
           </article>
         </div>
-        <footer class="order-summary"><hr class="separator" role="none"/><dl class="totals"><div><dt>Items</dt><dd>{items(@socket)}</dd></div><div><dt>Subtotal</dt><dd class="numeric">{money(subtotal(@socket))}</dd></div><div><dt>Tax (18%)</dt><dd class="numeric">{money(tax(@socket))}</dd></div><div><dt>Discount</dt><dd class="numeric discount-value">−{money(line_discount_total(@socket) + order_discount_total(@socket))}</dd></div><div :if={@delivery > 0}><dt>Delivery</dt><dd class="numeric">{money(@delivery)}</dd></div><div class="grand-total order-discount-trigger" title="Apply a discount to this sale" role="button" tabindex="0" phx-click="open_order_discount" phx-keydown="open_order_discount_key" aria-label="Apply order discount. Press Enter."><dt>Total</dt><dd class="numeric">{money(total(@socket))}</dd></div></dl><div class="payment-label"><span>Payment method</span><span id="payment-choice" class="payment-choice">{payment_choice(@socket)}</span></div><button :if={is_nil(@checkout_stage)} id="start-checkout" class="btn charge-button" type="button" data-variant="default" data-size="lg" phx-click="open_checkout" disabled={@cart == []}>Continue</button></footer>
+        <footer class="order-summary">
+          <hr class="separator" role="none" />
+          <dl class="totals">
+            <div>
+              <dt>Items</dt>
+              <dd>{items(@socket)}</dd>
+            </div>
+            <div>
+              <dt>Subtotal</dt>
+              <dd class="numeric">{money(subtotal(@socket))}</dd>
+            </div>
+            <div>
+              <dt>Tax (18%)</dt>
+              <dd class="numeric">{money(tax(@socket))}</dd>
+            </div>
+            <div>
+              <dt>Discount</dt>
+              <dd class="numeric discount-value">
+                −{money(line_discount_total(@socket) + order_discount_total(@socket))}
+              </dd>
+            </div>
+            <div :if={@delivery > 0}>
+              <dt>Delivery</dt>
+              <dd class="numeric">{money(@delivery)}</dd>
+            </div>
+            <div
+              class="grand-total order-discount-trigger"
+              title="Apply a discount to this sale"
+              role="button"
+              tabindex="0"
+              phx-click="open_order_discount"
+              phx-keydown="open_order_discount_key"
+              aria-label="Apply order discount. Press Enter."
+            >
+              <dt>Total</dt>
+              <dd class="numeric">{money(total(@socket))}</dd>
+            </div>
+          </dl>
+          <div class="payment-label">
+            <span>Payment method</span><span id="payment-choice" class="payment-choice">{payment_choice(@socket)}</span>
+          </div>
+          <button
+            :if={is_nil(@checkout_stage)}
+            id="start-checkout"
+            class="btn charge-button"
+            type="button"
+            data-variant="default"
+            data-size="lg"
+            phx-click="open_checkout"
+            disabled={@cart == []}
+          >
+            Continue
+          </button>
+        </footer>
       </aside>
-      <button :if={@mobile_cart_open} class="mobile-cart-backdrop is-visible" type="button" phx-click="close_mobile_cart" aria-label="Close sale"></button>
-      <dialog :if={@dialog == :clear_sale} open class="dialog" data-size="sm"><div class="dialog-content"><div class="dialog-header"><h2 class="dialog-title">Clear this order?</h2><p class="dialog-description">All items and line discounts will be removed.</p></div><div class="dialog-footer"><button class="btn" type="button" data-variant="outline" phx-click="close_dialog">Cancel</button><button class="btn" type="button" data-variant="destructive" phx-click="clear_sale">Clear order</button></div></div></dialog>
-      <.customer_dialog :if={@customer_dialog?} status={@customer_form_status} saving={@saving_customer?} />
-      <dialog :if={@dialog == :discount} id="discount-dialog" class="dialog" data-size="sm" phx-hook="DiscountDialog" role="dialog" aria-modal="true" aria-labelledby="discount-title">
+      <button
+        :if={@mobile_cart_open}
+        class="mobile-cart-backdrop is-visible"
+        type="button"
+        phx-click="close_mobile_cart"
+        aria-label="Close sale"
+      >
+      </button>
+      <dialog :if={@dialog == :clear_sale} open class="dialog" data-size="sm">
         <div class="dialog-content">
-          <div class="dialog-header"><div class="discount-heading"><div><p class="eyebrow">{if @discount_target, do: "Line item discount", else: "Order discount"}</p><h2 id="discount-title" class="dialog-title">{if @discount_target, do: "Apply a discount", else: "Apply an order discount"}</h2><p class="dialog-description">{discount_subject(assigns)}</p></div><img :if={discount_image(assigns)} class="discount-product-image" src={discount_image(assigns)} alt=""/></div></div>
-          <form id="discount-form" class="form" phx-hook="DiscountPreview" phx-submit="apply_discount" data-discount-base={discount_base(assigns)} data-discount-type={@discount_type}>
-            <input id="discount-type" name="discount_type" type="hidden" value={@discount_type}/><div class="discount-switch" role="group" aria-label="Discount type"><button class="btn" type="button" data-discount-type="percent" data-variant={if @discount_type == "percent", do: "default", else: "secondary"} aria-pressed={to_string(@discount_type == "percent")}>%</button><button class="btn" type="button" data-discount-type="amount" data-variant={if @discount_type == "amount", do: "default", else: "secondary"} aria-pressed={to_string(@discount_type == "amount")}>$</button></div>
-            <div class="form-field"><label id="discount-input-label" class="label" for="discount-input">{if @discount_type == "percent", do: "Discount percentage", else: "Discount amount"}</label><div class="form-field-inline"><input id="discount-input" class="input numeric" style="flex: 1" name="value" type="number" inputmode="decimal" min="0" max={if @discount_type == "percent", do: "100"} step="0.01" value={@discount_input}/><button class="btn" type="button" data-variant="outline" data-clear-discount>Clear</button></div><p id="discount-help" class="field-description">{if @discount_type == "percent", do: "Enter 0 to remove this item discount.", else: "The amount applies to this entire order line."}</p></div>
-            <dl class="discount-preview"><div><dt>Amount</dt><dd class="numeric">{money(discount_base(assigns))}</dd></div><div><dt>Discount</dt><dd class="numeric">−{money(discount_preview(assigns))}</dd></div><div><dt>After discount</dt><dd class="numeric">{money(discount_base(assigns) - discount_preview(assigns))}</dd></div></dl>
-            <div class="dialog-footer"><button class="btn" type="button" data-variant="outline" phx-click="close_dialog">Cancel</button><button class="btn" type="submit" data-variant="default">Apply discount</button></div>
+          <div class="dialog-header">
+            <h2 class="dialog-title">Clear this order?</h2>
+            <p class="dialog-description">All items and line discounts will be removed.</p>
+          </div>
+          <div class="dialog-footer">
+            <button class="btn" type="button" data-variant="outline" phx-click="close_dialog">
+              Cancel
+            </button><button
+              class="btn"
+              type="button"
+              data-variant="destructive"
+              phx-click="clear_sale"
+            >Clear order</button>
+          </div>
+        </div>
+      </dialog>
+      <.customer_dialog
+        :if={@customer_dialog?}
+        status={@customer_form_status}
+        saving={@saving_customer?}
+      />
+      <dialog
+        :if={@dialog == :discount}
+        id="discount-dialog"
+        class="dialog"
+        data-size="sm"
+        phx-hook="DiscountDialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="discount-title"
+      >
+        <div class="dialog-content">
+          <div class="dialog-header">
+            <div class="discount-heading">
+              <div>
+                <p class="eyebrow">
+                  {if @discount_target, do: "Line item discount", else: "Order discount"}
+                </p>
+                <h2 id="discount-title" class="dialog-title">
+                  {if @discount_target, do: "Apply a discount", else: "Apply an order discount"}
+                </h2>
+                <p class="dialog-description">{discount_subject(assigns)}</p>
+              </div>
+              <img
+                :if={discount_image(assigns)}
+                class="discount-product-image"
+                src={discount_image(assigns)}
+                alt=""
+              />
+            </div>
+          </div>
+          <form
+            id="discount-form"
+            class="form"
+            phx-hook="DiscountPreview"
+            phx-submit="apply_discount"
+            data-discount-base={discount_base(assigns)}
+            data-discount-type={@discount_type}
+          >
+            <input id="discount-type" name="discount_type" type="hidden" value={@discount_type} />
+            <div class="discount-switch" role="group" aria-label="Discount type">
+              <button
+                class="btn"
+                type="button"
+                data-discount-type="percent"
+                data-variant={if @discount_type == "percent", do: "default", else: "secondary"}
+                aria-pressed={to_string(@discount_type == "percent")}
+              >
+                %
+              </button><button
+                class="btn"
+                type="button"
+                data-discount-type="amount"
+                data-variant={if @discount_type == "amount", do: "default", else: "secondary"}
+                aria-pressed={to_string(@discount_type == "amount")}
+              >$</button>
+            </div>
+            <div class="form-field">
+              <label id="discount-input-label" class="label" for="discount-input">
+                {if @discount_type == "percent", do: "Discount percentage", else: "Discount amount"}
+              </label>
+              <div class="form-field-inline">
+                <input
+                  id="discount-input"
+                  class="input numeric"
+                  style="flex: 1"
+                  name="value"
+                  type="number"
+                  inputmode="decimal"
+                  min="0"
+                  max={if @discount_type == "percent", do: "100"}
+                  step="0.01"
+                  value={@discount_input}
+                /><button class="btn" type="button" data-variant="outline" data-clear-discount>
+                  Clear
+                </button>
+              </div>
+              <p id="discount-help" class="field-description">
+                {if @discount_type == "percent",
+                  do: "Enter 0 to remove this item discount.",
+                  else: "The amount applies to this entire order line."}
+              </p>
+            </div>
+            <dl class="discount-preview">
+              <div>
+                <dt>Amount</dt>
+                <dd class="numeric">{money(discount_base(assigns))}</dd>
+              </div>
+              <div>
+                <dt>Discount</dt>
+                <dd class="numeric">−{money(discount_preview(assigns))}</dd>
+              </div>
+              <div>
+                <dt>After discount</dt>
+                <dd class="numeric">{money(discount_base(assigns) - discount_preview(assigns))}</dd>
+              </div>
+            </dl>
+            <div class="dialog-footer">
+              <button class="btn" type="button" data-variant="outline" phx-click="close_dialog">
+                Cancel
+              </button><button class="btn" type="submit" data-variant="default">Apply discount</button>
+            </div>
           </form>
         </div>
       </dialog>
-      <dialog :if={@dialog == :customer_purchases} id="customer-purchases-dialog" class="dialog" data-size="xl" phx-hook="DiscountDialog" role="dialog" aria-modal="true" aria-labelledby="customer-purchases-title">
+      <dialog
+        :if={@dialog == :customer_purchases}
+        id="customer-purchases-dialog"
+        class="dialog"
+        data-size="xl"
+        phx-hook="DiscountDialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="customer-purchases-title"
+      >
         <div class="dialog-content">
-          <div class="dialog-header"><h2 id="customer-purchases-title" class="dialog-title">{@selected_customer.name} — recent purchases</h2><p class="dialog-description">The 10 most recent purchases, newest first.</p></div>
-          <div class="dialog-body">
-            <p :if={@customer_purchases == []} class="customers-status" role="status">No purchases found.</p>
-            <div class="table-container"><table class="table"><caption class="table-caption">Customer purchase history. Expand an item count to view the sold items.</caption><thead><tr class="table-row"><th class="table-head" scope="col">Date</th><th class="table-head" scope="col">Salesperson</th><th class="table-head" scope="col">Items</th><th class="table-head" scope="col">Status</th><th class="table-head" scope="col" style="text-align:right">Total</th></tr></thead><tbody id="customer-purchases-body" phx-hook="CustomerPurchases">
-              <%= for purchase <- @customer_purchases do %>
-                <tr class="table-row"><td class="table-cell">{purchase_date(purchase.date_create)}</td><td class="table-cell">{purchase.salesperson || "—"}</td><td class="table-cell"><button class="btn customer-purchase-detail-trigger" type="button" data-variant="ghost" data-customer-purchase-details={purchase.id} aria-expanded="false" aria-controls={"customer-purchase-items-#{purchase.id}"}><span class="customer-purchase-disclosure" aria-hidden="true">▸</span>Items ({length(purchase.items)})</button></td><td class="table-cell">{purchase.invoice_status || purchase.status || "—"}</td><td class="table-cell numeric" style="text-align:right">{money(float(purchase.amount))}</td></tr>
-                <tr id={"customer-purchase-items-#{purchase.id}"} class="table-row customer-purchase-details-row" hidden><td class="table-cell" colspan="5"><table class="table customer-purchase-items-table"><caption class="sr-only">Items on {purchase.sequence || "sale #{purchase.id}"}</caption><thead><tr class="table-row"><th class="table-head" scope="col">Item</th><th class="table-head" scope="col">Quantity</th><th class="table-head" scope="col">Price</th><th class="table-head" scope="col">Discount</th><th class="table-head" scope="col">Total</th></tr></thead><tbody><tr :for={item <- purchase.items} class="table-row"><td class="table-cell">{item.name || "Product ##{item.product_id}"}</td><td class="table-cell">{item.quantity}</td><td class="table-cell numeric">{money(float(item.price))}</td><td class="table-cell numeric">{purchase_discount(item)}</td><td class="table-cell numeric">{money(float(item.total))}</td></tr></tbody></table></td></tr>
-              <% end %>
-            </tbody></table></div>
+          <div class="dialog-header">
+            <h2 id="customer-purchases-title" class="dialog-title">
+              {@selected_customer.name} — recent purchases
+            </h2>
+            <p class="dialog-description">The 10 most recent purchases, newest first.</p>
           </div>
-          <div class="dialog-footer"><button class="btn" type="button" data-variant="outline" phx-click="close_dialog">Close</button></div>
+          <div class="dialog-body">
+            <p :if={@customer_purchases == []} class="customers-status" role="status">
+              No purchases found.
+            </p>
+            <div class="table-container">
+              <table class="table">
+                <caption class="table-caption">
+                  Customer purchase history. Expand an item count to view the sold items.
+                </caption>
+                <thead>
+                  <tr class="table-row">
+                    <th class="table-head" scope="col">Date</th>
+                    <th class="table-head" scope="col">Salesperson</th>
+                    <th class="table-head" scope="col">Items</th>
+                    <th class="table-head" scope="col">Status</th>
+                    <th class="table-head" scope="col" style="text-align:right">Total</th>
+                  </tr>
+                </thead>
+                <tbody id="customer-purchases-body" phx-hook="CustomerPurchases">
+                  <%= for purchase <- @customer_purchases do %>
+                    <tr class="table-row">
+                      <td class="table-cell">{purchase_date(purchase.date_create)}</td>
+                      <td class="table-cell">{purchase.salesperson || "—"}</td>
+                      <td class="table-cell">
+                        <button
+                          class="btn customer-purchase-detail-trigger"
+                          type="button"
+                          data-variant="ghost"
+                          data-customer-purchase-details={purchase.id}
+                          aria-expanded="false"
+                          aria-controls={"customer-purchase-items-#{purchase.id}"}
+                        >
+                          <span class="customer-purchase-disclosure" aria-hidden="true">▸</span>Items ({length(
+                            purchase.items
+                          )})
+                        </button>
+                      </td>
+                      <td class="table-cell">{purchase.invoice_status || purchase.status || "—"}</td>
+                      <td class="table-cell numeric" style="text-align:right">
+                        {money(float(purchase.amount))}
+                      </td>
+                    </tr>
+                    <tr
+                      id={"customer-purchase-items-#{purchase.id}"}
+                      class="table-row customer-purchase-details-row"
+                      hidden
+                    >
+                      <td class="table-cell" colspan="5">
+                        <table class="table customer-purchase-items-table">
+                          <caption class="sr-only">
+                            Items on {purchase.sequence || "sale #{purchase.id}"}
+                          </caption>
+                          <thead>
+                            <tr class="table-row">
+                              <th class="table-head" scope="col">Item</th>
+                              <th class="table-head" scope="col">Quantity</th>
+                              <th class="table-head" scope="col">Price</th>
+                              <th class="table-head" scope="col">Discount</th>
+                              <th class="table-head" scope="col">Total</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr :for={item <- purchase.items} class="table-row">
+                              <td class="table-cell">{item.name || "Product ##{item.product_id}"}</td>
+                              <td class="table-cell">{item.quantity}</td>
+                              <td class="table-cell numeric">{money(float(item.price))}</td>
+                              <td class="table-cell numeric">{purchase_discount(item)}</td>
+                              <td class="table-cell numeric">{money(float(item.total))}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="dialog-footer">
+            <button class="btn" type="button" data-variant="outline" phx-click="close_dialog">
+              Close
+            </button>
+          </div>
         </div>
       </dialog>
       <.print_dialog :if={@print_prompt} prompt={@print_prompt} />
@@ -1133,7 +1967,8 @@ defmodule PosServerWeb.PosLive do
     }
   end
 
-  defp current_store(socket), do: Enum.find(socket.assigns.stores, &(&1.id == socket.assigns.store_id))
+  defp current_store(socket),
+    do: Enum.find(socket.assigns.stores, &(&1.id == socket.assigns.store_id))
 
   defp print_prompt(:receipt, receipt) do
     %{
@@ -1145,13 +1980,52 @@ defmodule PosServerWeb.PosLive do
     }
   end
 
-  defp update_print_prompt(%{assigns: %{print_prompt: nil}} = socket, _status, _printing), do: socket
-  defp update_print_prompt(socket, status, printing), do: update(socket, :print_prompt, &Map.merge(&1, %{status: status, printing: printing}))
+  defp update_print_prompt(%{assigns: %{print_prompt: nil}} = socket, _status, _printing),
+    do: socket
+
+  defp update_print_prompt(socket, status, printing),
+    do: update(socket, :print_prompt, &Map.merge(&1, %{status: status, printing: printing}))
 
   attr :prompt, :map, required: true
+
   defp print_dialog(assigns) do
     ~H"""
-    <dialog id="receipt-dialog" class="dialog" data-size="sm" open role="dialog" aria-modal="true" aria-labelledby="receipt-dialog-title"><div class="dialog-content"><div class="dialog-header"><h2 id="receipt-dialog-title" class="dialog-title">{@prompt.title}</h2><p id="receipt-print-description" class="dialog-description">{@prompt.description}</p></div><p id="receipt-print-status" class="print-status" role="status">{@prompt[:status] || ""}</p><div class="dialog-footer"><button id="skip-print" class="btn" type="button" data-variant="outline" phx-click="skip_print" disabled={@prompt[:printing] == true}>No, return to POS</button><button id="print-receipt" class="btn" type="button" data-variant="default" phx-click="confirm_print" disabled={@prompt[:printing] == true}>{@prompt.button}</button></div></div></dialog>
+    <dialog
+      id="receipt-dialog"
+      class="dialog"
+      data-size="sm"
+      open
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="receipt-dialog-title"
+    >
+      <div class="dialog-content">
+        <div class="dialog-header">
+          <h2 id="receipt-dialog-title" class="dialog-title">{@prompt.title}</h2>
+          <p id="receipt-print-description" class="dialog-description">{@prompt.description}</p>
+        </div>
+        <p id="receipt-print-status" class="print-status" role="status">{@prompt[:status] || ""}</p>
+        <div class="dialog-footer">
+          <button
+            id="skip-print"
+            class="btn"
+            type="button"
+            data-variant="outline"
+            phx-click="skip_print"
+            disabled={@prompt[:printing] == true}
+          >
+            No, return to POS
+          </button><button
+            id="print-receipt"
+            class="btn"
+            type="button"
+            data-variant="default"
+            phx-click="confirm_print"
+            disabled={@prompt[:printing] == true}
+          >{@prompt.button}</button>
+        </div>
+      </div>
+    </dialog>
     """
   end
 

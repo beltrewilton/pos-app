@@ -11,9 +11,12 @@ defmodule PosServerWeb.ProductOrderController do
           {:ok, orders} -> json(conn, orders)
           {:error, reason} -> error(conn, reason)
         end
-      _ -> error(conn, :invalid_params)
+
+      _ ->
+        error(conn, :invalid_params)
     end
   end
+
   def index(conn, _), do: error(conn, :invalid_params)
 
   def create(conn, params) do
@@ -35,6 +38,7 @@ defmodule PosServerWeb.ProductOrderController do
   end
 
   defp parse_id(id) when is_integer(id) and id > 0, do: {:ok, id}
+
   defp parse_id(id) when is_binary(id) do
     case Integer.parse(id) do
       {value, ""} when value > 0 -> {:ok, value}
@@ -50,8 +54,14 @@ defmodule PosServerWeb.ProductOrderController do
     |> json(%{errors: Changeset.traverse_errors(changeset, fn {message, _} -> message end)})
   end
 
-  defp error(conn, :unauthorized), do: conn |> put_status(:unauthorized) |> json(%{error: "unauthorized"})
+  defp error(conn, :unauthorized),
+    do: conn |> put_status(:unauthorized) |> json(%{error: "unauthorized"})
+
   defp error(conn, :not_found), do: conn |> put_status(:not_found) |> json(%{error: "not found"})
-  defp error(conn, :forbidden_store), do: conn |> put_status(:forbidden) |> json(%{error: "store is not assigned to cashier"})
-  defp error(conn, reason), do: conn |> put_status(:unprocessable_entity) |> json(%{error: to_string(reason)})
+
+  defp error(conn, :forbidden_store),
+    do: conn |> put_status(:forbidden) |> json(%{error: "store is not assigned to cashier"})
+
+  defp error(conn, reason),
+    do: conn |> put_status(:unprocessable_entity) |> json(%{error: to_string(reason)})
 end

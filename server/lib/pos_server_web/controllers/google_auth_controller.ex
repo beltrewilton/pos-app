@@ -15,19 +15,26 @@ defmodule PosServerWeb.GoogleAuthController do
     |> redirect(external: google_auth_url(state))
   end
 
-  def tauri_redirect_to(conn, %{"platform" => platform, "attempt_id" => attempt_id}) when platform in ["desktop", "mobile"] do
+  def tauri_redirect_to(conn, %{"platform" => platform, "attempt_id" => attempt_id})
+      when platform in ["desktop", "mobile"] do
     if Authentication.valid_tauri_login_attempt?(attempt_id) do
       state = :crypto.strong_rand_bytes(32) |> Base.url_encode64(padding: false)
 
       conn
-      |> put_session(:google_oauth_state, %{value: state, client: "tauri", platform: platform, attempt_id: attempt_id})
+      |> put_session(:google_oauth_state, %{
+        value: state,
+        client: "tauri",
+        platform: platform,
+        attempt_id: attempt_id
+      })
       |> redirect(external: google_auth_url(state))
     else
       conn |> put_status(:unauthorized) |> text("Invalid or expired Tauri login attempt")
     end
   end
 
-  def tauri_redirect_to(conn, _params), do: conn |> put_status(:bad_request) |> text("Unsupported Tauri platform")
+  def tauri_redirect_to(conn, _params),
+    do: conn |> put_status(:bad_request) |> text("Unsupported Tauri platform")
 
   # Compatibility entry point for the helper URL used by edoc. Keep the OAuth
   # work in this controller so the callback has one state-aware implementation.
@@ -71,7 +78,8 @@ defmodule PosServerWeb.GoogleAuthController do
   end
 
   defp exchange_code_for_token(code) do
-    %{client_id: client_id, client_secret: client_secret, redirect_uri: redirect_uri} = google_config!()
+    %{client_id: client_id, client_secret: client_secret, redirect_uri: redirect_uri} =
+      google_config!()
 
     case Req.post(@google_token_url,
            form: %{
@@ -82,17 +90,27 @@ defmodule PosServerWeb.GoogleAuthController do
              "redirect_uri" => redirect_uri
            }
          ) do
-      {:ok, %Req.Response{status: 200, body: body}} -> {:ok, body}
-      {:ok, %Req.Response{status: status, body: body}} -> {:error, {:google_token_error, status, body}}
-      {:error, reason} -> {:error, reason}
+      {:ok, %Req.Response{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Req.Response{status: status, body: body}} ->
+        {:error, {:google_token_error, status, body}}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
   defp fetch_user_info(access_token) when is_binary(access_token) do
     case Req.get(@google_user_info_url, headers: [{"authorization", "Bearer #{access_token}"}]) do
-      {:ok, %Req.Response{status: 200, body: body}} -> {:ok, body}
-      {:ok, %Req.Response{status: status, body: body}} -> {:error, {:google_user_info_error, status, body}}
-      {:error, reason} -> {:error, reason}
+      {:ok, %Req.Response{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Req.Response{status: status, body: body}} ->
+        {:error, {:google_user_info_error, status, body}}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -101,10 +119,14 @@ defmodule PosServerWeb.GoogleAuthController do
   defp verify_state(conn, state) when is_binary(state) do
     case get_session(conn, :google_oauth_state) do
       expected when is_binary(expected) and byte_size(expected) == byte_size(state) ->
-        if Plug.Crypto.secure_compare(expected, state), do: :ok, else: {:error, :invalid_google_oauth_state}
+        if Plug.Crypto.secure_compare(expected, state),
+          do: :ok,
+          else: {:error, :invalid_google_oauth_state}
 
       %{value: expected} when is_binary(expected) and byte_size(expected) == byte_size(state) ->
-        if Plug.Crypto.secure_compare(expected, state), do: :ok, else: {:error, :invalid_google_oauth_state}
+        if Plug.Crypto.secure_compare(expected, state),
+          do: :ok,
+          else: {:error, :invalid_google_oauth_state}
 
       _ ->
         {:error, :invalid_google_oauth_state}
@@ -118,8 +140,13 @@ defmodule PosServerWeb.GoogleAuthController do
     client_id = Keyword.fetch!(config, :client_id)
     client_secret = Keyword.fetch!(config, :client_secret)
 
-    if is_binary(client_id) and client_id != "" and is_binary(client_secret) and client_secret != "" do
-      %{client_id: client_id, client_secret: client_secret, redirect_uri: google_redirect_uri(config)}
+    if is_binary(client_id) and client_id != "" and is_binary(client_secret) and
+         client_secret != "" do
+      %{
+        client_id: client_id,
+        client_secret: client_secret,
+        redirect_uri: google_redirect_uri(config)
+      }
     else
       raise "GOOGLE_CLIENT and GOOGLE_KEY must be configured to use Google sign-in"
     end
@@ -167,8 +194,11 @@ defmodule PosServerWeb.GoogleAuthController do
     case get_session(conn, :google_oauth_state) do
       %{client: "tauri", attempt_id: attempt_id} ->
         case Authentication.fail_tauri_login_attempt(attempt_id, "google_sign_in_failed") do
-          {:ok, payload} -> PosServerWeb.Endpoint.broadcast("login:" <> attempt_id, "login_result", payload)
-          _ -> :ok
+          {:ok, payload} ->
+            PosServerWeb.Endpoint.broadcast("login:" <> attempt_id, "login_result", payload)
+
+          _ ->
+            :ok
         end
 
         tauri_result_page(conn, :error)
@@ -186,7 +216,10 @@ defmodule PosServerWeb.GoogleAuthController do
     |> delete_session(:google_oauth_state)
     |> configure_session(drop: true)
     |> put_resp_content_type("text/html")
-    |> send_resp(200, "<!doctype html><html><head><meta charset=\"utf-8\"><title>Signed in</title></head><body><main><h1>You’re signed in to tigoo</h1><p>You can close this page and return to the app.</p></main></body></html>")
+    |> send_resp(
+      200,
+      "<!doctype html><html><head><meta charset=\"utf-8\"><title>Signed in</title></head><body><main><h1>You’re signed in to tigoo</h1><p>You can close this page and return to the app.</p></main></body></html>"
+    )
   end
 
   defp tauri_result_page(conn, :error) do
@@ -194,6 +227,9 @@ defmodule PosServerWeb.GoogleAuthController do
     |> delete_session(:google_oauth_state)
     |> configure_session(drop: true)
     |> put_resp_content_type("text/html")
-    |> send_resp(400, "<!doctype html><html><head><meta charset=\"utf-8\"><title>Sign-in failed</title></head><body><main><h1>Sign-in couldn’t be completed</h1><p>You can close this page and try again from tigoo.</p></main></body></html>")
+    |> send_resp(
+      400,
+      "<!doctype html><html><head><meta charset=\"utf-8\"><title>Sign-in failed</title></head><body><main><h1>Sign-in couldn’t be completed</h1><p>You can close this page and try again from tigoo.</p></main></body></html>"
+    )
   end
 end

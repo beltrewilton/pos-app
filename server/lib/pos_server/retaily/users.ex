@@ -31,15 +31,23 @@ defmodule PosServer.Retaily.User do
     |> hash_password()
   end
 
-  defp require_password_for_new_user(changeset, %__MODULE__{id: nil}), do: validate_required(changeset, [:password])
+  defp require_password_for_new_user(changeset, %__MODULE__{id: nil}),
+    do: validate_required(changeset, [:password])
+
   defp require_password_for_new_user(changeset, _user), do: changeset
+
   defp default_joined_at(changeset, %__MODULE__{id: nil}) do
     if get_field(changeset, :date_joined) do
       changeset
     else
-      put_change(changeset, :date_joined, NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second))
+      put_change(
+        changeset,
+        :date_joined,
+        NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+      )
     end
   end
+
   defp default_joined_at(changeset, _user), do: changeset
 
   defp hash_password(changeset) do

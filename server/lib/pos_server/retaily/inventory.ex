@@ -25,7 +25,9 @@ defmodule PosServer.Retaily.Store do
     |> validate_length(:slogan, max: 120)
     |> validate_length(:address, max: 200)
     |> validate_length(:logo, max: 1_000_000)
-    |> validate_format(:logo, ~r/^data:image\/[a-zA-Z0-9.+-]+;base64,/, message: "must be an image encoded as Base64")
+    |> validate_format(:logo, ~r/^data:image\/[a-zA-Z0-9.+-]+;base64,/,
+      message: "must be an image encoded as Base64"
+    )
     |> unique_constraint(:name)
   end
 end
@@ -49,7 +51,14 @@ defmodule PosServer.Retaily.Inventory do
 
   def changeset(inventory, attrs) do
     inventory
-    |> cast(attrs, [:prev_quantity, :quantity, :last_update, :user_updated, :product_id, :store_id])
+    |> cast(attrs, [
+      :prev_quantity,
+      :quantity,
+      :last_update,
+      :user_updated,
+      :product_id,
+      :store_id
+    ])
     |> validate_required([:quantity, :product_id, :store_id])
   end
 end
@@ -91,7 +100,18 @@ defmodule PosServer.Retaily.ProductOrder do
 
   def changeset(order, attrs) do
     order
-    |> cast(attrs, [:name, :memo, :order_type, :user_requester, :user_receiver, :date_opened, :date_closed, :from_origin_id, :to_store_id, :status])
+    |> cast(attrs, [
+      :name,
+      :memo,
+      :order_type,
+      :user_requester,
+      :user_receiver,
+      :date_opened,
+      :date_closed,
+      :from_origin_id,
+      :to_store_id,
+      :status
+    ])
     |> validate_required([:order_type, :from_origin_id, :to_store_id])
     |> validate_number(:from_origin_id, greater_than: 0)
     |> validate_number(:to_store_id, greater_than: 0)
@@ -120,8 +140,26 @@ defmodule PosServer.Retaily.ProductOrderLine do
 
   def changeset(line, attrs) do
     line
-    |> cast(attrs, [:product_id, :from_origin_id, :to_store_id, :product_order_id, :quantity, :quantity_observed, :status, :date_create, :user_receiver, :receiver_last_update, :receiver_memo])
-    |> validate_required([:product_id, :from_origin_id, :to_store_id, :product_order_id, :quantity])
+    |> cast(attrs, [
+      :product_id,
+      :from_origin_id,
+      :to_store_id,
+      :product_order_id,
+      :quantity,
+      :quantity_observed,
+      :status,
+      :date_create,
+      :user_receiver,
+      :receiver_last_update,
+      :receiver_memo
+    ])
+    |> validate_required([
+      :product_id,
+      :from_origin_id,
+      :to_store_id,
+      :product_order_id,
+      :quantity
+    ])
     |> validate_number(:product_id, greater_than: 0)
     |> validate_number(:from_origin_id, greater_than: 0)
     |> validate_number(:to_store_id, greater_than: 0)

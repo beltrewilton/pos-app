@@ -21,7 +21,18 @@ defmodule PosServer.Retaily.Product do
 
   def changeset(product, attrs) do
     product
-    |> cast(attrs, [:name, :cost, :margin, :code, :img_path, :image_raw, :active, :user_modified, :date_create, :archived])
+    |> cast(attrs, [
+      :name,
+      :cost,
+      :margin,
+      :code,
+      :img_path,
+      :image_raw,
+      :active,
+      :user_modified,
+      :date_create,
+      :archived
+    ])
     |> validate_required([:name])
     |> validate_number(:cost, greater_than_or_equal_to: 0)
   end

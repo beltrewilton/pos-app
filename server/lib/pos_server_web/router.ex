@@ -160,7 +160,10 @@ defmodule PosServerWeb.Router do
     conn
     |> Plug.Conn.put_resp_header("access-control-allow-origin", "*")
     |> Plug.Conn.put_resp_header("access-control-allow-headers", "authorization, content-type")
-    |> Plug.Conn.put_resp_header("access-control-allow-methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+    |> Plug.Conn.put_resp_header(
+      "access-control-allow-methods",
+      "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+    )
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development

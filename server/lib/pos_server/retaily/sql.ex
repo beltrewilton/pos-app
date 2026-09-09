@@ -16,7 +16,8 @@ defmodule PosServer.Retaily.Sql do
   @type page :: %{
           entries: [map()],
           has_more?: boolean(),
-          next_cursor: non_neg_integer() | %{date_create: NaiveDateTime.t(), id: non_neg_integer()} | nil
+          next_cursor:
+            non_neg_integer() | %{date_create: NaiveDateTime.t(), id: non_neg_integer()} | nil
         }
 
   @spec active_products_page(non_neg_integer() | nil, keyword()) ::
@@ -27,7 +28,15 @@ defmodule PosServer.Retaily.Sql do
     with :ok <- validate_cursor(after_id),
          {:ok, page_size} <- page_size(opts),
          {:ok, store_id} <- store_id(opts),
-         {:ok, result} <- run(tenant, "active_products", [after_id, page_size + 1, @tax_rate, store_id, normalize_search(Keyword.get(opts, :search)), nil]) do
+         {:ok, result} <-
+           run(tenant, "active_products", [
+             after_id,
+             page_size + 1,
+             @tax_rate,
+             store_id,
+             normalize_search(Keyword.get(opts, :search)),
+             nil
+           ]) do
       entries = result |> rows_as_maps() |> Enum.take(page_size)
       has_more? = result.num_rows > page_size
 
@@ -45,7 +54,8 @@ defmodule PosServer.Retaily.Sql do
     tenant = TenantContext.tenant!()
 
     with {:ok, valid_store_id} <- store_id(store_id),
-         {:ok, result} <- run(tenant, "active_products", [nil, 1, @tax_rate, valid_store_id, nil, product_id]) do
+         {:ok, result} <-
+           run(tenant, "active_products", [nil, 1, @tax_rate, valid_store_id, nil, product_id]) do
       {:ok, result |> rows_as_maps() |> List.first()}
     end
   end
@@ -57,7 +67,8 @@ defmodule PosServer.Retaily.Sql do
 
     with :ok <- validate_cursor(before_id),
          {:ok, page_size} <- page_size(opts),
-         {:ok, result} <- run(tenant, "recent_clients", [before_id, normalize_search(search), page_size + 1]) do
+         {:ok, result} <-
+           run(tenant, "recent_clients", [before_id, normalize_search(search), page_size + 1]) do
       entries = result |> rows_as_maps() |> Enum.take(page_size)
       has_more? = result.num_rows > page_size
 
@@ -70,7 +81,11 @@ defmodule PosServer.Retaily.Sql do
     end
   end
 
-  @spec sales_report_page(pos_integer(), %{date_create: NaiveDateTime.t(), id: non_neg_integer()} | nil, keyword()) ::
+  @spec sales_report_page(
+          pos_integer(),
+          %{date_create: NaiveDateTime.t(), id: non_neg_integer()} | nil,
+          keyword()
+        ) ::
           {:ok, page()} | {:error, term()}
   def sales_report_page(store_id, cursor \\ nil, opts \\ []) do
     tenant = TenantContext.tenant!()
@@ -160,7 +175,9 @@ defmodule PosServer.Retaily.Sql do
   defp sales_report_next_cursor(entries, true) do
     entries
     |> List.last()
-    |> then(fn entry -> %{date_create: Map.fetch!(entry, "date_create"), id: Map.fetch!(entry, "id")} end)
+    |> then(fn entry ->
+      %{date_create: Map.fetch!(entry, "date_create"), id: Map.fetch!(entry, "id")}
+    end)
   end
 
   defp sales_report_next_cursor(_entries, false), do: nil
@@ -192,7 +209,11 @@ defmodule PosServer.Retaily.Sql do
   defp validate_cursor(_cursor), do: {:error, :invalid_cursor}
 
   defp validate_sales_report_cursor(nil), do: :ok
-  defp validate_sales_report_cursor(%{date_create: %NaiveDateTime{}, id: id}) when is_integer(id) and id >= 0, do: :ok
+
+  defp validate_sales_report_cursor(%{date_create: %NaiveDateTime{}, id: id})
+       when is_integer(id) and id >= 0,
+       do: :ok
+
   defp validate_sales_report_cursor(_cursor), do: {:error, :invalid_cursor}
 
   defp normalize_search(search) when is_binary(search), do: String.trim(search)

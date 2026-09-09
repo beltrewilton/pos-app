@@ -4,8 +4,12 @@ defmodule PosServer.PrintRelay do
   alias PosServerWeb.Presence
 
   def topic(tenant, store_id), do: "print-relay:#{tenant}:#{store_id}"
-  def desktop_topic(tenant, store_id, session_id), do: "#{topic(tenant, store_id)}:desktop:#{session_id}"
-  def result_topic(tenant, store_id, request_id), do: "#{topic(tenant, store_id)}:result:#{request_id}"
+
+  def desktop_topic(tenant, store_id, session_id),
+    do: "#{topic(tenant, store_id)}:desktop:#{session_id}"
+
+  def result_topic(tenant, store_id, request_id),
+    do: "#{topic(tenant, store_id)}:result:#{request_id}"
 
   def available_desktops(tenant, store_id) do
     tenant

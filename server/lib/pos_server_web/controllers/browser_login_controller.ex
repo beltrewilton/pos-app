@@ -19,7 +19,8 @@ defmodule PosServerWeb.BrowserLoginController do
     end
   end
 
-  def create(conn, _params), do: conn |> put_status(:bad_request) |> json(%{error: "invalid login session"})
+  def create(conn, _params),
+    do: conn |> put_status(:bad_request) |> json(%{error: "invalid login session"})
 
   def delete(conn, _params) do
     conn

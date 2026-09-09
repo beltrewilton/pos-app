@@ -28,11 +28,32 @@ defmodule PosServer.Retaily.ProductTrace do
 
   def changeset(trace, attrs) do
     trace
-    |> cast(attrs, [:product_id, :store_id, :event_type, :quantity_before, :quantity_change,
-      :quantity_after, :unit_cost, :unit_price, :reference_type, :reference_id,
-      :operator_username, :customer_id, :customer_name, :source_store_id,
-      :destination_store_id, :metadata])
-    |> validate_required([:product_id, :store_id, :event_type, :quantity_before, :quantity_change, :quantity_after])
+    |> cast(attrs, [
+      :product_id,
+      :store_id,
+      :event_type,
+      :quantity_before,
+      :quantity_change,
+      :quantity_after,
+      :unit_cost,
+      :unit_price,
+      :reference_type,
+      :reference_id,
+      :operator_username,
+      :customer_id,
+      :customer_name,
+      :source_store_id,
+      :destination_store_id,
+      :metadata
+    ])
+    |> validate_required([
+      :product_id,
+      :store_id,
+      :event_type,
+      :quantity_before,
+      :quantity_change,
+      :quantity_after
+    ])
     |> validate_inclusion(:event_type, @event_types)
     |> check_constraint(:event_type, name: :product_traces_event_type_valid)
   end

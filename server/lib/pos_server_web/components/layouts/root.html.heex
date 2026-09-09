@@ -4,9 +4,25 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={get_csrf_token()} />
+    <meta :if={pos_pwa_path?(assigns)} name="theme-color" content="#088674" />
     <.live_title default="tigoo" suffix="">
       {assigns[:page_title]}
     </.live_title>
+    <link :if={pos_pwa_path?(assigns)} rel="manifest" href={~p"/manifest.json"} />
+    <link :if={pos_pwa_path?(assigns)} rel="icon" type="image/x-icon" href={~p"/favicon.ico"} />
+    <link
+      :if={pos_pwa_path?(assigns)}
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href={~p"/pwa/icons/favicon-32.png"}
+    />
+    <link
+      :if={pos_pwa_path?(assigns)}
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href={~p"/pwa/icons/apple-touch-icon.png"}
+    />
     <link rel="stylesheet" href={~p"/assets/ui/default-semantic-tokens.css"} />
     <link rel="stylesheet" href={~p"/assets/ui/fonts/inter.css"} />
     <link rel="stylesheet" href={~p"/assets/ui/components/typography/typography.css"} />
@@ -28,12 +44,18 @@
     <link rel="stylesheet" href={~p"/assets/pos-live-overrides.css"} />
     <link rel="stylesheet" href={~p"/assets/pos-shimmer.css"} />
     <link rel="stylesheet" href={~p"/assets/purchase-orders-live.css"} />
-    <script defer src={~p"/assets/phoenix.js"}></script>
-    <script defer src={~p"/assets/inventory-product-image.js"}></script>
-    <script defer src={~p"/assets/company-settings-live.js"}></script>
-    <script defer src={~p"/assets/login-live.js"}></script>
-    <script type="module" src={~p"/assets/liveview.js"}></script>
-    <script defer src={~p"/assets/theme.js"}></script>
+    <script defer src={~p"/assets/phoenix.js"}>
+    </script>
+    <script defer src={~p"/assets/inventory-product-image.js"}>
+    </script>
+    <script defer src={~p"/assets/company-settings-live.js"}>
+    </script>
+    <script defer src={~p"/assets/login-live.js"}>
+    </script>
+    <script type="module" src={~p"/assets/liveview.js"}>
+    </script>
+    <script defer src={~p"/assets/theme.js"}>
+    </script>
   </head>
   <body>
     <div>{@inner_content}</div>

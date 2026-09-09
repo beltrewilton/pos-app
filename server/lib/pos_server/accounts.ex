@@ -130,7 +130,8 @@ defmodule PosServer.Accounts do
   end
 
   defp google_tenant(google_uid) do
-    "google_" <> (:crypto.hash(:sha256, google_uid) |> Base.encode16(case: :lower) |> binary_part(0, 24))
+    "google_" <>
+      (:crypto.hash(:sha256, google_uid) |> Base.encode16(case: :lower) |> binary_part(0, 24))
   end
 
   def confirm_user(%User{confirmed_at: nil} = user) do
@@ -169,7 +170,9 @@ defmodule PosServer.Accounts do
         case Repo.update(tenant_changeset) do
           {:ok, updated_user} ->
             case create_tenant_company(updated_user.tenant, updated_user.id, company_changeset) do
-              :ok -> {:ok, updated_user}
+              :ok ->
+                {:ok, updated_user}
+
               {:error, :tenant, reason} ->
                 Repo.update(Ecto.Changeset.change(updated_user, tenant: nil))
                 {:error, :provisioning, reason}

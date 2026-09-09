@@ -33,7 +33,8 @@ defmodule PosServerWeb.AdminSessionControllerTest do
   end
 
   test "shows one generic error for invalid credentials", %{conn: conn} do
-    conn = post(conn, ~p"/admin/login", %{admin: %{username: "admin", password: "wrong-password"}})
+    conn =
+      post(conn, ~p"/admin/login", %{admin: %{username: "admin", password: "wrong-password"}})
 
     assert redirected_to(conn) == "/admin/login"
     assert get_session(conn, :admin_authenticated) == nil
@@ -41,7 +42,10 @@ defmodule PosServerWeb.AdminSessionControllerTest do
   end
 
   test "logout clears only the admin authentication state", %{conn: conn} do
-    conn = conn |> init_test_session(user_token: "normal-user-session", admin_authenticated: true) |> post(~p"/admin/logout")
+    conn =
+      conn
+      |> init_test_session(user_token: "normal-user-session", admin_authenticated: true)
+      |> post(~p"/admin/logout")
 
     assert redirected_to(conn) == "/admin/login"
     assert get_session(conn, :admin_authenticated) == nil

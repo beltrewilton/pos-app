@@ -14,22 +14,61 @@ defmodule PosServerWeb.CustomerComponents do
     <section id="customers-screen" class="customers-screen" aria-labelledby="customers-title">
       <div class="invoice-report-fixed">
         <header class="topbar invoice-topbar">
-          <div class="brand-lockup"><span class="brand-mark" aria-hidden="true">E</span><div><p class="eyebrow">Customers</p><h2 id="customers-title" tabindex="-1">Customer list</h2></div></div>
+          <div class="brand-lockup">
+            <span class="brand-mark" aria-hidden="true">E</span>
+            <div>
+              <p class="eyebrow">Customers</p>
+              <h2 id="customers-title" tabindex="-1">Customer list</h2>
+            </div>
+          </div>
           <div class="customers-header-actions">
-            <button id="create-customer" class="btn" type="button" data-variant="default" phx-click="open_customer_dialog" aria-haspopup="dialog">Create customer</button>
+            <button
+              id="create-customer"
+              class="btn"
+              type="button"
+              data-variant="default"
+              phx-click="open_customer_dialog"
+              aria-haspopup="dialog"
+            >
+              Create customer
+            </button>
             <a id="customers-back" class="btn" data-variant="outline" href={~p"/pos"}>Back</a>
           </div>
         </header>
       </div>
       <div class="customer-search-field">
         <label class="sr-only" for="customer-search">Search customers</label>
-        <input id="customer-search" class="input" type="search" name="value" value={@search} phx-keyup="search_customers" phx-change="search_customers" phx-debounce="220" autocomplete="off" placeholder="Search customers by name or phone" />
+        <input
+          id="customer-search"
+          class="input"
+          type="search"
+          name="value"
+          value={@search}
+          phx-keyup="search_customers"
+          phx-change="search_customers"
+          phx-debounce="220"
+          autocomplete="off"
+          placeholder="Search customers by name or phone"
+        />
       </div>
       <p id="customers-status" class="customers-status" role="status">{@status}</p>
       <div class="table-container customer-table-container">
         <table class="table customer-table">
           <caption class="table-caption">Customer accounts and purchase activity.</caption>
-          <thead><tr class="table-row"><th class="table-head" scope="col">Name</th><th class="table-head" scope="col">Document ID</th><th class="table-head" scope="col">Phone</th><th class="table-head" scope="col" data-customer-management-column>Email</th><th class="table-head" scope="col" data-customer-management-column>Wholesale</th><th class="table-head" scope="col" data-customer-management-column>Pending balance</th><th class="table-head" scope="col" data-customer-management-column>Last purchase</th><th class="table-head" scope="col"><span id="customers-action-heading" class="sr-only">View</span></th></tr></thead>
+          <thead>
+            <tr class="table-row">
+              <th class="table-head" scope="col">Name</th>
+              <th class="table-head" scope="col">Document ID</th>
+              <th class="table-head" scope="col">Phone</th>
+              <th class="table-head" scope="col" data-customer-management-column>Email</th>
+              <th class="table-head" scope="col" data-customer-management-column>Wholesale</th>
+              <th class="table-head" scope="col" data-customer-management-column>Pending balance</th>
+              <th class="table-head" scope="col" data-customer-management-column>Last purchase</th>
+              <th class="table-head" scope="col">
+                <span id="customers-action-heading" class="sr-only">View</span>
+              </th>
+            </tr>
+          </thead>
           <tbody id="customers-table-body">
             <.table_skeleton_rows :if={@loading} rows={6} columns={8} />
             <.customer_row :for={customer <- @customers} customer={customer} />
@@ -49,10 +88,26 @@ defmodule PosServerWeb.CustomerComponents do
       <td class="table-cell" data-label="Document ID">{dash(@customer.document_id)}</td>
       <td class="table-cell" data-label="Phone">{dash(@customer.celphone)}</td>
       <td class="table-cell" data-label="Email">{dash(@customer.email)}</td>
-      <td class="table-cell" data-label="Wholesale">{if wholesale?(@customer), do: "Yes", else: "No"}</td>
-      <td class="table-cell numeric" data-label="Pending balance">{money(max(float(@customer.pending_balance), 0.0))}</td>
+      <td class="table-cell" data-label="Wholesale">
+        {if wholesale?(@customer), do: "Yes", else: "No"}
+      </td>
+      <td class="table-cell numeric" data-label="Pending balance">
+        {money(max(float(@customer.pending_balance), 0.0))}
+      </td>
       <td class="table-cell" data-label="Last purchase">{date_only(@customer.last_purchase_date)}</td>
-      <td class="table-cell customer-action"><button class="btn" type="button" data-variant="outline" data-size="sm" phx-click="open_customer_detail" phx-value-id={@customer.id} aria-label={"View: #{dash(@customer.name)}"}>View</button></td>
+      <td class="table-cell customer-action">
+        <button
+          class="btn"
+          type="button"
+          data-variant="outline"
+          data-size="sm"
+          phx-click="open_customer_detail"
+          phx-value-id={@customer.id}
+          aria-label={"View: #{dash(@customer.name)}"}
+        >
+          View
+        </button>
+      </td>
     </tr>
     """
   end
@@ -62,15 +117,39 @@ defmodule PosServerWeb.CustomerComponents do
 
   def customer_detail(assigns) do
     ~H"""
-    <section id="customer-detail-screen" class="invoice-report customer-detail-screen" aria-labelledby="customer-detail-title">
+    <section
+      id="customer-detail-screen"
+      class="invoice-report customer-detail-screen"
+      aria-labelledby="customer-detail-title"
+    >
       <div class="invoice-report-fixed">
         <header class="topbar invoice-topbar">
-          <div class="brand-lockup"><span class="brand-mark" aria-hidden="true">E</span><div><p class="eyebrow">Customers</p><h2 id="customer-detail-title" tabindex="-1">Customer detail</h2></div></div>
-          <button id="customer-detail-back" class="btn" type="button" data-variant="outline" data-size="sm" phx-click="close_customer_detail">Back to customers</button>
+          <div class="brand-lockup">
+            <span class="brand-mark" aria-hidden="true">E</span>
+            <div>
+              <p class="eyebrow">Customers</p>
+              <h2 id="customer-detail-title" tabindex="-1">Customer detail</h2>
+            </div>
+          </div>
+          <button
+            id="customer-detail-back"
+            class="btn"
+            type="button"
+            data-variant="outline"
+            data-size="sm"
+            phx-click="close_customer_detail"
+          >
+            Back to customers
+          </button>
         </header>
       </div>
       <article id="customer-detail" class="card customer-detail-card" aria-live="polite">
-        <div :if={@loading} class="card-content invoice-details-skeleton" role="status" aria-label="Loading customer details">
+        <div
+          :if={@loading}
+          class="card-content invoice-details-skeleton"
+          role="status"
+          aria-label="Loading customer details"
+        >
           <.skeleton_block class="skeleton-line" width="40%" />
           <.skeleton_block class="skeleton-line" width="75%" />
         </div>
@@ -86,21 +165,98 @@ defmodule PosServerWeb.CustomerComponents do
     ~H"""
     <% customer = @detail.customer %>
     <% summary = @detail.summary %>
-    <div class="card-header"><div><p class="eyebrow">Customer account</p><h3 class="card-title">{dash(customer.name, "Customer")}</h3><p class="card-description">{dash(customer.document_id, "No document ID")} · {dash(customer.celphone, "No phone")}</p></div></div>
+    <div class="card-header">
+      <div>
+        <p class="eyebrow">Customer account</p>
+        <h3 class="card-title">{dash(customer.name, "Customer")}</h3>
+        <p class="card-description">
+          {dash(customer.document_id, "No document ID")} · {dash(customer.celphone, "No phone")}
+        </p>
+      </div>
+    </div>
     <div class="card-content">
-      <p class="card-description">{dash(customer.address, "No address")} · {dash(customer.email, "No email")} · {if wholesale?(customer), do: "Wholesale", else: "Retail"} · Created {customer_date(customer.date_create)}</p>
+      <p class="card-description">
+        {dash(customer.address, "No address")} · {dash(customer.email, "No email")} · {if wholesale?(
+                                                                                            customer
+                                                                                          ),
+                                                                                          do:
+                                                                                            "Wholesale",
+                                                                                          else:
+                                                                                            "Retail"} · Created {customer_date(
+          customer.date_create
+        )}
+      </p>
       <section class="invoice-summary">
-        <.summary_card title="Pending balance" value={money(float(value(summary, :pending_balance)))} numeric />
-        <.summary_card title="Total invoiced" value={money(float(value(summary, :total_invoiced)))} numeric />
+        <.summary_card
+          title="Pending balance"
+          value={money(float(value(summary, :pending_balance)))}
+          numeric
+        />
+        <.summary_card
+          title="Total invoiced"
+          value={money(float(value(summary, :total_invoiced)))}
+          numeric
+        />
         <.summary_card title="Total paid" value={money(float(value(summary, :total_paid)))} numeric />
-        <.summary_card title="Outstanding balance" value={money(float(value(summary, :pending_balance)))} numeric />
+        <.summary_card
+          title="Outstanding balance"
+          value={money(float(value(summary, :pending_balance)))}
+          numeric
+        />
         <.summary_card title="Purchases" value={value(summary, :purchase_count) || 0} numeric />
-        <article class="card"><div class="card-header"><p class="card-title">Last purchase</p></div><div class="card-content"><p class="card-description">{customer_date(value(summary, :last_purchase_date))}</p></div></article>
+        <article class="card">
+          <div class="card-header">
+            <p class="card-title">Last purchase</p>
+          </div>
+          <div class="card-content">
+            <p class="card-description">{customer_date(value(summary, :last_purchase_date))}</p>
+          </div>
+        </article>
       </section>
-      <div class="table-container"><p class="invoice-table-section-title">Purchase history</p><table class="table"><thead><tr class="table-row"><th class="table-head">Invoice</th><th class="table-head">Date</th><th class="table-head">Total</th><th class="table-head">Paid</th><th class="table-head">Balance</th><th class="table-head">Status</th><th class="table-head">Sales Person</th><th class="table-head">Store</th><th class="table-head">Action</th></tr></thead><tbody>
-        <tr :if={@detail.purchases == []} class="table-row"><td class="table-cell muted" colspan="9">No purchases found for this customer.</td></tr>
-        <tr :for={purchase <- @detail.purchases} class="table-row"><td class="table-cell">{value(purchase, :sequence) || "##{value(purchase, :id)}"}</td><td class="table-cell">{customer_date(value(purchase, :date_create))}</td><td class="table-cell numeric">{money(float(value(purchase, :amount)))}</td><td class="table-cell numeric">{money(float(value(purchase, :total_paid)))}</td><td class="table-cell numeric">{money(max(float(value(purchase, :due_balance)), 0.0))}</td><td class="table-cell">{dash(value(purchase, :invoice_status))}</td><td class="table-cell">{dash(value(purchase, :salesperson))}</td><td class="table-cell">{dash(value(purchase, :store_id))}</td><td class="table-cell"><.link class="btn" data-variant="ghost" navigate={~p"/pos/invoices?search=#{customer.name || ""}"}>View</.link></td></tr>
-      </tbody></table></div>
+      <div class="table-container">
+        <p class="invoice-table-section-title">Purchase history</p>
+        <table class="table">
+          <thead>
+            <tr class="table-row">
+              <th class="table-head">Invoice</th>
+              <th class="table-head">Date</th>
+              <th class="table-head">Total</th>
+              <th class="table-head">Paid</th>
+              <th class="table-head">Balance</th>
+              <th class="table-head">Status</th>
+              <th class="table-head">Sales Person</th>
+              <th class="table-head">Store</th>
+              <th class="table-head">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr :if={@detail.purchases == []} class="table-row">
+              <td class="table-cell muted" colspan="9">No purchases found for this customer.</td>
+            </tr>
+            <tr :for={purchase <- @detail.purchases} class="table-row">
+              <td class="table-cell">{value(purchase, :sequence) || "##{value(purchase, :id)}"}</td>
+              <td class="table-cell">{customer_date(value(purchase, :date_create))}</td>
+              <td class="table-cell numeric">{money(float(value(purchase, :amount)))}</td>
+              <td class="table-cell numeric">{money(float(value(purchase, :total_paid)))}</td>
+              <td class="table-cell numeric">
+                {money(max(float(value(purchase, :due_balance)), 0.0))}
+              </td>
+              <td class="table-cell">{dash(value(purchase, :invoice_status))}</td>
+              <td class="table-cell">{dash(value(purchase, :salesperson))}</td>
+              <td class="table-cell">{dash(value(purchase, :store_id))}</td>
+              <td class="table-cell">
+                <.link
+                  class="btn"
+                  data-variant="ghost"
+                  navigate={~p"/pos/invoices?search=#{customer.name || ""}"}
+                >
+                  View
+                </.link>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
     """
   end
@@ -111,7 +267,14 @@ defmodule PosServerWeb.CustomerComponents do
 
   def summary_card(assigns) do
     ~H"""
-    <article class="card"><div class="card-header"><p class="card-title">{@title}</p></div><div class="card-content"><p class={["invoice-kpi-value", @numeric && "numeric"]}>{@value}</p></div></article>
+    <article class="card">
+      <div class="card-header">
+        <p class="card-title">{@title}</p>
+      </div>
+      <div class="card-content">
+        <p class={["invoice-kpi-value", @numeric && "numeric"]}>{@value}</p>
+      </div>
+    </article>
     """
   end
 
@@ -120,18 +283,68 @@ defmodule PosServerWeb.CustomerComponents do
 
   def customer_dialog(assigns) do
     ~H"""
-    <dialog id="customer-dialog" class="dialog" role="dialog" aria-modal="true" aria-labelledby="customer-dialog-title" phx-hook="CustomerDialog">
+    <dialog
+      id="customer-dialog"
+      class="dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="customer-dialog-title"
+      phx-hook="CustomerDialog"
+    >
       <div class="dialog-content">
-        <div class="dialog-header"><h2 id="customer-dialog-title" class="dialog-title">Create customer</h2><p class="dialog-description">Add a customer, then use them on this sale.</p></div>
+        <div class="dialog-header">
+          <h2 id="customer-dialog-title" class="dialog-title">Create customer</h2>
+          <p class="dialog-description">Add a customer, then use them on this sale.</p>
+        </div>
         <form id="customer-form" class="form" phx-submit="create_customer">
-          <div class="form-field"><label class="label" for="customer-name">Name</label><input id="customer-name" class="input" name="name" required autocomplete="name" /></div>
-          <div class="form-field"><label class="label" for="customer-document-id">Document ID</label><input id="customer-document-id" class="input" name="document_id" maxlength="30" autocomplete="off" /></div>
-          <div class="form-field"><label class="label" for="customer-address">Address</label><input id="customer-address" class="input" name="address" autocomplete="street-address" /></div>
-          <div class="form-field"><label class="label" for="customer-phone">Phone</label><input id="customer-phone" class="input" name="celphone" type="tel" autocomplete="tel" /></div>
-          <div class="form-field"><label class="label" for="customer-email">Email</label><input id="customer-email" class="input" name="email" type="email" autocomplete="email" /></div>
-          <div class="form-field-inline"><input id="customer-is-wholesaler" class="checkbox" name="is_wholesaler" type="checkbox" /><label class="label" for="customer-is-wholesaler">Is wholesaler</label></div>
-          <p id="customer-form-status" class="field-error" role="alert" hidden={@status == ""}>{@status}</p>
-          <div class="dialog-footer"><button class="btn" type="button" data-variant="outline" phx-click="close_customer_dialog">Cancel</button><button id="customer-submit" class="btn" type="submit" data-variant="default" disabled={@saving}>Save customer</button></div>
+          <div class="form-field">
+            <label class="label" for="customer-name">Name</label>
+            <input id="customer-name" class="input" name="name" required autocomplete="name" />
+          </div>
+          <div class="form-field">
+            <label class="label" for="customer-document-id">Document ID</label>
+            <input
+              id="customer-document-id"
+              class="input"
+              name="document_id"
+              maxlength="30"
+              autocomplete="off"
+            />
+          </div>
+          <div class="form-field">
+            <label class="label" for="customer-address">Address</label>
+            <input id="customer-address" class="input" name="address" autocomplete="street-address" />
+          </div>
+          <div class="form-field">
+            <label class="label" for="customer-phone">Phone</label>
+            <input id="customer-phone" class="input" name="celphone" type="tel" autocomplete="tel" />
+          </div>
+          <div class="form-field">
+            <label class="label" for="customer-email">Email</label>
+            <input id="customer-email" class="input" name="email" type="email" autocomplete="email" />
+          </div>
+          <div class="form-field-inline">
+            <input id="customer-is-wholesaler" class="checkbox" name="is_wholesaler" type="checkbox" /><label
+              class="label"
+              for="customer-is-wholesaler"
+            >
+              Is wholesaler
+            </label>
+          </div>
+          <p id="customer-form-status" class="field-error" role="alert" hidden={@status == ""}>
+            {@status}
+          </p>
+          <div class="dialog-footer">
+            <button class="btn" type="button" data-variant="outline" phx-click="close_customer_dialog">
+              Cancel
+            </button><button
+              id="customer-submit"
+              class="btn"
+              type="submit"
+              data-variant="default"
+              disabled={@saving}
+            >Save customer</button>
+          </div>
         </form>
       </div>
     </dialog>
@@ -144,34 +357,43 @@ defmodule PosServerWeb.CustomerComponents do
   defp dash(nil, fallback), do: fallback
   defp dash("", fallback), do: fallback
   defp dash(value, _fallback), do: value
-  defp wholesale?(customer), do: float(value(customer, :wholesaler)) == 1.0 or value(customer, :is_wholesaler) == true
+
+  defp wholesale?(customer),
+    do: float(value(customer, :wholesaler)) == 1.0 or value(customer, :is_wholesaler) == true
+
   defp date_only(nil), do: "—"
   defp date_only(%NaiveDateTime{} = value), do: Calendar.strftime(value, "%-m/%-d/%Y")
+
   defp date_only(value) when is_binary(value) do
     case value |> String.replace(" ", "T") |> NaiveDateTime.from_iso8601() do
       {:ok, date} -> date_only(date)
       _ -> "—"
     end
   end
+
   defp date_only(_), do: "—"
   defp customer_date(%NaiveDateTime{} = value), do: Calendar.strftime(value, "%Y-%m-%d %H:%M")
   defp customer_date(nil), do: "—"
+
   defp customer_date(value) when is_binary(value) do
     case value |> String.replace(" ", "T") |> NaiveDateTime.from_iso8601() do
       {:ok, date} -> customer_date(date)
       _ -> "—"
     end
   end
+
   defp customer_date(_), do: "—"
   defp money(value), do: "$" <> :erlang.float_to_binary(float(value), decimals: 2)
   defp float(value) when is_number(value), do: value * 1.0
   defp float(%Decimal{} = value), do: Decimal.to_float(value)
+
   defp float(value) when is_binary(value) do
     case Float.parse(value) do
       {number, _} -> number
       _ -> 0.0
     end
   end
+
   defp float(_), do: 0.0
   defp value(map, key), do: Map.get(map, key) || Map.get(map, Atom.to_string(key))
 end
