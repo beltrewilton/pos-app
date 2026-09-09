@@ -189,6 +189,7 @@ defmodule PosServerWeb.InvoiceReportLive do
         {:noreply,
          socket
          |> replace_invoice(detail)
+         |> refresh_summary()
          |> assign(:cancel_id, nil)
          |> put_flash(:info, "Invoice cancelled.")}
 
@@ -381,6 +382,19 @@ defmodule PosServerWeb.InvoiceReportLive do
         load_error?: false,
         status: "Loading invoices…"
       )
+
+  defp refresh_summary(socket) do
+    opts = [
+      search: socket.assigns.search,
+      date_from: date_filter(socket.assigns.date_from),
+      date_to: date_filter(socket.assigns.date_to)
+    ]
+
+    case Sql.sales_report_summary(socket.assigns.store_id, opts) do
+      {:ok, summary} -> assign(socket, :summary, summary)
+      _ -> socket
+    end
+  end
 
   defp replace_invoice(socket, detail) do
     entry = summary_entry(detail)
