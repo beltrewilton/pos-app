@@ -3,6 +3,7 @@ import {ReceiptFormatter} from "./formatter.js"
 import {WebUSBPrinterTransport} from "./transport.js"
 
 const STORAGE_KEY = "pos.receiptPrinter.device"
+const PRINTER_VENDOR_IDS = new Set([0x04b8, 0x0519, 0x1504, 0x0fe6, 0x0483])
 
 export class ReceiptPrinterService extends EventTarget {
   constructor(config = {}) {
@@ -11,10 +12,27 @@ export class ReceiptPrinterService extends EventTarget {
     this.transport = new WebUSBPrinterTransport()
     this.device = null
     this.state = "disconnected"
+    this.refreshingStatus = null
+  }
+
+  savedDevice() {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "null")
+  }
+
+  matchingGrantedDevice(devices, saved) {
+    if (saved) {
+      return devices.find(device =>
+        device.vendorId === saved.vendorId &&
+        device.productId === saved.productId &&
+        (!saved.serialNumber || device.serialNumber === saved.serialNumber)
+      )
+    }
+
+    return devices.find(device => PRINTER_VENDOR_IDS.has(device.vendorId))
   }
 
   async reconnect() {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null")
+    const saved = this.savedDevice()
     if (!saved) return null
     return this.withState("connecting", async () => {
       const device = await this.transport.reconnect(saved)
@@ -22,6 +40,41 @@ export class ReceiptPrinterService extends EventTarget {
       else this.setState("disconnected")
       return device
     })
+  }
+
+  async refreshStatus() {
+    if (this.refreshingStatus) return this.refreshingStatus
+    this.refreshingStatus = this.checkStatus().catch(error => {
+      this.setState("error", {message: error.message})
+      return false
+    }).finally(() => this.refreshingStatus = null)
+    return this.refreshingStatus
+  }
+
+  async checkStatus() {
+    if (!this.transport.supported()) {
+      if (this.state !== "disconnected") this.setState("disconnected")
+      return false
+    }
+
+    const saved = this.savedDevice()
+    const devices = await navigator.usb.getDevices()
+    const device = this.matchingGrantedDevice(devices, saved)
+
+    if (!device) {
+      this.device = null
+      this.transport.device = null
+      this.transport.endpointNumber = null
+      if (this.state !== "disconnected") this.setState("disconnected")
+      return false
+    }
+
+    if (this.state !== "connected") {
+      await this.transport.open(device)
+      this.connected(this.transport.deviceInfo())
+    }
+    else this.setState("connected", this.device)
+    return this.state === "connected"
   }
 
   async connect() {

@@ -199,9 +199,15 @@ defmodule PosServerWeb.PosLayoutComponents do
           </svg>
         </button>
         <svg
+          id={"#{@id}-network-status"}
           class="network-status"
           role="img"
-          aria-label="Network status available"
+          aria-label="Network connected"
+          data-network-status
+          data-status="connected"
+          phx-hook="NetworkStatus"
+          phx-update="ignore"
+          title="Network connected"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"

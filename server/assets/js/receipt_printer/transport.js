@@ -31,7 +31,7 @@ export class WebUSBPrinterTransport extends EventTarget {
 
   async open(device) {
     this.device = device
-    await device.open()
+    if (!device.opened) await device.open()
     if (device.configuration === null) await device.selectConfiguration(1)
     const iface = device.configuration.interfaces.find(candidate =>
       candidate.alternates.some(alt => alt.endpoints.some(endpoint => endpoint.direction === "out"))

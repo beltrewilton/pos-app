@@ -84,10 +84,19 @@ const hooks = {
       uninstallPrinterStatus(this.el)
     }
   },
+  NetworkStatus: {
+    mounted() {
+      installNetworkStatus(this.el)
+    },
+    destroyed() {
+      uninstallNetworkStatus(this.el)
+    }
+  },
   PosShell: {
     mounted() {
       installPrinterEvents(this)
       installPrinterStatus(this.el.querySelector("[data-printer-status]"))
+      installNetworkStatus(this.el.querySelector("[data-network-status]"))
       this.onKeydown = event => {
         if (event.key === "Escape" && this.el.dataset.mobileCartOpen === "true") this.pushEvent("close_mobile_cart");
       };
@@ -108,6 +117,7 @@ const hooks = {
     },
     destroyed() {
       uninstallPrinterStatus(this.el.querySelector("[data-printer-status]"))
+      uninstallNetworkStatus(this.el.querySelector("[data-network-status]"))
       document.removeEventListener("keydown", this.onKeydown);
     }
   },
@@ -376,7 +386,9 @@ function printerStatusLabel(state) {
 }
 
 function installPrinterStatus(element) {
-  if (!element || element.printerStatusHandler) return
+  if (!element) return
+  element.printerStatusInstallCount = (element.printerStatusInstallCount || 0) + 1
+  if (element.printerStatusHandler) return
   element.printerStatusHandler = event => {
     const state = event.detail.state
     element.dataset.status = state
@@ -389,18 +401,94 @@ function installPrinterStatus(element) {
     } catch (error) {
     }
   }
+  element.printerStatusRefreshHandler = () => {
+    if (document.hidden) return
+    receiptPrinter.refreshStatus().catch(() => {})
+  }
   receiptPrinter.addEventListener("status", element.printerStatusHandler)
   element.addEventListener("click", element.printerStatusClickHandler)
+  window.addEventListener("focus", element.printerStatusRefreshHandler)
+  document.addEventListener("visibilitychange", element.printerStatusRefreshHandler)
+  navigator.usb?.addEventListener("connect", element.printerStatusRefreshHandler)
+  navigator.usb?.addEventListener("disconnect", element.printerStatusRefreshHandler)
   element.printerStatusHandler({detail: {state: receiptPrinter.state, device: receiptPrinter.device}})
-  receiptPrinter.reconnect().catch(() => {})
+  element.printerStatusRefreshHandler()
+  element.printerStatusInterval = setInterval(element.printerStatusRefreshHandler, 5_000)
 }
 
 function uninstallPrinterStatus(element) {
   if (!element?.printerStatusHandler) return
+  element.printerStatusInstallCount = Math.max((element.printerStatusInstallCount || 1) - 1, 0)
+  if (element.printerStatusInstallCount > 0) return
   receiptPrinter.removeEventListener("status", element.printerStatusHandler)
   element.removeEventListener("click", element.printerStatusClickHandler)
+  window.removeEventListener("focus", element.printerStatusRefreshHandler)
+  document.removeEventListener("visibilitychange", element.printerStatusRefreshHandler)
+  navigator.usb?.removeEventListener("connect", element.printerStatusRefreshHandler)
+  navigator.usb?.removeEventListener("disconnect", element.printerStatusRefreshHandler)
+  clearInterval(element.printerStatusInterval)
   delete element.printerStatusHandler
   delete element.printerStatusClickHandler
+  delete element.printerStatusRefreshHandler
+  delete element.printerStatusInterval
+  delete element.printerStatusInstallCount
+}
+
+function networkStatusLabel(state) {
+  return state === "connected" ? "Network connected" : "Network disconnected"
+}
+
+function setNetworkStatus(element, state) {
+  element.dataset.status = state
+  element.setAttribute("aria-label", networkStatusLabel(state))
+  element.title = networkStatusLabel(state)
+}
+
+function installNetworkStatus(element) {
+  if (!element) return
+  element.networkStatusInstallCount = (element.networkStatusInstallCount || 0) + 1
+  if (element.networkStatusRefreshHandler) return
+  element.networkStatusRefreshHandler = async () => {
+    if (document.hidden) return
+    element.networkStatusAbortController?.abort()
+    element.networkStatusAbortController = new AbortController()
+    const timeout = setTimeout(() => element.networkStatusAbortController.abort(), 2_000)
+    try {
+      await fetch(`${window.location.origin}/?_network_status=${Date.now()}`, {
+        method: "HEAD",
+        cache: "no-store",
+        signal: element.networkStatusAbortController.signal
+      })
+      setNetworkStatus(element, "connected")
+    } catch (error) {
+      setNetworkStatus(element, "disconnected")
+    } finally {
+      clearTimeout(timeout)
+    }
+  }
+  window.addEventListener("online", element.networkStatusRefreshHandler)
+  window.addEventListener("offline", element.networkStatusRefreshHandler)
+  window.addEventListener("focus", element.networkStatusRefreshHandler)
+  document.addEventListener("visibilitychange", element.networkStatusRefreshHandler)
+  setNetworkStatus(element, navigator.onLine ? "connected" : "disconnected")
+  element.networkStatusRefreshHandler()
+  element.networkStatusInterval = setInterval(element.networkStatusRefreshHandler, 5_000)
+}
+
+function uninstallNetworkStatus(element) {
+  if (!element?.networkStatusRefreshHandler) return
+  element.networkStatusInstallCount = Math.max((element.networkStatusInstallCount || 1) - 1, 0)
+  if (element.networkStatusInstallCount > 0) return
+  window.removeEventListener("online", element.networkStatusRefreshHandler)
+  window.removeEventListener("offline", element.networkStatusRefreshHandler)
+  window.removeEventListener("focus", element.networkStatusRefreshHandler)
+  document.removeEventListener("visibilitychange", element.networkStatusRefreshHandler)
+  element.networkStatusAbortController?.abort()
+  clearInterval(element.networkStatusInterval)
+  delete element.networkStatusAbortController
+  delete element.networkStatusRefreshHandler
+  delete element.networkStatusInterval
+  delete element.networkStatusInstallCount
 }
 
 function installPrinterEvents(hook) {
