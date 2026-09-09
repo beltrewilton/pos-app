@@ -425,6 +425,9 @@
   gap: 8px;
   margin: 10px 0;
 }
+.sequence-option-description {
+  font-size: 1.3rem;
+}
 .payment-line {
   display: grid;
   grid-template-columns: 1fr 1fr auto;

@@ -2357,8 +2357,9 @@ dialog#customer-purchases-dialog .dialog-content {
 }
 .sequence-option-description {
   color: var(--muted-foreground);
-  font-size: 0.8125rem;
+  font-size: 1.1rem;
   white-space: nowrap;
+  text-transform: uppercase;
 }
 .delivery-options {
   display: grid;

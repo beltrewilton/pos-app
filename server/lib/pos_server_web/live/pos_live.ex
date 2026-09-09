@@ -826,6 +826,26 @@ defmodule PosServerWeb.PosLive do
               <div class="checkout-stage-copy">
                 <p class="eyebrow">2. Payment</p>
                 <h2 id="payment-stage-title" class="h2" tabindex="-1">Payment & completion</h2>
+                <fieldset class="form-fieldset">
+                  <legend>Sequence type</legend>
+                  <div class="sequence-options" role="group">
+                    <div class="sequence-option-buttons">
+                      <button
+                        :for={sequence <- ["CF", "DV", "VF"]}
+                        class="btn"
+                        type="button"
+                        data-variant={if @sequence == sequence, do: "default", else: "secondary"}
+                        phx-click="select_sequence"
+                        phx-value-sequence={sequence}
+                      >
+                        {sequence}
+                      </button>
+                    </div>
+                    <span class="sequence-option-description">
+                      {sequence_description(@sequence)}
+                    </span>
+                  </div>
+                </fieldset>
                 <p class="checkout-total-due">
                   <span>Total</span><strong id="checkout-total" class="numeric">{money(total(@socket))}</strong>
                 </p>
@@ -863,26 +883,6 @@ defmodule PosServerWeb.PosLive do
                     Pay on Credit
                   </button>
                   <div :if={!@credit} id="payment-inputs">
-                    <fieldset class="form-fieldset">
-                      <legend>Sequence type</legend>
-                      <div class="sequence-options" role="group">
-                        <div class="sequence-option-buttons">
-                          <button
-                            :for={sequence <- ["CF", "DV", "VF"]}
-                            class="btn"
-                            type="button"
-                            data-variant={if @sequence == sequence, do: "default", else: "secondary"}
-                            phx-click="select_sequence"
-                            phx-value-sequence={sequence}
-                          >
-                            {sequence}
-                          </button>
-                        </div>
-                        <span class="sequence-option-description">
-                          {sequence_description(@sequence)}
-                        </span>
-                      </div>
-                    </fieldset>
                     <fieldset class="form-fieldset">
                       <legend>Payments</legend>
                       <div
