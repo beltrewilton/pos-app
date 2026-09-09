@@ -48,6 +48,7 @@ defmodule PosServerWeb.PosLive do
         |> assign(:payments, [])
         |> assign(:sequence, "CF")
         |> assign(:memo, "")
+        |> assign(:print_prompt, nil)
         |> assign(:mobile_cart_open, false)
         |> load_products()
         |> sync()
@@ -429,10 +430,13 @@ defmodule PosServerWeb.PosLive do
         )
 
       case Sales.create_sale(socket.assigns.scope, attrs) do
-        {:ok, _} ->
+        {:ok, sale} ->
+          receipt = receipt_payload(sale, current_store(socket))
+
           {:noreply,
            socket
            |> put_flash(:info, "Sale completed.")
+           |> assign(:print_prompt, print_prompt(:receipt, receipt))
            |> assign(:cart, [])
            |> assign(:checkout_stage, nil)
            |> assign(:selected_customer, nil)
@@ -451,6 +455,31 @@ defmodule PosServerWeb.PosLive do
       {:noreply,
        put_flash(socket, :error, "Select a customer and cover the sale total before completing.")}
     end
+  end
+
+  def handle_event("printer_status", _params, socket), do: {:noreply, socket}
+
+  def handle_event("printer_result", %{"status" => "success"}, socket),
+    do: {:noreply, assign(socket, :print_prompt, nil)}
+
+  def handle_event("printer_result", %{"message" => message}, socket),
+    do: {:noreply, update_print_prompt(socket, "Print failed: #{message}", false)}
+
+  def handle_event("printer_result", _params, socket),
+    do: {:noreply, update_print_prompt(socket, "Print failed.", false)}
+
+  def handle_event("skip_print", _params, socket), do: {:noreply, assign(socket, :print_prompt, nil)}
+
+  def handle_event("confirm_print", _params, %{assigns: %{print_prompt: nil}} = socket),
+    do: {:noreply, socket}
+
+  def handle_event("confirm_print", _params, socket) do
+    prompt = socket.assigns.print_prompt
+
+    {:noreply,
+     socket
+     |> update_print_prompt("Printing…", true)
+     |> push_event(prompt.event, prompt.payload)}
   end
 
   @impl true
@@ -586,6 +615,7 @@ defmodule PosServerWeb.PosLive do
           <div class="dialog-footer"><button class="btn" type="button" data-variant="outline" phx-click="close_dialog">Close</button></div>
         </div>
       </dialog>
+      <.print_dialog :if={@print_prompt} prompt={@print_prompt} />
     </.pos_layout>
     """
   end
@@ -1049,6 +1079,82 @@ defmodule PosServerWeb.PosLive do
   end
 
   defp value(map, key), do: Map.get(map, key) || Map.get(map, Atom.to_string(key))
+  defp print_request_id, do: "print-#{System.unique_integer([:positive])}"
+
+  defp receipt_payload(sale, store) do
+    %{
+      id: value(sale, :id),
+      sequence: value(sale, :sequence),
+      client_name: value(value(sale, :client) || %{}, :name),
+      client_document_id: value(value(sale, :client) || %{}, :document_id),
+      login: value(sale, :login),
+      sale_type: value(sale, :sale_type),
+      amount: value(sale, :amount),
+      sub: value(sale, :sub),
+      tax_amount: value(sale, :tax_amount),
+      discount: value(sale, :discount),
+      delivery_charge: value(sale, :delivery_charge),
+      additional_info: value(sale, :additional_info),
+      date_create: value(sale, :date_create),
+      sequence_type: value(sale, :sequence_type),
+      status: value(sale, :status),
+      total_paid: value(sale, :total_paid),
+      change_amount: value(sale, :change_amount),
+      due_balance: value(sale, :due_balance),
+      invoice_status: value(sale, :invoice_status),
+      store: store,
+      lines:
+        Enum.map(value(sale, :sale_lines) || value(sale, :lines) || [], fn line ->
+          %{
+            product_id: value(line, :product_id),
+            product: %{
+              name: value(value(line, :product) || %{}, :name),
+              code: value(value(line, :product) || %{}, :code)
+            },
+            quantity: value(line, :quantity),
+            amount: value(line, :amount),
+            tax_amount: value(line, :tax_amount),
+            discount: value(line, :discount),
+            discount_type: value(line, :discount_type),
+            discount_input: value(line, :discount_input),
+            total_amount: value(line, :total_amount)
+          }
+        end),
+      payments:
+        Enum.map(value(sale, :sale_paids) || value(sale, :payments) || [], fn payment ->
+          %{
+            id: value(payment, :id),
+            type: value(payment, :type),
+            amount: value(payment, :amount),
+            login: value(payment, :login),
+            date_create: value(payment, :date_create)
+          }
+        end)
+    }
+  end
+
+  defp current_store(socket), do: Enum.find(socket.assigns.stores, &(&1.id == socket.assigns.store_id))
+
+  defp print_prompt(:receipt, receipt) do
+    %{
+      title: "Sale completed",
+      description: "Would you like to print the receipt?",
+      button: "Print receipt",
+      event: "printer:print-receipt",
+      payload: %{request_id: print_request_id(), receipt: receipt}
+    }
+  end
+
+  defp update_print_prompt(%{assigns: %{print_prompt: nil}} = socket, _status, _printing), do: socket
+  defp update_print_prompt(socket, status, printing), do: update(socket, :print_prompt, &Map.merge(&1, %{status: status, printing: printing}))
+
+  attr :prompt, :map, required: true
+  defp print_dialog(assigns) do
+    ~H"""
+    <dialog id="receipt-dialog" class="dialog" data-size="sm" open role="dialog" aria-modal="true" aria-labelledby="receipt-dialog-title"><div class="dialog-content"><div class="dialog-header"><h2 id="receipt-dialog-title" class="dialog-title">{@prompt.title}</h2><p id="receipt-print-description" class="dialog-description">{@prompt.description}</p></div><p id="receipt-print-status" class="print-status" role="status">{@prompt[:status] || ""}</p><div class="dialog-footer"><button id="skip-print" class="btn" type="button" data-variant="outline" phx-click="skip_print" disabled={@prompt[:printing] == true}>No, return to POS</button><button id="print-receipt" class="btn" type="button" data-variant="default" phx-click="confirm_print" disabled={@prompt[:printing] == true}>{@prompt.button}</button></div></div></dialog>
+    """
+  end
+
   defp wholesaler_value(value) when value in [true, 1, "1", "true", "on"], do: 1
   defp wholesaler_value(_), do: 0
 

@@ -24,6 +24,7 @@ import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/pos_server"
 import topbar from "../vendor/topbar"
+import {receiptPrinter} from "./receipt_printer/service"
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const hooks = {
@@ -63,6 +64,7 @@ const hooks = {
   },
   InvoiceReport: {
     mounted() {
+      installPrinterEvents(this)
       this.fixed = this.el.querySelector(".invoice-report-fixed")
       this.syncStickyOffset = () => this.el.querySelector("#invoice-report")?.style.setProperty("--invoice-fixed-height", `${this.fixed?.offsetHeight || 0}px`)
       this.resizeObserver = new ResizeObserver(this.syncStickyOffset)
@@ -99,8 +101,32 @@ const hooks = {
     },
     destroyed() { window.removeEventListener("pos:set-theme", this.onTheme) }
   },
+  PrinterStatus: {
+    mounted() {
+      this.setPrinterStatus = event => {
+        const state = event.detail.state
+        this.el.dataset.status = state
+        this.el.setAttribute("aria-label", printerStatusLabel(state))
+        this.el.title = event.detail.device?.productName || printerStatusLabel(state)
+      }
+      this.onPrinterClick = async () => {
+        try {
+          await receiptPrinter.connect()
+        } catch (error) {
+        }
+      }
+      receiptPrinter.addEventListener("status", this.setPrinterStatus)
+      this.el.addEventListener("click", this.onPrinterClick)
+      receiptPrinter.reconnect().catch(() => {})
+    },
+    destroyed() {
+      receiptPrinter.removeEventListener("status", this.setPrinterStatus)
+      this.el.removeEventListener("click", this.onPrinterClick)
+    }
+  },
   PosShell: {
     mounted() {
+      installPrinterEvents(this)
       this.onKeydown = event => {
         if (event.key === "Escape" && this.el.dataset.mobileCartOpen === "true") this.pushEvent("close_mobile_cart")
       }
@@ -143,6 +169,29 @@ liveSocket.connect()
 // >> liveSocket.enableLatencySim(1000)  // enabled for duration of browser session
 // >> liveSocket.disableLatencySim()
 window.liveSocket = liveSocket
+
+function printerStatusLabel(state) {
+  return {
+    disconnected: "Printer disconnected",
+    connecting: "Printer connecting",
+    connected: "Printer connected",
+    error: "Printer error"
+  }[state] || "Printer disconnected"
+}
+
+function installPrinterEvents(hook) {
+  hook.handleEvent("printer:print-receipt", payload => hook.printWithResult(payload.request_id, () => receiptPrinter.printReceipt(payload.receipt || payload.sale)))
+  hook.handleEvent("printer:print-payment", payload => hook.printWithResult(payload.request_id, () => receiptPrinter.printPayment(payload)))
+  hook.handleEvent("printer:reprint-invoice", payload => hook.printWithResult(payload.request_id, () => receiptPrinter.reprintInvoice(payload.invoice || payload.receipt || payload.sale)))
+  hook.printWithResult = async (requestId, operation) => {
+    try {
+      await operation()
+      if (requestId) hook.pushEvent("printer_result", {request_id: requestId, status: "success"})
+    } catch (error) {
+      if (requestId) hook.pushEvent("printer_result", {request_id: requestId, status: "failed", message: error.message})
+    }
+  }
+}
 
 function dialogHook() {
   return {

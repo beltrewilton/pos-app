@@ -58,7 +58,18 @@ defmodule PosServer.Retaily.InventoryContext do
   def product_traces(scope, store_id, product_id), do: ProductTraces.list(scope, store_id, product_id)
 
   def stores(%AccessScope{} = scope) do
-    query = from(store in Store, order_by: [asc: store.name], select: %{id: store.id, name: store.name})
+    query =
+      from(store in Store,
+        order_by: [asc: store.name],
+        select: %{
+          id: store.id,
+          name: store.name,
+          address: store.address,
+          slogan: store.slogan,
+          logo: store.logo,
+          company_id: store.company_id
+        }
+      )
 
     query =
       if AccessScope.admin?(scope) do

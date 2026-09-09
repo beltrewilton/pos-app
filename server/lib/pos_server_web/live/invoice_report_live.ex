@@ -46,6 +46,7 @@ defmodule PosServerWeb.InvoiceReportLive do
        |> assign(:calendar_month, month_start(today))
        |> assign(:pending_range, %{from: Date.to_iso8601(today), to: Date.to_iso8601(today)})
        |> assign(:cancel_id, nil)
+       |> assign(:print_prompt, nil)
        |> assign(:status, "Loading invoices…")
        |> load_page(true)}
     else
@@ -114,6 +115,7 @@ defmodule PosServerWeb.InvoiceReportLive do
       case Sales.add_payment(socket.assigns.scope, id, %{"amount" => amount, "type" => type}) do
         {:ok, detail} ->
           {:noreply, socket |> replace_invoice(detail) |> update(:payment_amounts, &Map.delete(&1, id)) |> put_flash(:info, "Payment recorded.")}
+
         {:error, reason} -> {:noreply, put_flash(socket, :error, "Payment could not be recorded: #{reason}")}
       end
     else
@@ -131,6 +133,53 @@ defmodule PosServerWeb.InvoiceReportLive do
       {:ok, detail} -> {:noreply, socket |> replace_invoice(detail) |> assign(:cancel_id, nil) |> put_flash(:info, "Invoice cancelled.")}
       {:error, reason} -> {:noreply, socket |> assign(:cancel_id, nil) |> put_flash(:error, "Invoice could not be cancelled: #{reason}")}
     end
+  end
+
+  def handle_event("reprint_invoice", %{"id" => id}, socket) do
+    id = integer(id)
+
+    case Map.get(socket.assigns.details, id) || Sales.get_sale(socket.assigns.scope, id) do
+      {:ok, detail} -> {:noreply, assign(socket, :print_prompt, print_prompt(:invoice, printable_detail(detail, socket)))}
+      detail when is_map(detail) -> {:noreply, assign(socket, :print_prompt, print_prompt(:invoice, printable_detail(detail, socket)))}
+      _ -> {:noreply, put_flash(socket, :error, "Invoice details could not be loaded.")}
+    end
+  end
+
+  def handle_event("print_payment", %{"invoice_id" => invoice_id, "payment_id" => payment_id}, socket) do
+    invoice_id = integer(invoice_id)
+    payment_id = integer(payment_id)
+
+    with detail when is_map(detail) <- Map.get(socket.assigns.details, invoice_id),
+         payment when is_map(payment) <- Enum.find(detail.payments || [], &(integer(value(&1, :id)) == payment_id)) do
+      {:noreply, assign(socket, :print_prompt, print_prompt(:payment, printable_detail(detail, socket), payment))}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "Payment details could not be loaded.")}
+    end
+  end
+
+  def handle_event("printer_status", _params, socket), do: {:noreply, socket}
+
+  def handle_event("printer_result", %{"status" => "success"}, socket),
+    do: {:noreply, assign(socket, :print_prompt, nil)}
+
+  def handle_event("printer_result", %{"message" => message}, socket),
+    do: {:noreply, update_print_prompt(socket, "Print failed: #{message}", false)}
+
+  def handle_event("printer_result", _params, socket),
+    do: {:noreply, update_print_prompt(socket, "Print failed.", false)}
+
+  def handle_event("skip_print", _params, socket), do: {:noreply, assign(socket, :print_prompt, nil)}
+
+  def handle_event("confirm_print", _params, %{assigns: %{print_prompt: nil}} = socket),
+    do: {:noreply, socket}
+
+  def handle_event("confirm_print", _params, socket) do
+    prompt = socket.assigns.print_prompt
+
+    {:noreply,
+     socket
+     |> update_print_prompt("Printing…", true)
+     |> push_event(prompt.event, prompt.payload)}
   end
 
   def handle_event("open_calendar", _, socket) do
@@ -272,6 +321,7 @@ defmodule PosServerWeb.InvoiceReportLive do
       </:before_layout>
       <section class="catalog-panel" data-view="invoices" aria-labelledby="invoice-report-title"><section id="invoice-report" class="invoice-report" aria-labelledby="invoice-report-title"><div class="invoice-report-fixed"><header class="topbar invoice-topbar"><div class="brand-lockup"><span class="brand-mark" aria-hidden="true">E</span><div><p class="eyebrow">Sales</p><h2 id="invoice-report-title" tabindex="-1">Invoice report — {active_store(assigns)}</h2></div></div><form id="invoice-filters" class="invoice-filters" phx-submit="apply_filters"><div class="search-field"><svg class="search-icon" aria-hidden="true"><use href="#ui-icon-search"/></svg><input id="invoice-search" name="search" class="input" type="search" value={@search} phx-change="search" phx-debounce="250" aria-label="Search invoices by customer" autocomplete="off" placeholder="Search by customer name"/></div><div class="invoice-date-picker"><button id="invoice-date-range-trigger" class="btn invoice-date-range" type="button" data-variant="outline" data-size="sm" aria-haspopup="dialog" aria-expanded={to_string(@calendar_open?)} phx-click="open_calendar">{range_label(@date_from, @date_to)}</button><.calendar_popover :if={@calendar_open?} month={@calendar_month} range={@pending_range}/></div><button class="btn" type="submit" data-variant="outline" data-size="sm">Apply</button><button id="invoice-filters-clear" class="btn" type="button" data-variant="ghost" data-size="sm" phx-click="clear_filters">Clear</button></form></header><section class="invoice-summary" aria-label="Invoice status summary"><.kpi name="paid" label="Paid" status="close" summary={@summary} selected={@status_filter}/><.kpi name="pending" label="Pending" status="open" summary={@summary} selected={@status_filter}/><.kpi name="cancelled" label="Cancelled" status="cancelled" summary={@summary} selected={@status_filter}/></section><p id="invoice-report-status" class="invoice-report-status" role="status">{@status}</p></div><div class="table-container invoice-table-container"><table class="table invoice-table"><caption class="table-caption">Invoices for the selected store.</caption><thead><tr class="table-row"><th :for={{label, key} <- headers()} class="table-head" scope="col" aria-sort={sort_aria(@sort, key)}><button class="btn invoice-sort" type="button" data-variant="ghost" phx-click="sort" phx-value-key={key}>{label}</button></th><th class="table-head" scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody id="invoice-table-body"><%= for invoice <- @entries do %><.invoice_row invoice={invoice} expanded={@expanded_id == integer(value(invoice, "id"))}/><.invoice_detail :if={@expanded_id == integer(value(invoice, "id"))} invoice={invoice} detail={Map.get(@details, integer(value(invoice, "id")))} methods={@payment_methods} amounts={@payment_amounts}/><% end %><.skeleton_rows :if={@loading? && @entries == []}/></tbody></table></div><div id="invoice-sentinel" phx-hook="InfiniteInvoices" aria-hidden="true"></div></section></section>
       <.cancel_dialog :if={@cancel_id} invoice={Enum.find(@entries, &(integer(value(&1, "id")) == @cancel_id))}/>
+      <.print_dialog :if={@print_prompt} prompt={@print_prompt} />
     </.pos_layout>
     """
   end
@@ -303,7 +353,7 @@ defmodule PosServerWeb.InvoiceReportLive do
   defp invoice_detail(assigns) do
     id = integer(value(assigns.invoice, "id")); assigns = assign(assigns, :id, id)
     ~H"""
-    <tr class="table-row invoice-details-row"><td class="table-cell" colspan="8"><section class="card invoice-details-card"><.invoice_details_skeleton :if={is_nil(@detail)} /><%= if @detail do %><div class="card-header"><div><h3 class="card-title">{@detail.sequence || "Invoice ##{@detail.id}"}</h3><p class="card-description">{(@detail.client && @detail.client.name) || "Walk-in customer"} · {@detail.sale_type || "Sales"} · {@detail.login || "—"}</p></div><.payment_form :if={@detail.invoice_status == "open"} detail={@detail} methods={@methods} amounts={@amounts}/><span :if={@detail.invoice_status in ["close", "cancelled"]} class={["invoice-status", "invoice-detail-status", "invoice-status-#{@detail.invoice_status}"]}>{status_label(@detail.invoice_status)}</span></div><div class="card-content"><div class="table-container invoice-payment-history"><p class="invoice-table-section-title">Payments</p><table class="table"><thead><tr class="table-row invoice-payment-columns"><th class="table-head">Payment</th><th class="table-head">Date</th><th class="table-head">User</th><th class="table-head">Method</th><th class="table-head">Amount</th><th class="table-head">Status</th></tr></thead><tbody><tr :if={@detail.payments == []} class="table-row"><td class="table-cell muted" colspan="6">No payments recorded.</td></tr><tr :for={payment <- @detail.payments} class="table-row"><td class="table-cell">Payment</td><td class="table-cell">{date_only(payment.date_create)}</td><td class="table-cell">{payment.login || @detail.login || "—"}</td><td class="table-cell">{if payment.type == "CC", do: "Credit Card", else: "Cash"}</td><td class="table-cell numeric">{money(payment.amount)}</td><td class="table-cell">{if @detail.invoice_status == "close", do: "Complete", else: "Partial"}</td></tr></tbody></table></div><div class="table-container"><p class="invoice-table-section-title">Line items</p><table class="table invoice-detail-lines"><thead><tr class="table-row invoice-line-columns"><th class="table-head">Product</th><th class="table-head">Quantity</th><th class="table-head">Unit price</th><th class="table-head">Discount</th><th class="table-head" aria-hidden="true"></th><th class="table-head">Total</th></tr></thead><tbody><tr :for={line <- @detail.lines} class="table-row"><td class="table-cell">{line.product && line.product.name || "—"}</td><td class="table-cell numeric">{line.quantity}</td><td class="table-cell numeric">{money(line.amount)}</td><td class="table-cell numeric">{discount_display(line.discount, line.discount_type, line.discount_input)}</td><td class="table-cell" aria-hidden="true"></td><td class="table-cell numeric">{money(line.total_amount)}</td></tr></tbody><tfoot><tr class="table-row invoice-line-summary"><td class="table-cell" colspan="3" aria-hidden="true"></td><td class="table-cell numeric invoice-line-summary-discount">{if decimal(@detail.discount) > 0, do: money(@detail.discount), else: "-"}</td><th class="table-cell">Subtotal</th><td class="table-cell numeric">{money(@detail.sub)}</td></tr><tr class="table-row invoice-line-summary"><td class="table-cell" colspan="3" aria-hidden="true"></td><td class="table-cell numeric invoice-line-summary-discount">-</td><th class="table-cell">Tax (18%)</th><td class="table-cell numeric">{money(@detail.tax_amount)}</td></tr><tr :if={decimal(@detail.delivery_charge) > 0} class="table-row invoice-line-summary"><td class="table-cell" colspan="3" aria-hidden="true"></td><td class="table-cell numeric invoice-line-summary-discount">-</td><th class="table-cell">Delivery</th><td class="table-cell numeric">{money(@detail.delivery_charge)}</td></tr><tr class="table-row invoice-line-summary invoice-line-summary-total"><td class="table-cell" colspan="3" aria-hidden="true"></td><td class="table-cell numeric invoice-line-summary-discount">-</td><th class="table-cell">Total</th><td class="table-cell numeric">{money(@detail.amount)}</td></tr></tfoot></table></div><section :if={@detail.additional_info && String.trim(@detail.additional_info) != ""} class="invoice-memo"><p class="invoice-memo-text">{@detail.additional_info}</p><div class="invoice-memo-salesperson"><span class="avatar invoice-memo-avatar">{String.first((@detail.salesperson && @detail.salesperson.name) || @detail.login || "?")}</span>{(@detail.salesperson && @detail.salesperson.name) || @detail.login || "—"}</div></section></div><% end %></section></td></tr>
+    <tr class="table-row invoice-details-row"><td class="table-cell" colspan="8"><section class="card invoice-details-card"><.invoice_details_skeleton :if={is_nil(@detail)} /><%= if @detail do %><div class="card-header"><div><h3 class="card-title">{@detail.sequence || "Invoice ##{@detail.id}"}</h3><p class="card-description">{(@detail.client && @detail.client.name) || "Walk-in customer"} · {@detail.sale_type || "Sales"} · {@detail.login || "—"}</p></div><div class="invoice-detail-actions"><.payment_form :if={@detail.invoice_status == "open"} detail={@detail} methods={@methods} amounts={@amounts}/><button class="btn invoice-print-copy" type="button" data-variant="outline" data-size="sm" phx-click="reprint_invoice" phx-value-id={@detail.id}>Print Copy</button><span :if={@detail.invoice_status in ["close", "cancelled"]} class={["invoice-status", "invoice-detail-status", "invoice-status-#{@detail.invoice_status}"]}>{status_label(@detail.invoice_status)}</span></div></div><div class="card-content"><div class="table-container invoice-payment-history"><p class="invoice-table-section-title">Payments</p><table class="table"><thead><tr class="table-row invoice-payment-columns"><th class="table-head">Payment</th><th class="table-head">Date</th><th class="table-head">User</th><th class="table-head">Method</th><th class="table-head">Amount</th><th class="table-head">Status</th><th class="table-head"><span class="sr-only">Action</span></th></tr></thead><tbody><tr :if={@detail.payments == []} class="table-row"><td class="table-cell muted" colspan="7">No payments recorded.</td></tr><tr :for={payment <- @detail.payments} class="table-row"><td class="table-cell">Payment</td><td class="table-cell">{date_only(payment.date_create)}</td><td class="table-cell">{payment.login || @detail.login || "—"}</td><td class="table-cell">{if payment.type == "CC", do: "Credit Card", else: "Cash"}</td><td class="table-cell numeric">{money(payment.amount)}</td><td class="table-cell">{if @detail.invoice_status == "close", do: "Complete", else: "Partial"}</td><td class="table-cell"><button class="btn" type="button" data-variant="outline" data-size="sm" phx-click="print_payment" phx-value-invoice_id={@detail.id} phx-value-payment_id={payment.id}>Print payment</button></td></tr></tbody></table></div><div class="table-container"><p class="invoice-table-section-title">Line items</p><table class="table invoice-detail-lines"><thead><tr class="table-row invoice-line-columns"><th class="table-head">Product</th><th class="table-head">Quantity</th><th class="table-head">Unit price</th><th class="table-head">Discount</th><th class="table-head" aria-hidden="true"></th><th class="table-head">Total</th></tr></thead><tbody><tr :for={line <- @detail.lines} class="table-row"><td class="table-cell">{line.product && line.product.name || "—"}</td><td class="table-cell numeric">{line.quantity}</td><td class="table-cell numeric">{money(line.amount)}</td><td class="table-cell numeric">{discount_display(line.discount, line.discount_type, line.discount_input)}</td><td class="table-cell" aria-hidden="true"></td><td class="table-cell numeric">{money(line.total_amount)}</td></tr></tbody><tfoot><tr class="table-row invoice-line-summary"><td class="table-cell" colspan="3" aria-hidden="true"></td><td class="table-cell numeric invoice-line-summary-discount">{if decimal(@detail.discount) > 0, do: money(@detail.discount), else: "-"}</td><th class="table-cell">Subtotal</th><td class="table-cell numeric">{money(@detail.sub)}</td></tr><tr class="table-row invoice-line-summary"><td class="table-cell" colspan="3" aria-hidden="true"></td><td class="table-cell numeric invoice-line-summary-discount">-</td><th class="table-cell">Tax (18%)</th><td class="table-cell numeric">{money(@detail.tax_amount)}</td></tr><tr :if={decimal(@detail.delivery_charge) > 0} class="table-row invoice-line-summary"><td class="table-cell" colspan="3" aria-hidden="true"></td><td class="table-cell numeric invoice-line-summary-discount">-</td><th class="table-cell">Delivery</th><td class="table-cell numeric">{money(@detail.delivery_charge)}</td></tr><tr class="table-row invoice-line-summary invoice-line-summary-total"><td class="table-cell" colspan="3" aria-hidden="true"></td><td class="table-cell numeric invoice-line-summary-discount">-</td><th class="table-cell">Total</th><td class="table-cell numeric">{money(@detail.amount)}</td></tr></tfoot></table></div><section :if={@detail.additional_info && String.trim(@detail.additional_info) != ""} class="invoice-memo"><p class="invoice-memo-text">{@detail.additional_info}</p><div class="invoice-memo-salesperson"><span class="avatar invoice-memo-avatar">{String.first((@detail.salesperson && @detail.salesperson.name) || @detail.login || "?")}</span>{(@detail.salesperson && @detail.salesperson.name) || @detail.login || "—"}</div></section></div><% end %></section></td></tr>
     """
   end
 
@@ -355,6 +405,19 @@ defmodule PosServerWeb.InvoiceReportLive do
   defp discount_display(_discount, "percentage", input) when not is_nil(input), do: "#{input}%"
   defp discount_display(discount, _, _) when discount in [nil, 0, 0.0], do: "-"
   defp discount_display(discount, _, _), do: money(discount)
+  defp print_request_id, do: "print-#{System.unique_integer([:positive])}"
+  defp printable_detail(detail, socket), do: Map.put(detail, :store, Enum.find(socket.assigns.stores, &(&1.id == detail.store_id)))
+  defp print_prompt(:payment, sale, payment), do: %{title: "Print Payment", description: "Would you like to print this payment receipt?", button: "Print payment", event: "printer:print-payment", payload: %{request_id: print_request_id(), sale: sale, payment: payment}}
+  defp print_prompt(:invoice, invoice), do: %{title: "Print copy", description: "Would you like to print the receipt?", button: "Print receipt", event: "printer:reprint-invoice", payload: %{request_id: print_request_id(), invoice: invoice}}
+  defp update_print_prompt(%{assigns: %{print_prompt: nil}} = socket, _status, _printing), do: socket
+  defp update_print_prompt(socket, status, printing), do: update(socket, :print_prompt, &Map.merge(&1, %{status: status, printing: printing}))
+
+  attr :prompt, :map, required: true
+  defp print_dialog(assigns) do
+    ~H"""
+    <dialog id="receipt-dialog" class="dialog" data-size="sm" open role="dialog" aria-modal="true" aria-labelledby="receipt-dialog-title"><div class="dialog-content"><div class="dialog-header"><h2 id="receipt-dialog-title" class="dialog-title">{@prompt.title}</h2><p id="receipt-print-description" class="dialog-description">{@prompt.description}</p></div><p id="receipt-print-status" class="print-status" role="status">{@prompt[:status] || ""}</p><div class="dialog-footer"><button id="skip-print" class="btn" type="button" data-variant="outline" phx-click="skip_print" disabled={@prompt[:printing] == true}>No, return to POS</button><button id="print-receipt" class="btn" type="button" data-variant="default" phx-click="confirm_print" disabled={@prompt[:printing] == true}>{@prompt.button}</button></div></div></dialog>
+    """
+  end
   defp selected_store(stores, selected_id) do
     case Integer.parse(to_string(selected_id || "")) do
       {id, ""} -> Enum.find(stores, List.first(stores), &(&1.id == id))
