@@ -4,16 +4,16 @@ defmodule PosServerWeb.PosLayoutComponents do
 
   alias PosServer.Accounts.Scope
 
-  attr :id, :string, required: true
-  attr :class, :string, default: "pos-shell"
-  attr :active_page, :atom, required: true
-  attr :scope, :map, required: true
-  attr :stores, :list, required: true
-  attr :store_id, :any, required: true
-  attr :rest, :global
+  attr(:id, :string, required: true)
+  attr(:class, :string, default: "pos-shell")
+  attr(:active_page, :atom, required: true)
+  attr(:scope, :map, required: true)
+  attr(:stores, :list, required: true)
+  attr(:store_id, :any, required: true)
+  attr(:rest, :global)
 
-  slot :before_layout
-  slot :inner_block, required: true
+  slot(:before_layout)
+  slot(:inner_block, required: true)
 
   def pos_layout(assigns) do
     ~H"""
@@ -175,18 +175,19 @@ defmodule PosServerWeb.PosLayoutComponents do
         <button
           id={"#{@id}-printer-status"}
           class="printer-status"
-          style="appearance: none; display: inline-grid; place-items: center; width: 18px; height: 18px; padding: 0; border: 0; background: transparent; line-height: 0; vertical-align: middle;"
+          style="appearance: none; display: inline-grid; place-items: center; width: 16px; height: 16px; padding: 0; border: 0; background: transparent; line-height: 0; vertical-align: middle;"
           type="button"
           data-printer-status
           data-status="disconnected"
+          phx-update="ignore"
           phx-hook="PrinterStatus"
           aria-label="Printer disconnected"
           title="Printer disconnected"
         >
           <svg
             role="img"
-            width="16"
-            height="16"
+            width="15"
+            height="15"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -221,8 +222,8 @@ defmodule PosServerWeb.PosLayoutComponents do
   defp pos_href(:pos), do: "#"
   defp pos_href(_), do: ~p"/pos"
 
-  attr :class, :string, default: ""
-  attr :width, :string, default: "100%"
+  attr(:class, :string, default: "")
+  attr(:width, :string, default: "100%")
 
   def skeleton_block(assigns) do
     ~H"""
@@ -230,7 +231,7 @@ defmodule PosServerWeb.PosLayoutComponents do
     """
   end
 
-  attr :count, :integer, default: 8
+  attr(:count, :integer, default: 8)
 
   def product_skeleton_cards(assigns) do
     ~H"""
@@ -245,9 +246,9 @@ defmodule PosServerWeb.PosLayoutComponents do
     """
   end
 
-  attr :rows, :integer, default: 6
-  attr :columns, :integer, default: 8
-  attr :widths, :list, default: ["72%", "64%", "56%", "58%", "46%", "52%", "60%", "50%"]
+  attr(:rows, :integer, default: 6)
+  attr(:columns, :integer, default: 8)
+  attr(:widths, :list, default: ["72%", "64%", "56%", "58%", "46%", "52%", "60%", "50%"])
 
   def table_skeleton_rows(assigns) do
     ~H"""
@@ -259,7 +260,7 @@ defmodule PosServerWeb.PosLayoutComponents do
     """
   end
 
-  attr :widths, :list, default: ["38%", "72%", "100%", "88%", "64%"]
+  attr(:widths, :list, default: ["38%", "72%", "100%", "88%", "64%"])
 
   def invoice_details_skeleton(assigns) do
     ~H"""

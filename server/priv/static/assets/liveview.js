@@ -78,27 +78,16 @@ const hooks = {
   },
   PrinterStatus: {
     mounted() {
-      this.setPrinterStatus = event => {
-        const state = event.detail.state
-        this.el.dataset.status = state
-        this.el.setAttribute("aria-label", printerStatusLabel(state))
-        this.el.title = event.detail.device?.productName || printerStatusLabel(state)
-      }
-      this.onPrinterClick = async () => {
-        try { await receiptPrinter.connect() } catch (_error) {}
-      }
-      receiptPrinter.addEventListener("status", this.setPrinterStatus)
-      this.el.addEventListener("click", this.onPrinterClick)
-      receiptPrinter.reconnect().catch(() => {})
+      installPrinterStatus(this.el)
     },
     destroyed() {
-      receiptPrinter.removeEventListener("status", this.setPrinterStatus)
-      this.el.removeEventListener("click", this.onPrinterClick)
+      uninstallPrinterStatus(this.el)
     }
   },
   PosShell: {
     mounted() {
       installPrinterEvents(this)
+      installPrinterStatus(this.el.querySelector("[data-printer-status]"))
       this.onKeydown = event => {
         if (event.key === "Escape" && this.el.dataset.mobileCartOpen === "true") this.pushEvent("close_mobile_cart");
       };
@@ -117,7 +106,10 @@ const hooks = {
         catalog?.removeAttribute("inert");
       }
     },
-    destroyed() { document.removeEventListener("keydown", this.onKeydown); }
+    destroyed() {
+      uninstallPrinterStatus(this.el.querySelector("[data-printer-status]"))
+      document.removeEventListener("keydown", this.onKeydown);
+    }
   },
   CartAmounts: {
     mounted() {
@@ -381,6 +373,34 @@ function printerStatusLabel(state) {
     connected: "Printer connected",
     error: "Printer error"
   }[state] || "Printer disconnected"
+}
+
+function installPrinterStatus(element) {
+  if (!element || element.printerStatusHandler) return
+  element.printerStatusHandler = event => {
+    const state = event.detail.state
+    element.dataset.status = state
+    element.setAttribute("aria-label", printerStatusLabel(state))
+    element.title = event.detail.device?.productName || printerStatusLabel(state)
+  }
+  element.printerStatusClickHandler = async () => {
+    try {
+      await receiptPrinter.connect()
+    } catch (error) {
+    }
+  }
+  receiptPrinter.addEventListener("status", element.printerStatusHandler)
+  element.addEventListener("click", element.printerStatusClickHandler)
+  element.printerStatusHandler({detail: {state: receiptPrinter.state, device: receiptPrinter.device}})
+  receiptPrinter.reconnect().catch(() => {})
+}
+
+function uninstallPrinterStatus(element) {
+  if (!element?.printerStatusHandler) return
+  receiptPrinter.removeEventListener("status", element.printerStatusHandler)
+  element.removeEventListener("click", element.printerStatusClickHandler)
+  delete element.printerStatusHandler
+  delete element.printerStatusClickHandler
 }
 
 function installPrinterEvents(hook) {
