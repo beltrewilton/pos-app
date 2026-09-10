@@ -283,9 +283,20 @@ function uninstallNetworkStatus(element) {
 }
 
 function installPrinterEvents(hook) {
-  hook.handleEvent("printer:print-receipt", payload => hook.printWithResult(payload.request_id, () => receiptPrinter.printReceipt(payload.receipt || payload.sale)))
-  hook.handleEvent("printer:print-payment", payload => hook.printWithResult(payload.request_id, () => receiptPrinter.printPayment(payload)))
-  hook.handleEvent("printer:reprint-invoice", payload => hook.printWithResult(payload.request_id, () => receiptPrinter.reprintInvoice(payload.invoice || payload.receipt || payload.sale)))
+  hook.handleEvent("printer:print-receipt", payload => {
+    const sale = payload.receipt || payload.sale
+    console.log("[printer] LiveView event printer:print-receipt", {requestId: payload.request_id, sequence: sale?.sequence, hasCopyLabel: sale?.copy === true})
+    return hook.printWithResult(payload.request_id, () => receiptPrinter.printReceipt(sale))
+  })
+  hook.handleEvent("printer:print-payment", payload => {
+    console.log("[printer] LiveView event printer:print-payment", {requestId: payload.request_id, sequence: payload.sale?.sequence, paymentId: payload.payment?.id})
+    return hook.printWithResult(payload.request_id, () => receiptPrinter.printPayment(payload))
+  })
+  hook.handleEvent("printer:reprint-invoice", payload => {
+    const sale = payload.invoice || payload.receipt || payload.sale
+    console.log("[printer] LiveView event printer:reprint-invoice", {requestId: payload.request_id, sequence: sale?.sequence})
+    return hook.printWithResult(payload.request_id, () => receiptPrinter.reprintInvoice(sale))
+  })
   hook.printWithResult = async (requestId, operation) => {
     try {
       await operation()

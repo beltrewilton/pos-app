@@ -816,20 +816,15 @@ defmodule PosServerWeb.InvoiceReportLive do
           <.invoice_details_skeleton :if={is_nil(@detail)} />
           <%= if @detail do %>
             <div class="card-header">
-              <div>
+              <div class="invoice-detail-heading">
                 <h3 class="card-title">{@detail.sequence || "Invoice ##{@detail.id}"}</h3>
                 <p class="card-description">
                   {(@detail.client && @detail.client.name) || "Walk-in customer"} · {@detail.sale_type ||
                     "Sales"} · {@detail.login || "—"}
                 </p>
               </div>
-              <div class="invoice-detail-actions">
-                <.payment_form
-                  :if={@detail.invoice_status == "open"}
-                  detail={@detail}
-                  methods={@methods}
-                  amounts={@amounts}
-                /><button
+              <div class="invoice-detail-print">
+                <button
                   class="btn invoice-print-copy"
                   type="button"
                   data-variant="outline"
@@ -838,7 +833,15 @@ defmodule PosServerWeb.InvoiceReportLive do
                   phx-value-id={@detail.id}
                 >
                   Print Copy
-                </button><span
+                </button>
+              </div>
+              <div class="invoice-detail-actions">
+                <.payment_form
+                  :if={@detail.invoice_status == "open"}
+                  detail={@detail}
+                  methods={@methods}
+                  amounts={@amounts}
+                /><span
                   :if={@detail.invoice_status in ["close", "cancelled"]}
                   class={[
                     "invoice-status",

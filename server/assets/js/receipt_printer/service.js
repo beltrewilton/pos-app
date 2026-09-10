@@ -105,6 +105,7 @@ export class ReceiptPrinterService extends EventTarget {
 
   async print(kind, sale, payment = null) {
     if (this.state !== "connected") throw new Error("No receipt printer is connected.")
+    console.log("[printer] ReceiptPrinterService.print", {kind, sequence: sale?.sequence, paymentId: payment?.id})
     const formatter = new ReceiptFormatter(this.config)
     const document = kind === "payment" ? formatter.payment(sale, payment) : kind === "invoice" ? formatter.invoice(sale) : formatter.receipt(sale)
     const encoder = new ReceiptEncoder(encoderConfig(this.config, this.device)).initialize()

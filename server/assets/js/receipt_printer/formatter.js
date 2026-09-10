@@ -11,14 +11,17 @@ export class ReceiptFormatter {
   }
 
   receipt(sale) {
-    return this.document("COPIA", sale)
+    console.log("[printer] ReceiptFormatter.receipt", {sequence: sale?.sequence, copyLabel: ""})
+    return this.document("", sale)
   }
 
   payment(sale, payment) {
-    return this.document("COPIA", sale, payment)
+    console.log("[printer] ReceiptFormatter.payment", {sequence: sale?.sequence, paymentId: payment?.id, copyLabel: ""})
+    return this.document("", sale, payment)
   }
 
   invoice(sale) {
+    console.log("[printer] ReceiptFormatter.invoice", {sequence: sale?.sequence, copyLabel: "COPIA"})
     return this.document("COPIA", sale)
   }
 
@@ -45,7 +48,7 @@ export class ReceiptFormatter {
       {text: twoCol("Cliente", str(sale.client_name || client.name || "CONSUMIDOR FINAL"), columns)},
       {text: twoCol("Documento", str(sale.client_document_id || client.document_id || ""), columns)},
       {text: twoCol("Vendedor", str(sale.login || ""), columns)},
-      {align: "center", text: copyLabel},
+      copyLabel ? {align: "center", text: copyLabel} : null,
       {align: "center", text: sale.status === "CREDIT" ? "FACTURA A CREDITO" : "DIARIO DE VENTAS"},
       {text: rule(columns)},
       {text: columnsHeader(columns)}

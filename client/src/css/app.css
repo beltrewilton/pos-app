@@ -1976,10 +1976,22 @@ dialog#customer-purchases-dialog .dialog-content {
   border-bottom: 0;
 }
 .invoice-details-card .card-header {
-  flex-direction: row;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: 16px;
+}
+.invoice-detail-heading {
+  min-width: 0;
+}
+.invoice-detail-print {
+  display: flex;
+  justify-content: center;
+}
+.invoice-detail-actions {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
 }
 .invoice-details-card .invoice-payment {
   flex-shrink: 0;
@@ -3455,8 +3467,17 @@ dialog#customer-purchases-dialog .dialog-content {
   }
   .invoice-details-card .card-header {
     display: grid;
+    grid-template-columns: 1fr;
     gap: 12px;
     padding: 14px;
+  }
+  .invoice-detail-print,
+  .invoice-detail-actions {
+    justify-content: stretch;
+  }
+  .invoice-detail-print .btn,
+  .invoice-detail-actions .btn {
+    width: 100%;
   }
   .invoice-details-card .invoice-payment {
     width: 100%;

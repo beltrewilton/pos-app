@@ -2393,7 +2393,7 @@ invoiceTableBody.addEventListener("click", async (event) => {
   const print = event.target.closest("[data-print-invoice]");
   if (print) {
     const invoice = invoiceDetails.get(Number(print.dataset.printInvoice));
-    if (invoice) openReceiptPrint(invoice, true);
+    if (invoice) openReceiptPrint(invoice);
     return;
   }
   const trigger = event.target.closest("[data-invoice-detail]");
