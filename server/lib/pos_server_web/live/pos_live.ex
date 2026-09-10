@@ -45,6 +45,7 @@ defmodule PosServerWeb.PosLive do
         |> assign(:delivery, 0.0)
         |> assign(:delivery_open, false)
         |> assign(:credit, false)
+        |> assign(:credit_due_date, "")
         |> assign(:payments, [])
         |> assign(:sequence, "CF")
         |> assign(:memo, "")
@@ -343,8 +344,22 @@ defmodule PosServerWeb.PosLive do
       {:noreply,
        socket |> assign(:delivery_open, true) |> set_delivery_total(float(amount)) |> sync()}
 
-  def handle_event("toggle_credit", _, socket),
-    do: {:noreply, assign(socket, :credit, !socket.assigns.credit)}
+  def handle_event("toggle_credit", _, socket) do
+    credit = !socket.assigns.credit
+
+    socket =
+      socket
+      |> assign(:credit, credit)
+      |> assign(:credit_due_date, if(credit, do: socket.assigns.credit_due_date, else: ""))
+
+    {:noreply, socket}
+  end
+
+  def handle_event("change_credit_due_date", %{"value" => value}, socket),
+    do: {:noreply, assign(socket, :credit_due_date, value)}
+
+  def handle_event("change_credit_due_date", %{"credit_due_date" => value}, socket),
+    do: {:noreply, assign(socket, :credit_due_date, value)}
 
   def handle_event("select_sequence", %{"sequence" => sequence}, socket)
       when sequence in ["CF", "VF", "DV"],
@@ -385,14 +400,17 @@ defmodule PosServerWeb.PosLive do
   def handle_event("close_mobile_cart", _, socket),
     do: {:noreply, assign(socket, :mobile_cart_open, false)}
 
-  def handle_event("complete_sale", _, socket) do
+  def handle_event("complete_sale", params, socket) do
+    socket = assign_credit_due_date(socket, params)
+
     if socket.assigns.selected_customer &&
-         (socket.assigns.credit || paid(socket) >= total(socket)) do
+         payment_complete?(socket) do
       attrs = %{
         "store_id" => socket.assigns.store_id,
         "client_id" => socket.assigns.selected_customer.id,
         "sequence_type" => socket.assigns.sequence,
         "status" => if(socket.assigns.credit, do: "CREDIT", else: "CASH"),
+        "due_date" => if(socket.assigns.credit, do: socket.assigns.credit_due_date, else: nil),
         "sale_type" => if(socket.assigns.delivery > 0, do: "FOR_DELIVER", else: "IN_SHOP"),
         "delivery_charge" => socket.assigns.delivery,
         "discount" => order_discount_total(socket),
@@ -444,6 +462,7 @@ defmodule PosServerWeb.PosLive do
            |> assign(:delivery, 0.0)
            |> assign(:delivery_open, false)
            |> assign(:credit, false)
+           |> assign(:credit_due_date, "")
            |> assign(:payments, [])
            |> assign(:memo, "")
            |> sync()}
@@ -453,7 +472,11 @@ defmodule PosServerWeb.PosLive do
       end
     else
       {:noreply,
-       put_flash(socket, :error, "Select a customer and cover the sale total before completing.")}
+       put_flash(
+         socket,
+         :error,
+         "Select a customer, cover the total, and choose a future due date for credit sales."
+       )}
     end
   end
 
@@ -882,6 +905,40 @@ defmodule PosServerWeb.PosLive do
                   >
                     Pay on Credit
                   </button>
+                  <form
+                    :if={@credit}
+                    id="credit-due-date"
+                    class="form-group"
+                    phx-submit="complete_sale"
+                    phx-hook="CreditDueDateForm"
+                  >
+                    <label class="label" for="sale-credit-due-date">Due date</label>
+                    <input
+                      id="sale-credit-due-date"
+                      name="credit_due_date"
+                      class="input"
+                      type="date"
+                      value={@credit_due_date}
+                      min={future_due_date_min()}
+                      required
+                    />
+                    <div class="checkout-actions">
+                      <button
+                        class="btn checkout-back"
+                        type="button"
+                        data-variant="outline"
+                        phx-click="checkout_payment_back"
+                      >
+                        Back
+                      </button><button
+                        id="complete-sale"
+                        class="btn"
+                        type="submit"
+                        data-variant="default"
+                        disabled
+                      >Complete</button>
+                    </div>
+                  </form>
                   <div :if={!@credit} id="payment-inputs">
                     <fieldset class="form-fieldset">
                       <legend>Payments</legend>
@@ -953,7 +1010,7 @@ defmodule PosServerWeb.PosLive do
                   </div>
                 </div>
               </div>
-              <div class="checkout-actions">
+              <div :if={!@credit} class="checkout-actions">
                 <button
                   class="btn checkout-back"
                   type="button"
@@ -967,7 +1024,7 @@ defmodule PosServerWeb.PosLive do
                   type="button"
                   data-variant="default"
                   phx-click="complete_sale"
-                  disabled={!@credit && paid(@socket) < total(@socket)}
+                  disabled={!payment_complete?(@socket)}
                 >Complete</button>
               </div>
               <div class="form-group checkout-memo">
@@ -1780,6 +1837,33 @@ defmodule PosServerWeb.PosLive do
   end
 
   defp payment_amount_input(value), do: :erlang.float_to_binary(float(value), decimals: 2)
+
+  defp assign_credit_due_date(socket, %{"credit_due_date" => value}),
+    do: assign(socket, :credit_due_date, value)
+
+  defp assign_credit_due_date(socket, _params), do: socket
+
+  defp payment_complete?(state) do
+    state = state(state)
+
+    if state.credit do
+      future_due_date?(state.credit_due_date)
+    else
+      paid(state) >= total(state)
+    end
+  end
+
+  defp future_due_date_min, do: Date.utc_today() |> Date.add(1) |> Date.to_iso8601()
+
+  defp future_due_date?(value) when is_binary(value) do
+    case Date.from_iso8601(value) do
+      {:ok, due_date} -> Date.compare(due_date, Date.utc_today()) == :gt
+      _ -> false
+    end
+  end
+
+  defp future_due_date?(_), do: false
+
   defp float(value) when is_number(value), do: value * 1.0
   defp float(%Decimal{} = value), do: Decimal.to_float(value)
 
@@ -1930,6 +2014,7 @@ defmodule PosServerWeb.PosLive do
       delivery_charge: value(sale, :delivery_charge),
       additional_info: value(sale, :additional_info),
       date_create: value(sale, :date_create),
+      due_date: value(sale, :due_date),
       sequence_type: value(sale, :sequence_type),
       status: value(sale, :status),
       total_paid: value(sale, :total_paid),

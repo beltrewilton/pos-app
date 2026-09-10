@@ -41,6 +41,7 @@ defmodule PosServer.Retaily.Sale do
     field :status, :string
     field :sale_type, :string
     field :date_create, :naive_datetime
+    field :due_date, :date
     field :login, :string
     field :cancelled_by, :string
     field :additional_info, :string
@@ -68,6 +69,7 @@ defmodule PosServer.Retaily.Sale do
         :sequence_type,
         :status,
         :sale_type,
+        :due_date,
         :login,
         :cancelled_by,
         :client_id,

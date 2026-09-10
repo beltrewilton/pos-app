@@ -23,7 +23,9 @@ config :pos_server, PosServerWeb.Endpoint,
   code_reloader: true,
   debug_errors: true,
   secret_key_base: "lFvji02Ma09laeWCHpbrByYhxyXiZWajdAD82oOzbegW7fBizUtRz6TqMIMkIsgP",
-  watchers: []
+  watchers: [
+    esbuild: {Esbuild, :install_and_run, [:default, ~w(--sourcemap=inline --watch)]}
+  ]
 
 # ## SSL Support
 #

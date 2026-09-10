@@ -87,6 +87,7 @@ defmodule PosServerWeb.SaleControllerTest do
 
     sale_id = response["id"]
     assert response["invoice_status"] == "open"
+    assert response["due_date"] == tomorrow()
 
     assert Repo.aggregate(from(payment in SalePaid, where: payment.sale_id == ^sale_id), :count,
              prefix: @prefix
@@ -101,6 +102,20 @@ defmodule PosServerWeb.SaleControllerTest do
 
     assert paid["invoice_status"] == "close"
     assert paid["due_balance"] in ["0", "0.00"]
+  end
+
+  test "requires credit sale due dates to be in the future", %{walex_conn: conn} do
+    assert conn
+           |> post(~p"/api/sales", Map.delete(credit_sale_payload(), :due_date))
+           |> json_response(:unprocessable_entity) == %{
+             "errors" => %{"due_date" => ["can't be blank"]}
+           }
+
+    assert authenticated_conn_for("walex")
+           |> post(~p"/api/sales", %{credit_sale_payload() | due_date: today()})
+           |> json_response(:unprocessable_entity) == %{
+             "errors" => %{"due_date" => ["must be a future date"]}
+           }
   end
 
   test "derives totals for the multiple-line sale from 363885", %{walex_conn: conn} do
@@ -463,6 +478,7 @@ defmodule PosServerWeb.SaleControllerTest do
       client_id: 26_623,
       sequence_type: "CF",
       status: "CREDIT",
+      due_date: tomorrow(),
       sale_type: "IN_SHOP",
       delivery_charge: "0",
       lines: [%{product_id: 19_203, quantity: 1, discount: "40"}],
@@ -494,12 +510,16 @@ defmodule PosServerWeb.SaleControllerTest do
       client_id: 30_218,
       sequence_type: "CF",
       status: "CREDIT",
+      due_date: tomorrow(),
       sale_type: "IN_SHOP",
       delivery_charge: "0",
       payments: [],
       lines: large_credit_sale_lines()
     }
   end
+
+  defp today, do: Date.utc_today() |> Date.to_iso8601()
+  defp tomorrow, do: Date.utc_today() |> Date.add(1) |> Date.to_iso8601()
 
   defp large_credit_sale_lines do
     [

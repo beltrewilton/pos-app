@@ -68,6 +68,7 @@ defmodule PosServer.Retaily.SaleRequests.Checkout do
     field :sequence_type, :string
     field :status, :string
     field :sale_type, :string
+    field :due_date, :date
     field :delivery_charge, :decimal, default: Decimal.new(0)
     field :discount, :decimal, default: Decimal.new(0)
     field :discount_type, :string
@@ -85,6 +86,7 @@ defmodule PosServer.Retaily.SaleRequests.Checkout do
       :sequence_type,
       :status,
       :sale_type,
+      :due_date,
       :delivery_charge,
       :discount,
       :discount_type,
@@ -113,6 +115,7 @@ defmodule PosServer.Retaily.SaleRequests.Checkout do
     |> validate_inclusion(:status, ["CASH", "CREDIT"])
     |> validate_inclusion(:sale_type, ["IN_SHOP", "FOR_DELIVER"])
     |> validate_credit_payments()
+    |> validate_credit_due_date()
   end
 
   defp validate_percentage_input(changeset) do
@@ -128,6 +131,22 @@ defmodule PosServer.Retaily.SaleRequests.Checkout do
   defp validate_credit_payments(changeset) do
     if get_field(changeset, :status) == "CREDIT" and get_field(changeset, :payments) != [] do
       add_error(changeset, :payments, "must be empty for credit sales")
+    else
+      changeset
+    end
+  end
+
+  defp validate_credit_due_date(changeset) do
+    if get_field(changeset, :status) == "CREDIT" do
+      changeset
+      |> validate_required(:due_date)
+      |> validate_change(:due_date, fn :due_date, due_date ->
+        if Date.compare(due_date, Date.utc_today()) == :gt do
+          []
+        else
+          [due_date: "must be a future date"]
+        end
+      end)
     else
       changeset
     end

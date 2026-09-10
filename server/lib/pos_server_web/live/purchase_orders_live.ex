@@ -364,7 +364,7 @@ defmodule PosServerWeb.PurchaseOrdersLive do
         |> assign(:orders, sort_orders(orders, socket.assigns.sort))
         |> assign(
           :selected_order,
-          Enum.find(orders, &(&1.id == id), socket.assigns.selected_order)
+          Enum.find(orders, socket.assigns.selected_order, &(&1.id == id))
         )
 
       _ ->
