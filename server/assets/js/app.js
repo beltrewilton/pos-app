@@ -53,6 +53,14 @@ const hooks = {
       })
     }
   },
+  UsersScreen: {
+    mounted() {
+      this.handleEvent("users:focus-title", () => {
+        requestAnimationFrame(() => this.el.querySelector("#users-title")?.focus())
+      })
+      requestAnimationFrame(() => this.el.querySelector("#users-title")?.focus())
+    }
+  },
   InfiniteInvoices: {
     mounted() {
       this.observer = new IntersectionObserver(entries => {

@@ -120,6 +120,26 @@ defmodule PosServerWeb.PosLayoutComponents do
             <path d="m3 9 2-5h14l2 5" /><path d="M3 9h18v11H3z" /><path d="M7 20v-6h4v6" /><path d="M3 9c0 2 2 3 4 3s4-1 4-3c0 2 2 3 4 3s4-1 4-3" />
           </svg>
         </a>
+        <a
+          :if={Scope.allowed?(@scope, "user.view")}
+          id="users-nav"
+          class="sidebar-link"
+          href={~p"/pos/users"}
+          aria-current={current_page(@active_page, :users)}
+          aria-label="Users"
+        >
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /><path d="M19 8v4M17 10h4" />
+          </svg>
+        </a>
         <details class="sidebar-menu sidebar-store-selector">
           <summary class="sidebar-menu-trigger" aria-label="Choose active store">⌂</summary>
           <div class="user-menu-content sidebar-menu-content" role="group" aria-label="Active store">
