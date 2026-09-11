@@ -670,6 +670,14 @@
 .dashboard-summary-card .status-badge[data-confirmed="true"] i {
   background: #35c18d;
 }
+#inventory-live .operations-table .inventory-total-quantity-cell {
+  width: 5rem !important;
+  min-width: 5rem;
+  max-width: 5rem;
+}
+#inventory-live .operations-table .inventory-previous-quantity-cell {
+  text-align: center;
+}
 .is-sidebar-collapsed .dashboard-sidebar {
   flex-basis: 4.25rem;
 }

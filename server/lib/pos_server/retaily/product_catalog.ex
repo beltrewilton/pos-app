@@ -147,6 +147,36 @@ defmodule PosServer.Retaily.ProductCatalog do
     end
   end
 
+  def update_status(%Scope{tenant: tenant} = scope, product_id, attrs) do
+    with true <- Scope.allowed?(scope, "product.edit"),
+         store_id when is_integer(store_id) and store_id > 0 <- attrs.store_id,
+         {:ok, _tenant} <- PosServer.Retaily.InventoryContext.authorize_store(scope, store_id),
+         %Product{} = product <- Repo.get(Product, product_id, prefix: tenant) do
+      username = scope.login || get_in(scope.user || %{}, [:name]) || "system"
+
+      product_attrs =
+        attrs
+        |> Map.take([:active, :archived])
+        |> Enum.reduce(%{user_modified: username}, fn
+          {:active, value}, acc -> Map.put(acc, :active, status_flag(value))
+          {:archived, value}, acc -> Map.put(acc, :archived, archived_flag(value))
+        end)
+
+      case product |> Product.changeset(product_attrs) |> Repo.update(prefix: tenant) do
+        {:ok, updated} ->
+          InventoryEvents.broadcast_many(tenant, store_ids(tenant), [updated.id])
+          {:ok, updated}
+
+        error ->
+          error
+      end
+    else
+      false -> {:error, :forbidden}
+      nil -> {:error, :not_found}
+      _ -> {:error, :invalid_product}
+    end
+  end
+
   defp default_price?(prices) do
     if Enum.any?(prices, &(&1.pricing_id == 1 and is_number(&1.price) and &1.price >= 0)),
       do: :ok,

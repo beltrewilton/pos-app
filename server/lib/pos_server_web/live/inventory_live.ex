@@ -8,7 +8,7 @@ defmodule PosServerWeb.InventoryLive do
   alias PosServer.Accounts.Scope
   alias PosServer.Retaily.{InventoryContext, Orders, ProductCatalog, Sql}
 
-  @sort_keys ~w(product_name product_code store_name product_cost product_price total_quantity quantity prev_quantity last_update user_updated)
+  @sort_keys ~w(product_name product_code product_cost product_price total_quantity quantity prev_quantity last_update user_updated)
 
   @impl true
   def mount(_params, session, socket) do
@@ -198,6 +198,35 @@ defmodule PosServerWeb.InventoryLive do
            :product_form_status,
            "Product could not be updated. Check the required fields."
          )}
+    end
+  end
+
+  def handle_event("set_product_status", %{"product_id" => id, "status" => status}, socket)
+      when status in ["active", "archived"] do
+    product_id = integer(id)
+    entry = Enum.find(socket.assigns.entries, &(&1.product_id == product_id))
+
+    attrs =
+      case status do
+        "active" ->
+          %{store_id: socket.assigns.store_id, active: !product_active?(entry)}
+
+        "archived" ->
+          %{store_id: socket.assigns.store_id, archived: !product_archived?(entry)}
+      end
+
+    case ProductCatalog.update_status(socket.assigns.scope, product_id, attrs) do
+      {:ok, _product} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Product status updated.")
+         |> load_inventory()}
+
+      {:error, :forbidden} ->
+        {:noreply, put_flash(socket, :error, "You do not have permission to edit products.")}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Product status could not be updated.")}
     end
   end
 
@@ -794,7 +823,12 @@ defmodule PosServerWeb.InventoryLive do
                 <tr class="table-row">
                   <th
                     :for={{label, key} <- headers()}
-                    class={["table-head", if(is_nil(key), do: "inventory-status-head")]}
+                    class={[
+                      "table-head",
+                      if(is_nil(key), do: "inventory-status-head"),
+                      if(key == "total_quantity", do: "inventory-total-quantity-cell"),
+                      if(key == "prev_quantity", do: "inventory-previous-quantity-cell")
+                    ]}
                     scope="col"
                     aria-sort={if key, do: sort_aria(@sort, key), else: nil}
                   >
@@ -827,13 +861,51 @@ defmodule PosServerWeb.InventoryLive do
                       </button>
                     </td>
                     <td class="table-cell inventory-product-status-cell" data-label="Status">
-                      <span
-                        class={["inventory-product-status", product_status_tone(entry)]}
-                        title={product_status_label(entry)}
-                        aria-label={product_status_label(entry)}
-                      >
-                        <.product_status_icon entry={entry} />
-                      </span>
+                      <details class="inventory-product-status-menu">
+                        <summary
+                          class={["inventory-product-status", product_status_tone(entry)]}
+                          title={product_status_label(entry)}
+                          aria-label={"Product status: #{product_status_label(entry)}"}
+                        >
+                          <.product_status_icon entry={entry} />
+                        </summary>
+                        <div class="inventory-product-status-options" role="menu">
+                          <button
+                            class={[
+                              "inventory-product-status-option",
+                              if(product_active?(entry), do: "is-checked")
+                            ]}
+                            type="button"
+                            role="menuitem"
+                            aria-checked={to_string(product_active?(entry))}
+                            phx-click="set_product_status"
+                            phx-value-product_id={entry.product_id}
+                            phx-value-status="active"
+                          >
+                            <span class="inventory-product-status-mini is-active">
+                              <.product_status_icon entry={%{active: 1, archived: "0"}} />
+                            </span>
+                            Active
+                          </button>
+                          <button
+                            class={[
+                              "inventory-product-status-option",
+                              if(product_archived?(entry), do: "is-checked")
+                            ]}
+                            type="button"
+                            role="menuitem"
+                            aria-checked={to_string(product_archived?(entry))}
+                            phx-click="set_product_status"
+                            phx-value-product_id={entry.product_id}
+                            phx-value-status="archived"
+                          >
+                            <span class="inventory-product-status-mini is-archived">
+                              <.product_status_icon entry={%{active: 1, archived: "1"}} />
+                            </span>
+                            Archive it
+                          </button>
+                        </div>
+                      </details>
                     </td>
                     <td class="table-cell" data-label="SKU">
                       <button
@@ -847,14 +919,11 @@ defmodule PosServerWeb.InventoryLive do
                         {entry.product_code || "—"}
                       </button>
                     </td>
-                    <td class="table-cell" data-label="Store">
-                      {entry.store_name || "Current store"}
-                    </td>
                     <td class="table-cell numeric" data-label="Cost">{money(entry.product_cost)}</td>
                     <td class="table-cell numeric" data-label="Price">
                       {if is_nil(entry.product_price), do: "—", else: money(entry.product_price)}
                     </td>
-                    <td class="table-cell numeric" data-label="Total quantity">
+                    <td class="table-cell numeric inventory-total-quantity-cell" data-label="Total quantity">
                       <button
                         class="btn inventory-total-quantity"
                         type="button"
@@ -899,7 +968,7 @@ defmodule PosServerWeb.InventoryLive do
                         </div>
                       <% end %>
                     </td>
-                    <td class="table-cell numeric" data-label="Previous quantity">
+                    <td class="table-cell numeric inventory-previous-quantity-cell" data-label="Previous quantity">
                       {entry.prev_quantity || "—"}
                     </td>
                     <td class="table-cell" data-label="Last updated">
@@ -912,11 +981,11 @@ defmodule PosServerWeb.InventoryLive do
                     :if={@expanded == {:quantities, entry.product_id}}
                     class="table-row inventory-store-row"
                   >
-                    <td class="table-cell" colspan="5"></td>
+                    <td class="table-cell" colspan="4"></td>
                     <td class="table-cell inventory-store-name" data-label="Store">
                       {store.store_name}
                     </td>
-                    <td class="table-cell" data-label="Total quantity"></td>
+                    <td class="table-cell inventory-total-quantity-cell" data-label="Total quantity"></td>
                     <td class="table-cell" data-label="Current quantity">
                       <form class="inventory-inline-editor" phx-submit="save_store_quantity">
                         <input type="hidden" name="product_id" value={entry.product_id} /><input
@@ -934,7 +1003,7 @@ defmodule PosServerWeb.InventoryLive do
                         </button>
                       </form>
                     </td>
-                    <td class="table-cell" data-label="Previous quantity">
+                    <td class="table-cell inventory-previous-quantity-cell" data-label="Previous quantity">
                       {store.prev_quantity || "—"}
                     </td>
                     <td class="table-cell" data-label="Last updated">
@@ -946,7 +1015,7 @@ defmodule PosServerWeb.InventoryLive do
                     :if={@expanded == {:traces, entry.product_id}}
                     class="table-row inventory-traces-row"
                   >
-                    <td class="table-cell" colspan="11">
+                    <td class="table-cell" colspan="10">
                       <%= if @traces == [] do %>
                         <p class="field-description">No trace history yet.</p>
                       <% else %>
@@ -1185,7 +1254,6 @@ defmodule PosServerWeb.InventoryLive do
       {"Product", "product_name"},
       {"Status", nil},
       {"SKU", "product_code"},
-      {"Store", "store_name"},
       {"Cost", "product_cost"},
       {"Price", "product_price"},
       {"Total quantity", "total_quantity"},
