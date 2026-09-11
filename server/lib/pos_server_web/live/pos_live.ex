@@ -44,6 +44,8 @@ defmodule PosServerWeb.PosLive do
         |> assign(:order_discount_type, "amount")
         |> assign(:delivery, 0.0)
         |> assign(:delivery_open, false)
+        |> assign(:delivery_custom_input, "")
+        |> assign(:delivery_custom_selected, false)
         |> assign(:credit, false)
         |> assign(:credit_due_date, "")
         |> assign(:payments, [])
@@ -145,6 +147,8 @@ defmodule PosServerWeb.PosLive do
        |> assign(:order_discount, 0.0)
        |> assign(:delivery, 0.0)
        |> assign(:delivery_open, false)
+       |> assign(:delivery_custom_input, "")
+       |> assign(:delivery_custom_selected, false)
        |> assign(:dialog, nil)
        |> sync()}
 
@@ -335,14 +339,42 @@ defmodule PosServerWeb.PosLive do
 
   def handle_event("toggle_delivery", _, socket) do
     socket = assign(socket, :delivery_open, !socket.assigns.delivery_open)
-    socket = if socket.assigns.delivery_open, do: socket, else: set_delivery_total(socket, 0.0)
+    socket =
+      if socket.assigns.delivery_open,
+        do: socket,
+        else:
+          socket
+          |> assign(:delivery_custom_input, "")
+          |> assign(:delivery_custom_selected, false)
+          |> set_delivery_total(0.0)
+
     {:noreply, sync(socket)}
   end
 
   def handle_event("set_delivery", %{"amount" => amount}, socket),
     do:
       {:noreply,
-       socket |> assign(:delivery_open, true) |> set_delivery_total(float(amount)) |> sync()}
+       socket
+       |> assign(:delivery_open, true)
+       |> assign(:delivery_custom_selected, false)
+       |> set_delivery_total(float(amount))
+       |> sync()}
+
+  def handle_event("change_delivery_amount", %{"value" => amount}, socket),
+    do: {:noreply, change_custom_delivery_amount(socket, amount)}
+
+  def handle_event("apply_custom_delivery", params, socket) do
+    amount = Map.get(params, "value", socket.assigns.delivery_custom_input)
+    amount = delivery_amount_input(amount)
+
+    {:noreply,
+     socket
+     |> assign(:delivery_open, true)
+     |> assign(:delivery_custom_input, amount)
+     |> assign(:delivery_custom_selected, true)
+     |> set_delivery_total(float(amount))
+     |> sync()}
+  end
 
   def handle_event("toggle_credit", _, socket) do
     credit = !socket.assigns.credit
@@ -461,6 +493,8 @@ defmodule PosServerWeb.PosLive do
            |> assign(:order_discount, 0.0)
            |> assign(:delivery, 0.0)
            |> assign(:delivery_open, false)
+           |> assign(:delivery_custom_input, "")
+           |> assign(:delivery_custom_selected, false)
            |> assign(:credit, false)
            |> assign(:credit_due_date, "")
            |> assign(:payments, [])
@@ -885,10 +919,57 @@ defmodule PosServerWeb.PosLive do
                   </button>
                   <div :if={@delivery_open} id="delivery-options" class="delivery-options">
                     <button
-                      :for={amount <- [100, 150, 200, 250, 300, 400, 500, 600]}
+                      :for={amount <- [100, 150, 200]}
                       class="btn"
                       type="button"
-                      data-variant={if @delivery == amount, do: "default", else: "secondary"}
+                      data-variant={
+                        if !@delivery_custom_selected and @delivery == amount,
+                          do: "default",
+                          else: "secondary"
+                      }
+                      phx-click="set_delivery"
+                      phx-value-amount={amount}
+                    >
+                      {money(amount)}
+                    </button>
+                    <form
+                      class="delivery-free-control"
+                      role="group"
+                      aria-label="Delivery free amount"
+                      phx-submit="apply_custom_delivery"
+                    >
+                      <input
+                        id="delivery-free-amount"
+                        class="input delivery-free-amount"
+                        type="number"
+                        name="value"
+                        min="0"
+                        step="0.01"
+                        inputmode="decimal"
+                        placeholder="Free amount"
+                        aria-label="Delivery free amount"
+                        value={@delivery_custom_input}
+                        required
+                        phx-input="change_delivery_amount"
+                        phx-debounce="300"
+                      />
+                      <button
+                        class="btn delivery-free-check"
+                        type="submit"
+                        data-variant={if @delivery_custom_selected, do: "default", else: "secondary"}
+                        aria-pressed={to_string(@delivery_custom_selected)}
+                        aria-label="Select delivery free amount"
+                      >✓</button>
+                    </form>
+                    <button
+                      :for={amount <- [300, 400, 500, 600]}
+                      class="btn"
+                      type="button"
+                      data-variant={
+                        if !@delivery_custom_selected and @delivery == amount,
+                          do: "default",
+                          else: "secondary"
+                      }
                       phx-click="set_delivery"
                       phx-value-amount={amount}
                     >
@@ -1545,15 +1626,15 @@ defmodule PosServerWeb.PosLive do
     changed = MapSet.new(product_ids)
 
     products =
-      Enum.map(socket.assigns.products, fn product ->
+      Enum.flat_map(socket.assigns.products, fn product ->
         if MapSet.member?(changed, product.id) do
           case Sql.active_product(product.id, socket.assigns.store_id) do
-            {:ok, nil} -> product
-            {:ok, fresh} -> normalize_product(fresh)
-            {:error, _} -> product
+            {:ok, nil} -> []
+            {:ok, fresh} -> [normalize_product(fresh)]
+            {:error, _} -> [product]
           end
         else
-          product
+          [product]
         end
       end)
 
@@ -1663,6 +1744,27 @@ defmodule PosServerWeb.PosLive do
     if discount_target,
       do: push_event(socket, "pos:cart-bump", %{id: discount_target}),
       else: socket
+  end
+
+  defp change_custom_delivery_amount(socket, amount) do
+    amount = delivery_amount_input(amount)
+
+    socket =
+      socket
+      |> assign(:delivery_open, true)
+      |> assign(:delivery_custom_input, amount)
+      |> assign(:delivery_custom_selected, false)
+
+    socket
+  end
+
+  defp delivery_amount_input(value) do
+    value = value |> to_string() |> String.trim()
+
+    case Float.parse(value) do
+      {amount, ""} when amount >= 0 -> value
+      _ -> ""
+    end
   end
 
   defp update_payment(socket, id, "type", value),

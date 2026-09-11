@@ -3,14 +3,16 @@ WITH inventory AS (
     inventory.store_id,
     inventory.product_id,
     COALESCE(inventory.quantity, 0)::numeric AS quantity,
-    COALESCE(product.cost, 0)::numeric AS cost
+    COALESCE(product.cost, 0)::numeric AS cost,
+    COALESCE(product.active, 0) AS active,
+    COALESCE(product.archived, '0') AS archived
   FROM {{prefix}}.app_inventory AS inventory
   LEFT JOIN {{prefix}}.product AS product ON product.id = inventory.product_id
   WHERE inventory.store_id = $1
 ),
 inventory_metrics AS (
   SELECT
-    COALESCE(SUM(quantity * cost) FILTER (WHERE quantity > 0), 0) AS inventory_valuation,
+    COALESCE(SUM(quantity * cost) FILTER (WHERE quantity > 0 AND active = 1 AND archived != '1'), 0) AS inventory_valuation,
     COUNT(*) FILTER (WHERE quantity < 0) AS negative_stock_sku_count,
     COALESCE(SUM(ABS(quantity)) FILTER (WHERE quantity < 0), 0) AS negative_stock_units,
     COALESCE(SUM(ABS(quantity) * cost) FILTER (WHERE quantity < 0), 0) AS negative_stock_value,
@@ -24,7 +26,7 @@ inventory_by_store AS (
   SELECT
     store.id AS store_id,
     store.name AS store_name,
-    COALESCE(SUM(COALESCE(inventory.quantity, 0)::numeric * COALESCE(product.cost, 0)::numeric) FILTER (WHERE COALESCE(inventory.quantity, 0) > 0), 0) AS inventory_valuation
+    COALESCE(SUM(COALESCE(inventory.quantity, 0)::numeric * COALESCE(product.cost, 0)::numeric) FILTER (WHERE COALESCE(inventory.quantity, 0) > 0 AND product.active = 1 AND COALESCE(product.archived, '0') != '1'), 0) AS inventory_valuation
   FROM {{prefix}}.app_store AS store
   LEFT JOIN {{prefix}}.app_inventory AS inventory ON inventory.store_id = store.id
   LEFT JOIN {{prefix}}.product AS product ON product.id = inventory.product_id

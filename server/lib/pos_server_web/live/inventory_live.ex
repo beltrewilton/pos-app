@@ -28,6 +28,7 @@ defmodule PosServerWeb.InventoryLive do
         |> assign(:summary, nil)
         |> assign(:kpis_expanded, false)
         |> assign(:search, "")
+        |> assign(:show_archived?, false)
         |> assign(:filter, "")
         |> assign(:sort, %{key: "last_update", direction: :desc})
         |> assign(:expanded, nil)
@@ -76,6 +77,15 @@ defmodule PosServerWeb.InventoryLive do
 
   def handle_event("search", %{"value" => value}, socket),
     do: {:noreply, assign(socket, :search, value)}
+
+  def handle_event("toggle_archived", _, socket) do
+    {:noreply,
+     socket
+     |> assign(:show_archived?, !socket.assigns.show_archived?)
+     |> clear_row_context()
+     |> assign(:loading?, true)
+     |> load_inventory()}
+  end
 
   def handle_event("sort", %{"key" => key}, socket) when key in @sort_keys do
     sort =
@@ -319,7 +329,9 @@ defmodule PosServerWeb.InventoryLive do
   defp load_inventory(socket) do
     filter = if socket.assigns.filter == "", do: nil, else: socket.assigns.filter
 
-    case {InventoryContext.list(socket.assigns.scope, socket.assigns.store_id, filter),
+    case {InventoryContext.list(socket.assigns.scope, socket.assigns.store_id, filter,
+            include_archived?: socket.assigns.show_archived?
+          ),
           Sql.inventory_summary(socket.assigns.store_id)} do
       {{:ok, entries}, {:ok, summary}} ->
         entries = sort_entries(entries, socket.assigns.sort)
@@ -438,9 +450,14 @@ defmodule PosServerWeb.InventoryLive do
       code: params |> Map.get("code", "") |> String.trim(),
       cost: decimal(Map.get(params, "cost")),
       image_raw: Map.get(params, "image_raw") || nil,
+      active: checkbox?(Map.get(params, "active")),
+      archived: checkbox?(Map.get(params, "archived")),
       prices: prices
     }
   end
+
+  defp checkbox?(value) when value in [true, "true", "1", "on"], do: true
+  defp checkbox?(_), do: false
 
   defp inventory_status(entries),
     do: if(entries == [], do: "No inventory found.", else: "#{length(entries)} products")
@@ -655,6 +672,14 @@ defmodule PosServerWeb.InventoryLive do
                     autocomplete="off"
                   />
                 </div>
+                <label class="inventory-checkbox-label inventory-archived-filter" for="inventory-show-archived">
+                  <input
+                    id="inventory-show-archived"
+                    type="checkbox"
+                    checked={@show_archived?}
+                    phx-click="toggle_archived"
+                  />Archived
+                </label>
                 <select
                   id="inventory-store"
                   name="store_id"
@@ -779,11 +804,12 @@ defmodule PosServerWeb.InventoryLive do
                 <tr class="table-row">
                   <th
                     :for={{label, key} <- headers()}
-                    class="table-head"
+                    class={["table-head", if(is_nil(key), do: "inventory-status-head")]}
                     scope="col"
-                    aria-sort={sort_aria(@sort, key)}
+                    aria-sort={if key, do: sort_aria(@sort, key), else: nil}
                   >
                     <button
+                      :if={key}
                       class="btn operations-sort"
                       type="button"
                       data-variant="ghost"
@@ -792,6 +818,7 @@ defmodule PosServerWeb.InventoryLive do
                     >
                       {label}
                     </button>
+                    <span :if={is_nil(key)} class="sr-only">{label}</span>
                   </th>
                 </tr>
               </thead>
@@ -808,6 +835,15 @@ defmodule PosServerWeb.InventoryLive do
                       >
                         {entry.product_name || "Product ##{entry.product_id}"}
                       </button>
+                    </td>
+                    <td class="table-cell inventory-product-status-cell" data-label="Status">
+                      <span
+                        class={["inventory-product-status", product_status_tone(entry)]}
+                        title={product_status_label(entry)}
+                        aria-label={product_status_label(entry)}
+                      >
+                        <.product_status_icon entry={entry} />
+                      </span>
                     </td>
                     <td class="table-cell" data-label="SKU">
                       <button
@@ -886,7 +922,7 @@ defmodule PosServerWeb.InventoryLive do
                     :if={@expanded == {:quantities, entry.product_id}}
                     class="table-row inventory-store-row"
                   >
-                    <td class="table-cell" colspan="4"></td>
+                    <td class="table-cell" colspan="5"></td>
                     <td class="table-cell inventory-store-name" data-label="Store">
                       {store.store_name}
                     </td>
@@ -920,7 +956,7 @@ defmodule PosServerWeb.InventoryLive do
                     :if={@expanded == {:traces, entry.product_id}}
                     class="table-row inventory-traces-row"
                   >
-                    <td class="table-cell" colspan="10">
+                    <td class="table-cell" colspan="11">
                       <%= if @traces == [] do %>
                         <p class="field-description">No trace history yet.</p>
                       <% else %>
@@ -1052,6 +1088,29 @@ defmodule PosServerWeb.InventoryLive do
                   value={@editing_product && @editing_product.code}
                 />
               </div>
+              <fieldset class="form-fieldset product-status-fieldset">
+                <legend>Status</legend>
+                <input type="hidden" name="active" value="0" />
+                <input type="hidden" name="archived" value="0" />
+                <label class="inventory-checkbox-label" for="product-active">
+                  <input
+                    id="product-active"
+                    name="active"
+                    type="checkbox"
+                    value="1"
+                    checked={product_active?(@editing_product)}
+                  />Active
+                </label>
+                <label class="inventory-checkbox-label" for="product-archived">
+                  <input
+                    id="product-archived"
+                    name="archived"
+                    type="checkbox"
+                    value="1"
+                    checked={product_archived?(@editing_product)}
+                  />Archived
+                </label>
+              </fieldset>
               <div
                 id="product-image-dropzone"
                 class="product-image-dropzone"
@@ -1100,6 +1159,7 @@ defmodule PosServerWeb.InventoryLive do
   defp headers,
     do: [
       {"Product", "product_name"},
+      {"Status", nil},
       {"SKU", "product_code"},
       {"Store", "store_name"},
       {"Cost", "product_cost"},
@@ -1118,6 +1178,50 @@ defmodule PosServerWeb.InventoryLive do
       Enum.find_value(product.prices, fn price ->
         if price.pricing_id == pricing_id, do: price.price
       end)
+
+  defp product_active?(nil), do: true
+  defp product_active?(product), do: (value(product, :active) || value(product, :product_active)) == 1
+
+  defp product_archived?(nil), do: false
+  defp product_archived?(product),
+    do: (value(product, :archived) || value(product, :product_archived)) == "1"
+
+  defp product_status_label(entry) do
+    cond do
+      product_archived?(entry) -> "Archived"
+      product_active?(entry) -> "Active"
+      true -> "Not active"
+    end
+  end
+
+  defp product_status_tone(entry) do
+    cond do
+      product_archived?(entry) -> "is-archived"
+      product_active?(entry) -> "is-active"
+      true -> "is-inactive"
+    end
+  end
+
+  attr :entry, :map, required: true
+
+  defp product_status_icon(assigns) do
+    ~H"""
+    <svg :if={product_archived?(@entry)} viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 7h16" />
+      <path d="M6 7v12h12V7" />
+      <path d="M9 11h6" />
+      <path d="M8 4h8l2 3H6z" />
+    </svg>
+    <svg :if={!product_archived?(@entry) && product_active?(@entry)} viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="m8 12 2.6 2.6L16.5 9" />
+    </svg>
+    <svg :if={!product_archived?(@entry) && !product_active?(@entry)} viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M5.7 5.7 18.3 18.3" />
+    </svg>
+    """
+  end
 
   defp image_source(nil), do: nil
   defp image_source("data:image/" <> _ = source), do: source

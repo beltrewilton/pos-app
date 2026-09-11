@@ -327,6 +327,9 @@ defmodule PosServer.Retaily.Sales do
           product.active != 1 ->
             {:halt, {:error, :inactive_product}}
 
+          product.archived == "1" ->
+            {:halt, {:error, :archived_product}}
+
           is_nil(price) ->
             {:halt, {:error, :product_has_no_price}}
 

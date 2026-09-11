@@ -8,8 +8,10 @@ defmodule PosServer.Retaily.InventoryContext do
   alias PosServer.Retaily.{Inventory, PricingList, Product, Store, User, UserStore}
   alias PosServer.Retaily.ProductTraces
 
-  def list(scope, store_id, inventory_filter \\ nil) do
+  def list(scope, store_id, inventory_filter \\ nil, opts \\ []) do
     with {:ok, tenant} <- authorize_store(scope, store_id) do
+      include_archived? = Keyword.get(opts, :include_archived?, false)
+
       entries =
         from(inventory in Inventory,
           join: product in Product,
@@ -21,12 +23,15 @@ defmodule PosServer.Retaily.InventoryContext do
           left_join: totals in subquery(total_quantities_query()),
           on: totals.product_id == product.id,
           where: inventory.store_id == ^store_id,
+          where: ^include_archived? or fragment("COALESCE(?, '0') != '1'", product.archived),
           order_by: [asc: product.name],
           select: %{
             id: inventory.id,
             product_id: inventory.product_id,
             product_name: product.name,
             product_code: product.code,
+            product_active: product.active,
+            product_archived: product.archived,
             product_cost: product.cost,
             product_price: price.price,
             total_quantity: totals.quantity,

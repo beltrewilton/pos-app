@@ -425,6 +425,45 @@
   gap: 8px;
   margin: 10px 0;
 }
+.sequence-option-buttons,
+.delivery-free-control {
+  display: inline-flex;
+}
+.sequence-option-buttons .btn,
+.delivery-free-control .input,
+.delivery-free-control .btn {
+  border-radius: 0;
+}
+.sequence-option-buttons .btn:first-child,
+.delivery-free-control .input:first-child {
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+}
+.sequence-option-buttons .btn:last-child,
+.delivery-free-control .btn:last-child {
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+.delivery-options > .btn,
+.delivery-free-control {
+  flex: 1 1 160px;
+}
+.delivery-free-control {
+  min-width: 0;
+}
+.delivery-free-amount {
+  flex: 1 1 0;
+  width: 5rem !important;
+  min-width: 0;
+  padding: 0rem !important;
+  margin: 0rem !important;
+}
+.delivery-free-check {
+  flex: 0 0 2rem;
+  width: 2rem;
+  min-width: 2rem;
+  padding: 0rem;
+  margin: 0rem;
+  height: 2.5rem !important;
+}
 .sequence-option-description {
   font-size: 1.3rem;
 }
@@ -465,6 +504,64 @@
   cursor: pointer;
 }
 .pos-customer-row small {
+  color: var(--muted-foreground);
+}
+.inventory-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 2.5rem;
+  color: var(--foreground);
+  font-size: 0.85rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.inventory-checkbox-label input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--primary);
+}
+.inventory-archived-filter {
+  align-self: center;
+}
+.product-status-fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+}
+.inventory-status-head,
+.inventory-product-status-cell {
+  width: 5rem;
+  min-width: 5rem;
+  max-width: 5rem;
+  text-align: center;
+}
+.inventory-product-status {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius);
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+.inventory-product-status svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.inventory-product-status.is-active {
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--primary);
+}
+.inventory-product-status.is-archived,
+.inventory-product-status.is-inactive {
+  background: color-mix(in srgb, var(--muted-foreground) 12%, transparent);
   color: var(--muted-foreground);
 }
 .numeric {

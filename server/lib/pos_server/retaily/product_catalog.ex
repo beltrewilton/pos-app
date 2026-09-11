@@ -33,10 +33,10 @@ defmodule PosServer.Retaily.ProductCatalog do
             code: attrs.code,
             cost: attrs.cost,
             image_raw: attrs.image_raw,
-            active: 1,
+            active: status_flag(Map.get(attrs, :active, true)),
             user_modified: username,
             date_create: now,
-            archived: "0"
+            archived: archived_flag(attrs.archived)
           }
 
           store_ids = store_ids(tenant)
@@ -84,6 +84,8 @@ defmodule PosServer.Retaily.ProductCatalog do
          code: product.code,
          cost: product.cost,
          image_raw: product.image_raw,
+         active: product.active,
+         archived: product.archived,
          prices: prices
        }}
     else
@@ -110,6 +112,14 @@ defmodule PosServer.Retaily.ProductCatalog do
         if is_binary(attrs.image_raw),
           do: Map.put(product_attrs, :image_raw, attrs.image_raw),
           else: product_attrs
+
+      product_attrs =
+        attrs
+        |> Map.take([:active, :archived])
+        |> Enum.reduce(product_attrs, fn
+          {:active, value}, acc -> Map.put(acc, :active, status_flag(value))
+          {:archived, value}, acc -> Map.put(acc, :archived, archived_flag(value))
+        end)
 
       result =
         Repo.transaction(fn ->
@@ -142,6 +152,12 @@ defmodule PosServer.Retaily.ProductCatalog do
       do: :ok,
       else: {:error, :default_price_required}
   end
+
+  defp status_flag(value) when value in [1, "1", true, "true", "on"], do: 1
+  defp status_flag(_), do: 0
+
+  defp archived_flag(value) when value in [1, "1", true, "true", "on"], do: "1"
+  defp archived_flag(_), do: "0"
 
   defp store_ids(tenant), do: Repo.all(from(store in Store, select: store.id), prefix: tenant)
 

@@ -14,12 +14,12 @@ defmodule PosServerWeb.ProductCreateController do
       store_ids = store_ids(tenant)
 
       product_attrs =
-        Map.take(attrs, ["name", "cost", "margin", "code", "img_path", "image_raw", "active"])
+        Map.take(attrs, ["name", "cost", "margin", "code", "img_path", "image_raw", "active", "archived"])
         |> Map.merge(%{
-          "active" => attrs["active"] || 1,
+          "active" => status_flag(Map.get(attrs, "active", true)),
           "user_modified" => username,
           "date_create" => now,
-          "archived" => "0"
+          "archived" => archived_flag(attrs["archived"])
         })
 
       Repo.transaction(fn ->
@@ -43,9 +43,7 @@ defmodule PosServerWeb.ProductCreateController do
               conn |> put_status(:created) |> json(product)
 
             _ ->
-              conn
-              |> put_status(:internal_server_error)
-              |> json(%{error: "could not load created product"})
+              conn |> put_status(:created) |> json(product_response(product))
           end
 
         {:error, %Changeset{} = changeset} ->
@@ -100,8 +98,13 @@ defmodule PosServerWeb.ProductCreateController do
     with {:ok, product_id} <- positive_integer(id),
          %Product{} = product <- Repo.get(Product, product_id, prefix: tenant) do
       product_attrs =
-        Map.take(attrs, ["name", "cost", "margin", "code", "img_path", "image_raw", "active"])
+        Map.take(attrs, ["name", "cost", "margin", "code", "img_path", "image_raw", "active", "archived"])
         |> Map.put("user_modified", conn.assigns.current_scope.user.name)
+
+      product_attrs =
+        product_attrs
+        |> maybe_put_flag("active", attrs, &status_flag/1)
+        |> maybe_put_flag("archived", attrs, &archived_flag/1)
 
       case product |> Product.changeset(product_attrs) |> Repo.update(prefix: tenant) do
         {:ok, updated} ->
@@ -268,8 +271,21 @@ defmodule PosServerWeb.ProductCreateController do
       code: product.code,
       img_path: product.img_path,
       image_raw: product.image_raw,
-      active: product.active
+      active: product.active,
+      archived: product.archived
     }
+
+  defp archived_flag(value) when value in [1, "1", true, "true", "on"], do: "1"
+  defp archived_flag(_), do: "0"
+
+  defp status_flag(value) when value in [1, "1", true, "true", "on"], do: 1
+  defp status_flag(_), do: 0
+
+  defp maybe_put_flag(product_attrs, key, attrs, formatter) do
+    if Map.has_key?(attrs, key),
+      do: Map.put(product_attrs, key, formatter.(Map.get(attrs, key))),
+      else: product_attrs
+  end
 
   defp price_response(entry),
     do: %{
