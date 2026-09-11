@@ -164,6 +164,7 @@ defmodule PosServerWeb.InvoiceReportLive do
           {:noreply,
            socket
            |> replace_invoice(detail)
+           |> refresh_summary()
            |> update(:payment_amounts, &Map.delete(&1, id))
            |> put_flash(:info, "Payment recorded.")}
 
@@ -406,18 +407,27 @@ defmodule PosServerWeb.InvoiceReportLive do
           do: Map.merge(current, entry),
           else: current
       end)
+      |> Enum.filter(&entry_matches_status_filter?(&1, socket.assigns.status_filter))
       |> sort_entries(socket.assigns.sort)
 
+    expanded_id =
+      if entry_matches_status_filter?(entry, socket.assigns.status_filter), do: detail.id, else: nil
+
     # Match Tauri's local patch: update the visible row/detail without
-    # resetting pagination, filters, ordering, or the already-rendered KPIs.
+    # resetting pagination, filters, or ordering.
     socket
     |> assign(
       entries: entries,
       details: Map.put(socket.assigns.details, detail.id, detail),
-      expanded_id: detail.id,
+      expanded_id: expanded_id,
       status: "Payment recorded."
     )
   end
+
+  defp entry_matches_status_filter?(_entry, ""), do: true
+
+  defp entry_matches_status_filter?(entry, status),
+    do: value(entry, "invoice_status") == status
 
   defp summary_entry(detail),
     do: %{
@@ -504,36 +514,48 @@ defmodule PosServerWeb.InvoiceReportLive do
   defp invoice_due_date(nil), do: "No due date"
   defp invoice_due_date(value), do: date_only(value)
 
-  defp invoice_due_marker_class(value) do
-    case due_date(value) do
-      nil ->
-        "invoice-due-marker-none"
+  defp invoice_due_marker_class(%Date{} = value), do: invoice_due_marker_class_for_date(value)
 
-      date ->
-        case Date.diff(date, server_today()) do
-          days when days < 0 -> "invoice-due-marker-overdue"
-          0 -> "invoice-due-marker-today"
-          1 -> "invoice-due-marker-tomorrow"
-          days when days <= 3 -> "invoice-due-marker-soon"
-          _ -> "invoice-due-marker-later"
-        end
+  defp invoice_due_marker_class(invoice) when is_map(invoice) do
+    if value(invoice, "invoice_status") == "open",
+      do: invoice_due_marker_class(value(invoice, "due_date")),
+      else: nil
+  end
+
+  defp invoice_due_marker_class(value), do: invoice_due_marker_class_for_date(due_date(value))
+
+  defp invoice_due_marker_class_for_date(nil), do: "invoice-due-marker-none"
+
+  defp invoice_due_marker_class_for_date(date) do
+    case Date.diff(date, server_today()) do
+      days when days < 0 -> "invoice-due-marker-overdue"
+      0 -> "invoice-due-marker-today"
+      1 -> "invoice-due-marker-tomorrow"
+      days when days <= 3 -> "invoice-due-marker-soon"
+      _ -> "invoice-due-marker-later"
     end
   end
 
-  defp invoice_due_marker_width(value) do
-    case due_date(value) do
-      nil ->
-        "5rem"
+  defp invoice_due_marker_width(%Date{} = value), do: invoice_due_marker_width_for_date(value)
 
-      date ->
-        case Date.diff(date, server_today()) do
-          days when days <= 0 -> "100%"
-          1 -> "90%"
-          days when days <= 3 -> "75%"
-          days when days <= 7 -> "55%"
-          days when days <= 14 -> "35%"
-          _ -> "5rem"
-        end
+  defp invoice_due_marker_width(invoice) when is_map(invoice) do
+    if value(invoice, "invoice_status") == "open",
+      do: invoice_due_marker_width(value(invoice, "due_date")),
+      else: "0"
+  end
+
+  defp invoice_due_marker_width(value), do: invoice_due_marker_width_for_date(due_date(value))
+
+  defp invoice_due_marker_width_for_date(nil), do: "5rem"
+
+  defp invoice_due_marker_width_for_date(date) do
+    case Date.diff(date, server_today()) do
+      days when days <= 0 -> "100%"
+      1 -> "90%"
+      days when days <= 3 -> "75%"
+      days when days <= 7 -> "55%"
+      days when days <= 14 -> "35%"
+      _ -> "5rem"
     end
   end
 
@@ -792,12 +814,8 @@ defmodule PosServerWeb.InvoiceReportLive do
 
     ~H"""
     <tr
-      class={[
-        "table-row",
-        "invoice-row",
-        invoice_due_marker_class(value(@invoice, "due_date"))
-      ]}
-      style={"--invoice-due-width: #{invoice_due_marker_width(value(@invoice, "due_date"))};"}
+      class={["table-row", "invoice-row", invoice_due_marker_class(@invoice)]}
+      style={"--invoice-due-width: #{invoice_due_marker_width(@invoice)};"}
     >
       <td class="table-cell" data-label="Invoice">
         <button
@@ -881,8 +899,8 @@ defmodule PosServerWeb.InvoiceReportLive do
           <.invoice_details_skeleton :if={is_nil(@detail)} />
           <%= if @detail do %>
             <div
-              class={["invoice-due-marker", invoice_due_marker_class(@detail.due_date)]}
-              style={"width: #{invoice_due_marker_width(@detail.due_date)};"}
+              class={["invoice-due-marker", invoice_due_marker_class(@detail)]}
+              style={"width: #{invoice_due_marker_width(@detail)};"}
             >
             </div>
             <div class="card-header">
