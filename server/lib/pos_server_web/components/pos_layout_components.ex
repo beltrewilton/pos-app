@@ -140,8 +140,73 @@ defmodule PosServerWeb.PosLayoutComponents do
             <circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /><path d="M19 8v4M17 10h4" />
           </svg>
         </a>
-        <details class="sidebar-menu sidebar-store-selector">
-          <summary class="sidebar-menu-trigger" aria-label="Choose active store">⌂</summary>
+        <details
+          id={"#{@id}-theme-selector"}
+          class="sidebar-menu sidebar-theme-selector"
+          phx-hook="PosTheme"
+        >
+          <summary class="sidebar-menu-trigger" aria-label="Choose theme">
+            <svg
+              class="sidebar-theme-icon"
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="13.5" cy="6.5" r=".5" fill="currentColor" /><circle
+                cx="17.5"
+                cy="10.5"
+                r=".5"
+                fill="currentColor"
+              /><circle cx="8.5" cy="7.5" r=".5" fill="currentColor" /><circle
+                cx="6.5"
+                cy="12.5"
+                r=".5"
+                fill="currentColor"
+              /><path d="M12 3a9 9 0 1 0 0 18 1.5 1.5 0 0 0 1.5-1.5c0-.4-.16-.78-.44-1.06a1.5 1.5 0 0 1 1.06-2.56H16a5 5 0 0 0 0-10Z" />
+            </svg>
+          </summary>
+          <div class="user-menu-content sidebar-menu-content">
+            <button
+              class="sidebar-menu-action"
+              type="button"
+              phx-click={JS.dispatch("pos:set-theme", detail: %{theme: "default-light"})}
+              aria-current="true"
+            >
+              <span>Default Light</span>
+              <svg
+                class="sidebar-menu-check"
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M20 6 9 17l-5-5" />
+              </svg>
+            </button>
+          </div>
+        </details>
+        <details id={"#{@id}-store-selector"} class="sidebar-menu sidebar-store-selector">
+          <summary class="sidebar-menu-trigger" aria-label="Choose active store">
+            <svg
+              class="sidebar-store-icon"
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="m3 9 2-5h14l2 5" /><path d="M3 9h18v11H3z" /><path d="M7 20v-6h4v6" /><path d="M3 9c0 2 2 3 4 3s4-1 4-3c0 2 2 3 4 3s4-1 4-3" />
+            </svg>
+          </summary>
           <div class="user-menu-content sidebar-menu-content" role="group" aria-label="Active store">
             <button
               :for={store <- @stores}
@@ -149,26 +214,55 @@ defmodule PosServerWeb.PosLayoutComponents do
               type="button"
               phx-click="change_store"
               phx-value-store_id={store.id}
-              aria-pressed={to_string(store.id == @store_id)}
+              aria-current={selected_store?(store.id, @store_id)}
             >
-              {store.name}
+              <span>{store.name}</span>
+              <svg
+                :if={selected_store?(store.id, @store_id)}
+                class="sidebar-menu-check"
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M20 6 9 17l-5-5" />
+              </svg>
             </button>
           </div>
         </details>
-        <details
-          id={"#{@id}-theme-selector"}
-          class="sidebar-menu sidebar-theme-selector"
-          phx-hook="PosTheme"
-        >
-          <summary class="sidebar-menu-trigger" aria-label="Choose theme">◐</summary>
-          <div class="user-menu-content sidebar-menu-content">
-            <button
-              class="sidebar-menu-action"
-              type="button"
-              phx-click={JS.dispatch("pos:set-theme", detail: %{theme: "default-light"})}
-            >
-              Default Light
-            </button>
+        <details class="user-menu sidebar-user-menu">
+          <summary class="avatar avatar-trigger" aria-label={"Open menu for #{user_name(@scope)}"}>
+            <img :if={avatar_image?(@scope)} class="avatar-image" src={@scope.pic} alt="" />
+            <span :if={!avatar_image?(@scope)} class="avatar-fallback">{user_initials(@scope)}</span>
+          </summary>
+          <div class="user-menu-content" role="group" aria-label="User menu">
+            <div class="user-menu-identity">
+              <span class="avatar avatar-sm" aria-hidden="true">
+                <img :if={avatar_image?(@scope)} class="avatar-image" src={@scope.pic} alt="" />
+                <span :if={!avatar_image?(@scope)} class="avatar-fallback">{user_initials(@scope)}</span>
+              </span>
+              <span><strong>{user_name(@scope)}</strong><small>{@scope.login}</small></span>
+            </div>
+            <hr class="separator" />
+            <.form action={~p"/pos/logout"} method="delete">
+              <button class="user-menu-action" type="submit">
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M10 17l5-5-5-5" /><path d="M15 12H3" /><path d="M21 19V5a2 2 0 0 0-2-2h-6" />
+                </svg>
+                Logout
+              </button>
+            </.form>
           </div>
         </details>
       </nav>
@@ -247,6 +341,27 @@ defmodule PosServerWeb.PosLayoutComponents do
   defp current_page(_, _), do: nil
   defp pos_href(:pos), do: "#"
   defp pos_href(_), do: ~p"/pos"
+  defp selected_store?(store_id, selected_id), do: to_string(store_id) == to_string(selected_id)
+
+  defp avatar_image?(%{pic: pic}), do: is_binary(pic) and String.trim(pic) != ""
+  defp avatar_image?(_), do: false
+
+  defp user_name(%{user: %{name: name}}) when is_binary(name) and name != "", do: name
+  defp user_name(%{login: login}) when is_binary(login) and login != "", do: login
+  defp user_name(_), do: "User"
+
+  defp user_initials(scope) do
+    scope
+    |> user_name()
+    |> String.split(~r/\s+/, trim: true)
+    |> Enum.take(2)
+    |> Enum.map_join("", &String.first/1)
+    |> String.upcase()
+    |> case do
+      "" -> "U"
+      initials -> initials
+    end
+  end
 
   attr(:class, :string, default: "")
   attr(:width, :string, default: "100%")

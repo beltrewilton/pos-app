@@ -48,8 +48,7 @@ const hooks = {
         })
       })
       requestAnimationFrame(() => {
-        const target = window.matchMedia("(max-width: 640px)").matches ? "#customer-search" : "#customers-title"
-        this.el.querySelector(target)?.focus()
+        this.el.querySelector("#customer-search")?.focus()
       })
     }
   },
@@ -58,7 +57,12 @@ const hooks = {
       this.handleEvent("users:focus-title", () => {
         requestAnimationFrame(() => this.el.querySelector("#users-title")?.focus())
       })
-      requestAnimationFrame(() => this.el.querySelector("#users-title")?.focus())
+      requestAnimationFrame(() => this.el.querySelector("#users-search")?.focus())
+    }
+  },
+  InventoryScreen: {
+    mounted() {
+      requestAnimationFrame(() => this.el.querySelector("#inventory-search")?.focus())
     }
   },
   InfiniteInvoices: {
@@ -153,6 +157,7 @@ const hooks = {
       installPrinterEvents(this)
       installPrinterStatus(this.el.querySelector("[data-printer-status]"))
       installNetworkStatus(this.el.querySelector("[data-network-status]"))
+      requestAnimationFrame(() => this.el.querySelector("#product-search")?.focus())
       this.onKeydown = event => {
         if (event.key === "Escape" && this.el.dataset.mobileCartOpen === "true") this.pushEvent("close_mobile_cart")
       }

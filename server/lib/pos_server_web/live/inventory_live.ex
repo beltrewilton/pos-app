@@ -646,6 +646,7 @@ defmodule PosServerWeb.InventoryLive do
       scope={@scope}
       stores={@stores}
       store_id={@store_id}
+      phx-hook="InventoryScreen"
     >
       <section class="catalog-panel" data-view="inventory" aria-labelledby="inventory-title">
         <section id="inventory-screen" class="operations-screen" aria-labelledby="inventory-title">
@@ -680,17 +681,6 @@ defmodule PosServerWeb.InventoryLive do
                     phx-click="toggle_archived"
                   />Archived
                 </label>
-                <select
-                  id="inventory-store"
-                  name="store_id"
-                  class="select"
-                  aria-label="Store or warehouse"
-                  phx-change="change_store"
-                >
-                  <option :for={store <- @stores} value={store.id} selected={store.id == @store_id}>
-                    {store.name}
-                  </option>
-                </select>
                 <button
                   :if={Scope.allowed?(@scope, "product.add")}
                   id="create-product"
@@ -1088,29 +1078,63 @@ defmodule PosServerWeb.InventoryLive do
                   value={@editing_product && @editing_product.code}
                 />
               </div>
-              <fieldset class="form-fieldset product-status-fieldset">
-                <legend>Status</legend>
+              <div class="product-status-fieldset" role="group" aria-labelledby="product-status-label">
+                <span id="product-status-label" class="label product-status-label">Status</span>
                 <input type="hidden" name="active" value="0" />
                 <input type="hidden" name="archived" value="0" />
-                <label class="inventory-checkbox-label" for="product-active">
+                <label class="inventory-checkbox-label product-status-option" for="product-active">
                   <input
                     id="product-active"
                     name="active"
                     type="checkbox"
                     value="1"
                     checked={product_active?(@editing_product)}
-                  />Active
+                  />
+                  <svg
+                    class="product-status-option-icon"
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="m8 12 2.6 2.6L16.5 9" />
+                  </svg>
+                  <span>Active</span>
                 </label>
-                <label class="inventory-checkbox-label" for="product-archived">
+                <label class="inventory-checkbox-label product-status-option" for="product-archived">
                   <input
                     id="product-archived"
                     name="archived"
                     type="checkbox"
                     value="1"
                     checked={product_archived?(@editing_product)}
-                  />Archived
+                  />
+                  <svg
+                    class="product-status-option-icon"
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M4 7h16" />
+                    <path d="M6 7v12h12V7" />
+                    <path d="M9 11h6" />
+                    <path d="M8 4h8l2 3H6z" />
+                  </svg>
+                  <span>Archived</span>
                 </label>
-              </fieldset>
+              </div>
               <div
                 id="product-image-dropzone"
                 class="product-image-dropzone"

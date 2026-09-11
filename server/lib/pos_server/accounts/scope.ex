@@ -27,6 +27,7 @@ defmodule PosServer.Accounts.Scope do
       actor: :admin,
       actor_id: user.id,
       login: user.email,
+      pic: user.google_picture_url,
       store_id: Keyword.get(opts, :store_id),
       scopes: :admin
     }

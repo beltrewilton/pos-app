@@ -27,6 +27,24 @@
     border: 0;
   }
 }
+
+.pos-shell .sidebar-menu-action {
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pos-shell .sidebar-menu-action > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pos-shell .sidebar-menu-check {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+}
 .dashboard-account-menu {
   position: relative;
 }

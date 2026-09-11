@@ -23,6 +23,7 @@ defmodule PosServerWeb.PosUserComponents do
         </div>
         <div class="users-header-actions">
           <input
+            id="users-search"
             class="input users-search"
             type="search"
             placeholder="Search users"
