@@ -119,8 +119,10 @@ const hooks = {
   },
   CreditDueDateForm: {
     mounted() {
+      this.value = this.el.querySelector("#sale-credit-due-date")?.value || ""
       this.sync = () => {
         const input = this.el.querySelector("#sale-credit-due-date")
+        this.value = input?.value || ""
         const complete = this.el.querySelector("#complete-sale")
         if (complete) complete.disabled = !(input?.value && input.validity.valid)
       }
@@ -128,7 +130,11 @@ const hooks = {
       this.el.addEventListener("change", this.sync)
       this.sync()
     },
-    updated() { this.sync() },
+    updated() {
+      const input = this.el.querySelector("#sale-credit-due-date")
+      if (input && this.value && input.value !== this.value) input.value = this.value
+      this.sync()
+    },
     destroyed() {
       this.el.removeEventListener("input", this.sync)
       this.el.removeEventListener("change", this.sync)

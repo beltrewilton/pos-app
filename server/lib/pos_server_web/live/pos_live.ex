@@ -1002,6 +1002,8 @@ defmodule PosServerWeb.PosLive do
                       value={@credit_due_date}
                       min={future_due_date_min()}
                       required
+                      phx-input="change_credit_due_date"
+                      phx-change="change_credit_due_date"
                     />
                     <div class="checkout-actions">
                       <button

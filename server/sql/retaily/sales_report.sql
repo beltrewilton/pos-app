@@ -10,6 +10,7 @@ SELECT
   sale.status,
   sale.sale_type,
   sale.date_create,
+  sale.due_date,
   sale.login,
   sale.cancelled_by,
   sale.additional_info,

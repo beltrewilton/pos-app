@@ -699,6 +699,58 @@
   gap: 8px;
   justify-items: center;
 }
+.invoice-due-date-cell {
+  vertical-align: top;
+}
+.invoice-row {
+  position: relative;
+  background-image: linear-gradient(var(--invoice-due-color), var(--invoice-due-color));
+  background-position: left top;
+  background-repeat: no-repeat;
+  background-size: var(--invoice-due-width, 5rem) 3px;
+}
+.invoice-row.invoice-due-marker-none,
+.invoice-row.invoice-due-marker-overdue,
+.invoice-row.invoice-due-marker-today,
+.invoice-row.invoice-due-marker-tomorrow,
+.invoice-row.invoice-due-marker-soon,
+.invoice-row.invoice-due-marker-later {
+  background-color: transparent;
+}
+.invoice-due-marker {
+  max-width: 100%;
+  height: 3px;
+  margin: 0;
+  padding: 0;
+  transition: width 160ms ease;
+}
+.invoice-due-marker-none {
+  --invoice-due-color: var(--muted);
+  background-color: var(--muted);
+}
+.invoice-due-marker-overdue {
+  --invoice-due-color: var(--destructive);
+  background-color: var(--destructive);
+}
+.invoice-due-marker-today {
+  --invoice-due-color: var(--destructive);
+  background-color: var(--destructive);
+}
+.invoice-due-marker-tomorrow {
+  --invoice-due-color: hsl(18 88% 44%);
+  background-color: hsl(18 88% 44%);
+}
+.invoice-due-marker-soon {
+  --invoice-due-color: hsl(32 95% 50%);
+  background-color: hsl(32 95% 50%);
+}
+.invoice-due-marker-later {
+  --invoice-due-color: hsl(215 16% 47%);
+  background-color: hsl(215 16% 47%);
+}
+.invoice-due-date {
+  margin-top: 4px;
+}
 .invoice-print-copy {
   text-align: center;
 }

@@ -8,7 +8,7 @@ defmodule PosServerWeb.InvoiceReportLive do
   alias PosServer.Accounts.Scope
   alias PosServer.Retaily.{InventoryContext, Sales, Sql}
 
-  @sort_keys ~w(sequence client_name date_create invoice_status amount due_balance login)
+  @sort_keys ~w(sequence client_name date_create due_date invoice_status amount due_balance login)
   @statuses ~w(open close cancelled)
 
   @impl true
@@ -482,17 +482,72 @@ defmodule PosServerWeb.InvoiceReportLive do
   defp decimal(_), do: 0.0
   defp money(v), do: :erlang.float_to_binary(decimal(v), decimals: 2) |> then(&"$#{&1}")
   # Tauri renders list dates in separate en-GB date and 12-hour-time spans.
+  defp date_only(%Date{} = value), do: Calendar.strftime(value, "%d/%m/%Y")
   defp date_only(%NaiveDateTime{} = value), do: Calendar.strftime(value, "%d/%m/%Y")
   defp date_only(nil), do: "—"
 
   defp date_only(value) when is_binary(value) do
-    case NaiveDateTime.from_iso8601(String.replace(value, " ", "T")) do
-      {:ok, date_time} -> date_only(date_time)
-      _ -> "—"
+    case Date.from_iso8601(value) do
+      {:ok, date} ->
+        date_only(date)
+
+      {:error, _} ->
+        case NaiveDateTime.from_iso8601(String.replace(value, " ", "T")) do
+          {:ok, date_time} -> date_only(date_time)
+          _ -> "—"
+        end
     end
   end
 
   defp date_only(_), do: "—"
+
+  defp invoice_due_date(nil), do: "No due date"
+  defp invoice_due_date(value), do: date_only(value)
+
+  defp invoice_due_marker_class(value) do
+    case due_date(value) do
+      nil ->
+        "invoice-due-marker-none"
+
+      date ->
+        case Date.diff(date, server_today()) do
+          days when days < 0 -> "invoice-due-marker-overdue"
+          0 -> "invoice-due-marker-today"
+          1 -> "invoice-due-marker-tomorrow"
+          days when days <= 3 -> "invoice-due-marker-soon"
+          _ -> "invoice-due-marker-later"
+        end
+    end
+  end
+
+  defp invoice_due_marker_width(value) do
+    case due_date(value) do
+      nil ->
+        "5rem"
+
+      date ->
+        case Date.diff(date, server_today()) do
+          days when days <= 0 -> "100%"
+          1 -> "90%"
+          days when days <= 3 -> "75%"
+          days when days <= 7 -> "55%"
+          days when days <= 14 -> "35%"
+          _ -> "5rem"
+        end
+    end
+  end
+
+  defp due_date(%Date{} = value), do: value
+
+  defp due_date(value) when is_binary(value) do
+    case Date.from_iso8601(value) do
+      {:ok, date} -> date
+      {:error, _} -> nil
+    end
+  end
+
+  defp due_date(_), do: nil
+
   defp time_only(%NaiveDateTime{} = value), do: twelve_hour_time(value)
 
   defp time_only(value) when is_binary(value) do
@@ -736,7 +791,14 @@ defmodule PosServerWeb.InvoiceReportLive do
     assigns = assign(assigns, :id, id)
 
     ~H"""
-    <tr class="table-row invoice-row">
+    <tr
+      class={[
+        "table-row",
+        "invoice-row",
+        invoice_due_marker_class(value(@invoice, "due_date"))
+      ]}
+      style={"--invoice-due-width: #{invoice_due_marker_width(value(@invoice, "due_date"))};"}
+    >
       <td class="table-cell" data-label="Invoice">
         <button
           class="btn invoice-detail-trigger"
@@ -766,6 +828,9 @@ defmodule PosServerWeb.InvoiceReportLive do
       </td>
       <td class="table-cell" data-label="Date">
         <span class="invoice-date">{date_only(value(@invoice, "date_create"))}</span><span class="invoice-time">{time_only(value(@invoice, "date_create"))}</span>
+      </td>
+      <td class="table-cell invoice-due-date-cell" data-label="Due Date">
+        <span class="invoice-date">{invoice_due_date(value(@invoice, "due_date"))}</span>
       </td>
       <td class="table-cell" data-label="Status">
         <span class={["invoice-status", "invoice-status-#{value(@invoice, "invoice_status")}"]}>
@@ -811,16 +876,24 @@ defmodule PosServerWeb.InvoiceReportLive do
 
     ~H"""
     <tr class="table-row invoice-details-row">
-      <td class="table-cell" colspan="8">
+      <td class="table-cell" colspan="9">
         <section class="card invoice-details-card">
           <.invoice_details_skeleton :if={is_nil(@detail)} />
           <%= if @detail do %>
+            <div
+              class={["invoice-due-marker", invoice_due_marker_class(@detail.due_date)]}
+              style={"width: #{invoice_due_marker_width(@detail.due_date)};"}
+            >
+            </div>
             <div class="card-header">
               <div class="invoice-detail-heading">
                 <h3 class="card-title">{@detail.sequence || "Invoice ##{@detail.id}"}</h3>
                 <p class="card-description">
                   {(@detail.client && @detail.client.name) || "Walk-in customer"} · {@detail.sale_type ||
                     "Sales"} · {@detail.login || "—"}
+                </p>
+                <p class="card-description invoice-due-date">
+                  Due date: {invoice_due_date(@detail.due_date)}
                 </p>
               </div>
               <div class="invoice-detail-print">
@@ -1190,6 +1263,7 @@ defmodule PosServerWeb.InvoiceReportLive do
       {"Invoice", "sequence"},
       {"Customer", "client_name"},
       {"Date", "date_create"},
+      {"Due Date", "due_date"},
       {"Status", "invoice_status"},
       {"Total", "amount"},
       {"Balance", "due_balance"},
