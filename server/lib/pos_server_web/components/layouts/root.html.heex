@@ -25,6 +25,12 @@
     />
     <link rel="stylesheet" href={~p"/assets/ui/default-semantic-tokens.css"} />
     <link rel="stylesheet" href={~p"/assets/ui/fonts/inter.css"} />
+    <link rel="stylesheet" href={~p"/assets/ui/fonts/nature.css"} />
+    <link rel="stylesheet" href={~p"/assets/ui/fonts/doom-64.css"} />
+    <link rel="stylesheet" href={~p"/assets/ui/nature-semantic-tokens.css"} />
+    <link rel="stylesheet" href={~p"/assets/ui/caffeine-semantic-tokens.css"} />
+    <link rel="stylesheet" href={~p"/assets/ui/bold-tech-semantic-tokens.css"} />
+    <link rel="stylesheet" href={~p"/assets/ui/doom-64-semantic-tokens.css"} />
     <link rel="stylesheet" href={~p"/assets/ui/components/typography/typography.css"} />
     <link rel="stylesheet" href={~p"/assets/ui/components/button/button.css"} />
     <link rel="stylesheet" href={~p"/assets/ui/components/input/input.css"} />
@@ -44,6 +50,9 @@
     <link rel="stylesheet" href={~p"/assets/pos-live-overrides.css"} />
     <link rel="stylesheet" href={~p"/assets/pos-shimmer.css"} />
     <link rel="stylesheet" href={~p"/assets/purchase-orders-live.css"} />
+    <script>
+      try { const theme = localStorage.getItem("pos-theme"); if (theme === "nature-light" || theme === "nature-dark") document.documentElement.classList.add("theme-nature"); if (theme === "caffeine-light" || theme === "caffeine-dark") document.documentElement.classList.add("theme-caffeine"); if (theme === "bold-tech-light" || theme === "bold-tech-dark") document.documentElement.classList.add("theme-bold-tech"); if (theme === "doom-64-light" || theme === "doom-64-dark") document.documentElement.classList.add("theme-doom-64"); if (theme === "nature-dark" || theme === "caffeine-dark" || theme === "bold-tech-dark" || theme === "doom-64-dark") document.documentElement.classList.add("dark"); } catch {}
+    </script>
     <script defer src={~p"/assets/phoenix.js"}>
     </script>
     <script defer src={~p"/assets/inventory-product-image.js"}>

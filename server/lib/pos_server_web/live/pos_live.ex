@@ -77,20 +77,26 @@ defmodule PosServerWeb.PosLive do
   def handle_event("load_more_products", _, socket), do: {:noreply, load_products(socket)}
 
   def handle_event("change_store", %{"store_id" => id}, socket) do
-    store_id = String.to_integer(id)
-    InventoryEvents.unsubscribe(socket.assigns.scope.tenant, socket.assigns.store_id)
-    InventoryEvents.subscribe(socket.assigns.scope.tenant, store_id)
+    with {store_id, ""} <- Integer.parse(id),
+         true <- Enum.any?(socket.assigns.stores, &(&1.id == store_id)),
+         {:ok, _} <- InventoryContext.authorize_store(socket.assigns.scope, store_id) do
+      InventoryEvents.unsubscribe(socket.assigns.scope.tenant, socket.assigns.store_id)
+      InventoryEvents.subscribe(socket.assigns.scope.tenant, store_id)
 
-    socket =
-      socket
-      |> assign(:store_id, store_id)
-      |> assign(:products, [])
-      |> assign(:cursor, nil)
-      |> assign(:has_more, true)
-      |> assign(:cart, [])
-      |> assign(:selected_customer, nil)
+      socket =
+        socket
+        |> assign(:store_id, store_id)
+        |> assign(:products, [])
+        |> assign(:cursor, nil)
+        |> assign(:has_more, true)
+        |> assign(:cart, [])
+        |> assign(:selected_customer, nil)
+        |> sync()
 
-    {:noreply, load_products(socket)}
+      {:noreply, load_products(socket)}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "The selected store is unavailable.")}
+    end
   end
 
   def handle_event("add_product", _params, %{assigns: %{checkout_stage: stage}} = socket)
@@ -145,11 +151,16 @@ defmodule PosServerWeb.PosLive do
        socket
        |> assign(:cart, [])
        |> assign(:order_discount, 0.0)
-       |> assign(:delivery, 0.0)
-       |> assign(:delivery_open, false)
-       |> assign(:delivery_custom_input, "")
-       |> assign(:delivery_custom_selected, false)
-       |> assign(:dialog, nil)
+      |> assign(:delivery, 0.0)
+      |> assign(:delivery_open, false)
+      |> assign(:delivery_custom_input, "")
+      |> assign(:delivery_custom_selected, false)
+      |> assign(:credit, false)
+      |> assign(:credit_due_date, "")
+      |> assign(:payments, [])
+      |> assign(:sequence, "CF")
+      |> assign(:memo, "")
+      |> assign(:dialog, nil)
        |> sync()}
 
   def handle_event("close_dialog", _, socket), do: {:noreply, assign(socket, :dialog, nil)}
@@ -240,19 +251,20 @@ defmodule PosServerWeb.PosLive do
   def handle_event("select_customer", %{"id" => id}, socket),
     do:
       {:noreply,
-       socket
-       |> assign(
-         :selected_customer,
-         Enum.find(socket.assigns.customers, &(to_string(&1.id) == id))
-       )
-       |> assign(:dialog, nil)}
+      socket
+      |> assign(
+        :selected_customer,
+        Enum.find(socket.assigns.customers, &(to_string(&1.id) == id))
+      )
+      |> assign(:dialog, nil)
+      |> sync()}
 
   def handle_event("clear_customer", _, %{assigns: %{checkout_stage: stage}} = socket)
       when not is_nil(stage),
       do: {:noreply, socket}
 
   def handle_event("clear_customer", _, socket),
-    do: {:noreply, assign(socket, :selected_customer, nil)}
+    do: {:noreply, socket |> assign(:selected_customer, nil) |> sync()}
 
   def handle_event("open_customer_dialog", _, socket),
     do: {:noreply, socket |> assign(:customer_dialog?, true) |> assign(:customer_form_status, "")}
@@ -384,21 +396,25 @@ defmodule PosServerWeb.PosLive do
       |> assign(:credit, credit)
       |> assign(:credit_due_date, if(credit, do: socket.assigns.credit_due_date, else: ""))
 
-    {:noreply, socket}
+    {:noreply, sync(socket)}
   end
 
   def handle_event("change_credit_due_date", %{"value" => value}, socket),
-    do: {:noreply, assign(socket, :credit_due_date, value)}
+    do: {:noreply, socket |> assign(:credit_due_date, value) |> sync()}
 
   def handle_event("change_credit_due_date", %{"credit_due_date" => value}, socket),
-    do: {:noreply, assign(socket, :credit_due_date, value)}
+    do: {:noreply, socket |> assign(:credit_due_date, value) |> sync()}
 
   def handle_event("select_sequence", %{"sequence" => sequence}, socket)
       when sequence in ["CF", "VF", "DV"],
-      do: {:noreply, assign(socket, :sequence, sequence)}
+      do: {:noreply, socket |> assign(:sequence, sequence) |> sync()}
 
   def handle_event("change_memo", %{"value" => value}, socket),
-    do: {:noreply, assign(socket, :memo, String.slice(value, 0, 1000))}
+    do: {:noreply, socket |> assign(:memo, String.slice(value, 0, 1000)) |> sync()}
+
+  def handle_event("restore_pos_draft", draft, socket) do
+    {:noreply, restore_pos_draft(socket, draft)}
+  end
 
   def handle_event("add_payment_line", _, socket) do
     previous = List.last(socket.assigns.payments)
@@ -1662,6 +1678,116 @@ defmodule PosServerWeb.PosLive do
     end
   end
 
+  defp restore_pos_draft(socket, %{"store_id" => store_id} = draft) do
+    if to_string(store_id) == to_string(socket.assigns.store_id) do
+      socket
+      |> assign(:cart, restore_cart(Map.get(draft, "cart", []), socket.assigns.store_id))
+      |> assign(:selected_customer, restore_customer(Map.get(draft, "selected_customer")))
+      |> assign(:order_discount, float(Map.get(draft, "order_discount")))
+      |> assign(:order_discount_type, discount_type(Map.get(draft, "order_discount_type")))
+      |> assign(:delivery, max(0.0, float(Map.get(draft, "delivery"))))
+      |> assign(:delivery_open, truthy?(Map.get(draft, "delivery_open")))
+      |> assign(:delivery_custom_input, delivery_amount_input(Map.get(draft, "delivery_custom_input", "")))
+      |> assign(:delivery_custom_selected, truthy?(Map.get(draft, "delivery_custom_selected")))
+      |> assign(:credit, truthy?(Map.get(draft, "credit")))
+      |> assign(:credit_due_date, text(Map.get(draft, "credit_due_date")))
+      |> assign(:payments, restore_payments(Map.get(draft, "payments", [])))
+      |> assign(:sequence, sequence(Map.get(draft, "sequence")))
+      |> assign(:memo, String.slice(text(Map.get(draft, "memo")), 0, 1000))
+      |> sync()
+    else
+      socket
+    end
+  end
+
+  defp restore_pos_draft(socket, _), do: socket
+
+  defp restore_cart(lines, store_id) when is_list(lines) do
+    Enum.flat_map(lines, fn line ->
+      with product_id when product_id > 0 <- integer(value(line, :id) || value(line, :product_id)),
+           {:ok, product} when is_map(product) <- Sql.active_product(product_id, store_id) do
+        product = normalize_product(product)
+
+        [
+          %{
+            id: product.id,
+            name: product.name || "Unnamed product",
+            price: float(product.price),
+            sub: float(product.sub),
+            tax: float(product.tax),
+            image_raw: product.image_raw,
+            qty: max(1, integer(value(line, :qty))),
+            discount: max(0.0, float(value(line, :discount))),
+            discount_type: discount_type(value(line, :discount_type))
+          }
+        ]
+      else
+        _ -> []
+      end
+    end)
+  end
+
+  defp restore_cart(_, _), do: []
+
+  defp restore_customer(nil), do: nil
+
+  defp restore_customer(customer) when is_map(customer) do
+    customer
+    |> normalize_customer()
+    |> then(fn normalized -> if normalized.id, do: normalized, else: nil end)
+  end
+
+  defp restore_customer(_), do: nil
+
+  defp restore_payments(payments) when is_list(payments) do
+    Enum.flat_map(payments, fn payment ->
+      amount = max(0.0, float(value(payment, :amount)))
+
+      if amount > 0 do
+        [
+          %{
+            id: text(value(payment, :id), "payment-#{System.unique_integer([:positive])}"),
+            type: payment_type(value(payment, :type)),
+            amount: amount,
+            split_source: value(payment, :split_source),
+            auto_amount: truthy?(value(payment, :auto_amount))
+          }
+        ]
+      else
+        []
+      end
+    end)
+  end
+
+  defp restore_payments(_), do: []
+
+  defp draft_payload(assigns) do
+    %{
+      store_id: assigns.store_id,
+      cart:
+        Enum.map(assigns.cart, fn line ->
+          %{
+            id: line.id,
+            qty: line.qty,
+            discount: line.discount,
+            discount_type: line.discount_type
+          }
+        end),
+      selected_customer: assigns.selected_customer,
+      order_discount: assigns.order_discount,
+      order_discount_type: assigns.order_discount_type,
+      delivery: assigns.delivery,
+      delivery_open: assigns.delivery_open,
+      delivery_custom_input: assigns.delivery_custom_input,
+      delivery_custom_selected: assigns.delivery_custom_selected,
+      credit: assigns.credit,
+      credit_due_date: assigns.credit_due_date,
+      payments: assigns.payments,
+      sequence: assigns.sequence,
+      memo: assigns.memo
+    }
+  end
+
   defp add_product(socket, p) do
     cart =
       case Enum.find_index(socket.assigns.cart, &(&1.id == p.id)) do
@@ -1979,6 +2105,32 @@ defmodule PosServerWeb.PosLive do
   end
 
   defp float(_), do: 0.0
+  defp integer(value) when is_integer(value), do: value
+
+  defp integer(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {number, _} -> number
+      :error -> 0
+    end
+  end
+
+  defp integer(_), do: 0
+
+  defp truthy?(value), do: value in [true, "true", 1, "1"]
+  defp text(value, fallback \\ "")
+  defp text(value, _fallback) when is_binary(value), do: value
+  defp text(nil, fallback), do: fallback
+  defp text(value, _fallback), do: to_string(value)
+
+  defp discount_type("percent"), do: "percent"
+  defp discount_type(_), do: "amount"
+
+  defp payment_type("CC"), do: "CC"
+  defp payment_type(_), do: "CASH"
+
+  defp sequence(sequence) when sequence in ["CF", "VF", "DV"], do: sequence
+  defp sequence(_), do: "CF"
+
   defp discount_input_value(value) when value == 0 or value == 0.0, do: ""
   defp discount_input_value(value), do: :erlang.float_to_binary(value, decimals: 2)
 
@@ -2230,5 +2382,9 @@ defmodule PosServerWeb.PosLive do
 
   defp state(%{assigns: assigns}), do: assigns
   defp state(assigns), do: assigns
-  defp sync(socket), do: assign(socket, :pos_state, Map.drop(socket.assigns, [:pos_state]))
+  defp sync(socket) do
+    socket
+    |> assign(:pos_state, Map.drop(socket.assigns, [:pos_state]))
+    |> push_event("pos:draft-changed", %{draft: draft_payload(socket.assigns)})
+  end
 end

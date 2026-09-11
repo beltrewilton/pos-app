@@ -40,12 +40,27 @@
       opacity: 0.5;
     }
 
+    &:active:not(:disabled):not([aria-disabled="true"]) {
+      transform: translateY(1px) scale(0.98);
+    }
+
     /* -- Variants -------------------------------------------- */
     &[data-variant="default"] {
       background-color: var(--primary);
       color: var(--primary-foreground);
 
       &:hover { opacity: 0.9; }
+    }
+
+    &[data-variant="success"] {
+      background-color: var(--primary);
+      color: var(--primary-foreground);
+
+      &:hover {
+        background-color: var(--success);
+        color: var(--success-foreground);
+        opacity: 1;
+      }
     }
 
     &[data-variant="secondary"] {

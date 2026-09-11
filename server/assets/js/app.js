@@ -27,6 +27,9 @@ import topbar from "../vendor/topbar"
 import {receiptPrinter} from "./receipt_printer/service"
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
+const POS_STORE_KEY = "pos-selected-store-id"
+const POS_DRAFT_KEY_PREFIX = "pos-sale-draft"
+
 const hooks = {
   LoginScreen: window.LoginScreenHook,
   CompanySettings: window.CompanySettingsHook,
@@ -113,6 +116,29 @@ const hooks = {
     },
     destroyed() { window.removeEventListener("pos:set-theme", this.onTheme) }
   },
+  StorePreference: {
+    mounted() {
+      this.syncStore = () => {
+        const savedStoreId = getStoredValue(POS_STORE_KEY)
+        if (savedStoreId && savedStoreId !== this.el.dataset.storeId) {
+          this.pushEvent("change_store", {store_id: savedStoreId})
+        }
+      }
+      this.persistStore = event => {
+        const button = event.target.closest("[phx-click='change_store'][phx-value-store_id]")
+        if (!button) return
+        setStoredValue(POS_STORE_KEY, button.getAttribute("phx-value-store_id"))
+      }
+      document.addEventListener("click", this.persistStore)
+      this.syncStore()
+    },
+    updated() {
+      setStoredValue(POS_STORE_KEY, this.el.dataset.storeId)
+    },
+    destroyed() {
+      document.removeEventListener("click", this.persistStore)
+    }
+  },
   PrinterStatus: {
     mounted() {
       installPrinterStatus(this.el)
@@ -157,6 +183,16 @@ const hooks = {
       installPrinterEvents(this)
       installPrinterStatus(this.el.querySelector("[data-printer-status]"))
       installNetworkStatus(this.el.querySelector("[data-network-status]"))
+      this.draftKey = posDraftKey(this.el)
+      const draft = readStoredJson(this.draftKey)
+      if (draft) this.pushEvent("restore_pos_draft", draft)
+      this.handleEvent("pos:draft-changed", ({draft}) => {
+        if (!draft || !Array.isArray(draft.cart) || draft.cart.length === 0) {
+          removeStoredValue(this.draftKey)
+          return
+        }
+        writeStoredJson(this.draftKey, draft)
+      })
       requestAnimationFrame(() => this.el.querySelector("#product-search")?.focus())
       this.onKeydown = event => {
         if (event.key === "Escape" && this.el.dataset.mobileCartOpen === "true") this.pushEvent("close_mobile_cart")
@@ -507,6 +543,49 @@ function installPrinterEvents(hook) {
       if (requestId) hook.pushEvent("printer_result", {request_id: requestId, status: "failed", message: error.message})
     }
   }
+}
+
+function getStoredValue(key) {
+  try {
+    return localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
+function setStoredValue(key, value) {
+  try {
+    if (value === null || value === undefined || value === "") localStorage.removeItem(key)
+    else localStorage.setItem(key, String(value))
+  } catch {
+  }
+}
+
+function removeStoredValue(key) {
+  try {
+    localStorage.removeItem(key)
+  } catch {
+  }
+}
+
+function readStoredJson(key) {
+  try {
+    return JSON.parse(localStorage.getItem(key) || "null")
+  } catch {
+    return null
+  }
+}
+
+function writeStoredJson(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+  }
+}
+
+function posDraftKey(element) {
+  const user = element.querySelector(".session-store-status")?.textContent?.trim() || "default"
+  return `${POS_DRAFT_KEY_PREFIX}:${user}`
 }
 
 function updateDiscountPreview(form) {

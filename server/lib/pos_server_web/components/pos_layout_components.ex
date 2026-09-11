@@ -18,6 +18,13 @@ defmodule PosServerWeb.PosLayoutComponents do
   def pos_layout(assigns) do
     ~H"""
     <main id={@id} class={@class} {@rest}>
+      <span
+        id={"#{@id}-store-preference"}
+        phx-hook="StorePreference"
+        data-store-id={@store_id}
+        hidden
+      >
+      </span>
       {render_slot(@before_layout)}
       <nav class="sidebar-rail" aria-label="Primary navigation">
         <a
@@ -143,7 +150,6 @@ defmodule PosServerWeb.PosLayoutComponents do
         <details
           id={"#{@id}-theme-selector"}
           class="sidebar-menu sidebar-theme-selector"
-          phx-hook="PosTheme"
         >
           <summary class="sidebar-menu-trigger" aria-label="Choose theme">
             <svg
@@ -169,26 +175,33 @@ defmodule PosServerWeb.PosLayoutComponents do
               /><path d="M12 3a9 9 0 1 0 0 18 1.5 1.5 0 0 0 1.5-1.5c0-.4-.16-.78-.44-1.06a1.5 1.5 0 0 1 1.06-2.56H16a5 5 0 0 0 0-10Z" />
             </svg>
           </summary>
-          <div class="user-menu-content sidebar-menu-content">
-            <button
-              class="sidebar-menu-action"
-              type="button"
-              phx-click={JS.dispatch("pos:set-theme", detail: %{theme: "default-light"})}
-              aria-current="true"
-            >
-              <span>Default Light</span>
-              <svg
-                class="sidebar-menu-check"
-                aria-hidden="true"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M20 6 9 17l-5-5" />
-              </svg>
+          <div class="user-menu-content sidebar-menu-content" role="group" aria-label="Theme">
+            <button class="sidebar-menu-action" type="button" data-theme="default-light">
+              Default Light
+            </button>
+            <button class="sidebar-menu-action" type="button" data-theme="nature-light">
+              Nature Light
+            </button>
+            <button class="sidebar-menu-action" type="button" data-theme="nature-dark">
+              Nature Dark
+            </button>
+            <button class="sidebar-menu-action" type="button" data-theme="caffeine-light">
+              Caffeine Light
+            </button>
+            <button class="sidebar-menu-action" type="button" data-theme="caffeine-dark">
+              Caffeine Dark
+            </button>
+            <button class="sidebar-menu-action" type="button" data-theme="bold-tech-light">
+              Bold Tech Light
+            </button>
+            <button class="sidebar-menu-action" type="button" data-theme="bold-tech-dark">
+              Bold Tech Dark
+            </button>
+            <button class="sidebar-menu-action" type="button" data-theme="doom-64-light">
+              Doom 64 Light
+            </button>
+            <button class="sidebar-menu-action" type="button" data-theme="doom-64-dark">
+              Doom 64 Dark
             </button>
           </div>
         </details>

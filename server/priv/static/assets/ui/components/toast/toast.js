@@ -3,6 +3,7 @@
 // Exposes window.toast with show/success/warning/info/error/dismiss.
 
 const DURATION = 4000;
+const MOBILE_SUCCESS_DURATION = 2200;
 const MAX_VISIBLE = 3;
 
 let toastContainer = document.getElementById('toast-container');
@@ -72,9 +73,17 @@ const toastCreate = (options) => {
   return el;
 };
 
+const successToast = (options) => {
+  const payload = typeof options === 'string' ? { title: options } : options;
+  const duration = payload.duration == null && window.matchMedia('(max-width: 640px)').matches
+    ? MOBILE_SUCCESS_DURATION
+    : payload.duration;
+  return toastCreate(Object.assign(payload, { variant: 'success', ...(duration == null ? {} : { duration }) }));
+};
+
 window.toast = {
   show: toastCreate,
-  success: (o) => toastCreate(Object.assign(typeof o === 'string' ? { title: o } : o, { variant: 'success' })),
+  success: successToast,
   warning: (o) => toastCreate(Object.assign(typeof o === 'string' ? { title: o } : o, { variant: 'warning' })),
   info: (o) => toastCreate(Object.assign(typeof o === 'string' ? { title: o } : o, { variant: 'info' })),
   error: (o) => toastCreate(Object.assign(typeof o === 'string' ? { title: o } : o, { variant: 'destructive' })),
