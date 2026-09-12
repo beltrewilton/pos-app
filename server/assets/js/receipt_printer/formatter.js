@@ -1,8 +1,5 @@
-const money = value => {
-  const amount = Number(value || 0)
-  const formatted = Math.abs(amount).toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2})
-  return `${amount < 0 ? "-" : ""}$${formatted}`
-}
+import {LANGUAGES, getLanguage, money, t} from "../i18n"
+
 const str = value => value == null ? "" : String(value)
 
 export class ReceiptFormatter {
@@ -21,8 +18,8 @@ export class ReceiptFormatter {
   }
 
   invoice(sale) {
-    console.log("[printer] ReceiptFormatter.invoice", {sequence: sale?.sequence, copyLabel: "COPIA"})
-    return this.document("COPIA", sale)
+    console.log("[printer] ReceiptFormatter.invoice", {sequence: sale?.sequence, copyLabel: t("receipts.copy")})
+    return this.document(t("receipts.copy"), sale)
   }
 
   document(copyLabel, sale, payment = null) {
@@ -42,21 +39,21 @@ export class ReceiptFormatter {
       store.address ? {align: "center", text: wrap(str(store.address).toUpperCase(), columns)} : null,
       store.slogan ? {align: "center", text: wrap(str(store.slogan).toUpperCase(), columns)} : null,
       {text: rule(columns)},
-      {text: twoCol("RNC", str(store.company_id || store.rnc || store.company_rnc || ""), columns)},
-      {text: twoCol("e-NCF", sequence, columns)},
-      {text: twoCol("Fecha", receiptDate(sale.date_create), columns)},
-      {text: twoCol("Cliente", str(sale.client_name || client.name || "CONSUMIDOR FINAL"), columns)},
-      {text: twoCol("Documento", str(sale.client_document_id || client.document_id || ""), columns)},
-      {text: twoCol("Vendedor", str(sale.login || ""), columns)},
+      {text: twoCol(t("receipts.rnc"), str(store.company_id || store.rnc || store.company_rnc || ""), columns)},
+      {text: twoCol(t("receipts.encf"), sequence, columns)},
+      {text: twoCol(t("receipts.date"), receiptDate(sale.date_create), columns)},
+      {text: twoCol(t("receipts.customer"), str(sale.client_name || client.name || t("receipts.consumerFinal")), columns)},
+      {text: twoCol(t("receipts.document"), str(sale.client_document_id || client.document_id || ""), columns)},
+      {text: twoCol(t("receipts.salesperson"), str(sale.login || ""), columns)},
       copyLabel ? {align: "center", text: copyLabel} : null,
-      {align: "center", text: sale.status === "CREDIT" ? "FACTURA A CREDITO" : "DIARIO DE VENTAS"},
+      {align: "center", text: sale.status === "CREDIT" ? t("receipts.creditInvoice") : t("receipts.salesJournal")},
       {text: rule(columns)},
       {text: columnsHeader(columns)}
     ].filter(Boolean)
 
     for (const item of sale.lines || sale.items || []) {
       const product = item.product || {}
-      const name = str(item.name || product.name || `PRODUCTO ${item.product_id || ""}`).toUpperCase()
+      const name = str(item.name || product.name || `${t("receipts.product")} ${item.product_id || ""}`).toUpperCase()
       const sku = str(product.code || item.code || item.sku || item.product_id || "")
       const qty = number(item.quantity || item.qty || 1)
       const unit = number(item.amount || item.price || product.price || 0)
@@ -70,29 +67,29 @@ export class ReceiptFormatter {
     }
 
     lines.push({text: rule(columns)})
-    lines.push({text: amountLine("Subtotal", sale.sub || sale.subtotal, columns)})
-    lines.push({text: amountLine("Impuesto", sale.tax_amount || sale.tax, columns)})
-    if (number(sale.discount) > 0) lines.push({text: amountLine("Descuento", -number(sale.discount), columns)})
-    if (number(sale.delivery_charge || sale.delivery) > 0) lines.push({text: amountLine("Entrega", sale.delivery_charge || sale.delivery, columns)})
-    lines.push({bold: true, text: amountLine("Total", sale.amount || sale.total, columns)})
-    if (savings > 0) lines.push({text: amountLine("Ahorro en compra", savings, columns)})
-    lines.push({text: twoCol("Articulos", String(items), columns)})
+    lines.push({text: amountLine(t("common.subtotal"), sale.sub || sale.subtotal, columns)})
+    lines.push({text: amountLine(t("receipts.itbis"), sale.tax_amount || sale.tax, columns)})
+    if (number(sale.discount) > 0) lines.push({text: amountLine(t("receipts.discount"), -number(sale.discount), columns)})
+    if (number(sale.delivery_charge || sale.delivery) > 0) lines.push({text: amountLine(t("receipts.delivery"), sale.delivery_charge || sale.delivery, columns)})
+    lines.push({bold: true, text: amountLine(t("common.total"), sale.amount || sale.total, columns)})
+    if (savings > 0) lines.push({text: amountLine(t("receipts.purchaseSavings"), savings, columns)})
+    lines.push({text: twoCol(t("receipts.articles"), String(items), columns)})
     lines.push({text: rule(columns)})
 
     for (const item of payments) lines.push({text: paymentLine(item, columns)})
-    if (paidToDate > 0) lines.push({text: amountLine("Total pagado a la fecha", paidToDate, columns)})
-    if (pending > 0) lines.push({text: amountLine("Saldo pendiente", pending, columns)})
-    if (number(sale.change_amount) > 0) lines.push({text: amountLine("Devuelta", sale.change_amount, columns)})
+    if (paidToDate > 0) lines.push({text: amountLine(t("receipts.paidToDate"), paidToDate, columns)})
+    if (pending > 0) lines.push({text: amountLine(t("receipts.pendingBalance"), pending, columns)})
+    if (number(sale.change_amount) > 0) lines.push({text: amountLine(t("receipts.change"), sale.change_amount, columns)})
 
     lines.push({text: rule(columns)})
-    lines.push({align: "center", text: "Gracias por su compra"})
-    lines.push({align: "center", text: `Recibo: ${sequence}`})
+    lines.push({align: "center", text: t("receipts.thanks")})
+    lines.push({align: "center", text: `${t("receipts.receipt")}: ${sequence}`})
     return lines
   }
 }
 
 function columnsHeader(columns) {
-  return twoCol("DESCRIPCION", "ITBIS      VALOR", columns)
+  return twoCol(t("receipts.description"), `${t("receipts.itbis")}      ${t("receipts.value")}`, columns)
 }
 
 function itemLine(qty, unit, tax, total, columns) {
@@ -148,11 +145,11 @@ function wrap(value, columns) {
 function receiptDate(value) {
   const date = value ? new Date(value) : new Date()
   if (Number.isNaN(date.getTime())) return str(value)
-  return date.toLocaleString("en-US", {year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit"})
+  return date.toLocaleString(currentLocale(), {year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit"})
 }
 
 function paymentLabel(type) {
-  return type === "CC" ? "Tarjeta de credito" : "Efectivo"
+  return type === "CC" ? t("receipts.creditCard") : t("receipts.cash")
 }
 
 function paymentLine(payment, columns) {
@@ -176,7 +173,7 @@ function receiptPayments(sale, payment) {
 function shortDate(value) {
   const date = value ? new Date(value) : null
   if (!date || Number.isNaN(date.getTime())) return str(value)
-  return date.toLocaleDateString("en-US", {year: "numeric", month: "2-digit", day: "2-digit"})
+  return date.toLocaleDateString(currentLocale(), {year: "numeric", month: "2-digit", day: "2-digit"})
 }
 
 function columnAmountLine(label, value, columns) {
@@ -195,4 +192,8 @@ function sum(values) {
 
 function trimNumber(value) {
   return Number.isInteger(Number(value)) ? String(Number(value)) : Number(value).toFixed(2)
+}
+
+function currentLocale() {
+  return LANGUAGES[getLanguage()]?.locale || LANGUAGES.en.locale
 }

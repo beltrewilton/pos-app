@@ -26,12 +26,13 @@ defmodule PosServerWeb.PosLayoutComponents do
       >
       </span>
       {render_slot(@before_layout)}
-      <nav class="sidebar-rail" aria-label="Primary navigation">
+      <nav class="sidebar-rail" aria-label="Primary navigation" data-i18n-aria-label="layout.nav.primary">
         <a
           class="sidebar-link"
           href={pos_href(@active_page)}
           aria-current={current_page(@active_page, :pos)}
           aria-label="POS"
+          data-i18n-aria-label="layout.nav.pos"
         >
           <svg
             aria-hidden="true"
@@ -48,6 +49,7 @@ defmodule PosServerWeb.PosLayoutComponents do
           href={~p"/pos/customers"}
           aria-current={current_page(@active_page, :customers)}
           aria-label="Customers"
+          data-i18n-aria-label="layout.nav.customers"
         >
           <svg
             aria-hidden="true"
@@ -64,6 +66,7 @@ defmodule PosServerWeb.PosLayoutComponents do
           href={~p"/pos/invoices"}
           aria-current={current_page(@active_page, :invoices)}
           aria-label="Invoice report"
+          data-i18n-aria-label="layout.nav.invoices"
         >
           <svg
             aria-hidden="true"
@@ -80,6 +83,7 @@ defmodule PosServerWeb.PosLayoutComponents do
           href={~p"/pos/inventory"}
           aria-current={current_page(@active_page, :inventory)}
           aria-label="Inventory"
+          data-i18n-aria-label="layout.nav.inventory"
         >
           <svg
             aria-hidden="true"
@@ -96,6 +100,7 @@ defmodule PosServerWeb.PosLayoutComponents do
           href={~p"/pos/orders"}
           aria-current={current_page(@active_page, :orders)}
           aria-label="Purchase orders"
+          data-i18n-aria-label="layout.nav.orders"
         >
           <svg
             aria-hidden="true"
@@ -114,6 +119,7 @@ defmodule PosServerWeb.PosLayoutComponents do
           href={~p"/pos/company-settings"}
           aria-current={current_page(@active_page, :company_settings)}
           aria-label="Company settings"
+          data-i18n-aria-label="layout.nav.companySettings"
         >
           <svg
             aria-hidden="true"
@@ -134,6 +140,7 @@ defmodule PosServerWeb.PosLayoutComponents do
           href={~p"/pos/users"}
           aria-current={current_page(@active_page, :users)}
           aria-label="Users"
+          data-i18n-aria-label="layout.nav.users"
         >
           <svg
             aria-hidden="true"
@@ -151,7 +158,7 @@ defmodule PosServerWeb.PosLayoutComponents do
           id={"#{@id}-theme-selector"}
           class="sidebar-menu sidebar-theme-selector"
         >
-          <summary class="sidebar-menu-trigger" aria-label="Choose theme">
+          <summary class="sidebar-menu-trigger" aria-label="Choose theme" data-i18n-aria-label="layout.theme.choose">
             <svg
               class="sidebar-theme-icon"
               aria-hidden="true"
@@ -175,38 +182,38 @@ defmodule PosServerWeb.PosLayoutComponents do
               /><path d="M12 3a9 9 0 1 0 0 18 1.5 1.5 0 0 0 1.5-1.5c0-.4-.16-.78-.44-1.06a1.5 1.5 0 0 1 1.06-2.56H16a5 5 0 0 0 0-10Z" />
             </svg>
           </summary>
-          <div class="user-menu-content sidebar-menu-content" role="group" aria-label="Theme">
-            <button class="sidebar-menu-action" type="button" data-theme="default-light">
+          <div class="user-menu-content sidebar-menu-content" role="group" aria-label="Theme" data-i18n-aria-label="layout.theme.label">
+            <button class="sidebar-menu-action" type="button" data-theme="default-light" data-i18n="layout.theme.defaultLight">
               Default Light
             </button>
-            <button class="sidebar-menu-action" type="button" data-theme="nature-light">
+            <button class="sidebar-menu-action" type="button" data-theme="nature-light" data-i18n="layout.theme.natureLight">
               Nature Light
             </button>
-            <button class="sidebar-menu-action" type="button" data-theme="nature-dark">
+            <button class="sidebar-menu-action" type="button" data-theme="nature-dark" data-i18n="layout.theme.natureDark">
               Nature Dark
             </button>
-            <button class="sidebar-menu-action" type="button" data-theme="caffeine-light">
+            <button class="sidebar-menu-action" type="button" data-theme="caffeine-light" data-i18n="layout.theme.caffeineLight">
               Caffeine Light
             </button>
-            <button class="sidebar-menu-action" type="button" data-theme="caffeine-dark">
+            <button class="sidebar-menu-action" type="button" data-theme="caffeine-dark" data-i18n="layout.theme.caffeineDark">
               Caffeine Dark
             </button>
-            <button class="sidebar-menu-action" type="button" data-theme="bold-tech-light">
+            <button class="sidebar-menu-action" type="button" data-theme="bold-tech-light" data-i18n="layout.theme.boldTechLight">
               Bold Tech Light
             </button>
-            <button class="sidebar-menu-action" type="button" data-theme="bold-tech-dark">
+            <button class="sidebar-menu-action" type="button" data-theme="bold-tech-dark" data-i18n="layout.theme.boldTechDark">
               Bold Tech Dark
             </button>
-            <button class="sidebar-menu-action" type="button" data-theme="doom-64-light">
+            <button class="sidebar-menu-action" type="button" data-theme="doom-64-light" data-i18n="layout.theme.doom64Light">
               Doom 64 Light
             </button>
-            <button class="sidebar-menu-action" type="button" data-theme="doom-64-dark">
+            <button class="sidebar-menu-action" type="button" data-theme="doom-64-dark" data-i18n="layout.theme.doom64Dark">
               Doom 64 Dark
             </button>
           </div>
         </details>
         <details id={"#{@id}-store-selector"} class="sidebar-menu sidebar-store-selector">
-          <summary class="sidebar-menu-trigger" aria-label="Choose active store">
+          <summary class="sidebar-menu-trigger" aria-label="Choose active store" data-i18n-aria-label="layout.store.choose">
             <svg
               class="sidebar-store-icon"
               aria-hidden="true"
@@ -220,7 +227,7 @@ defmodule PosServerWeb.PosLayoutComponents do
               <path d="m3 9 2-5h14l2 5" /><path d="M3 9h18v11H3z" /><path d="M7 20v-6h4v6" /><path d="M3 9c0 2 2 3 4 3s4-1 4-3c0 2 2 3 4 3s4-1 4-3" />
             </svg>
           </summary>
-          <div class="user-menu-content sidebar-menu-content" role="group" aria-label="Active store">
+          <div class="user-menu-content sidebar-menu-content" role="group" aria-label="Active store" data-i18n-aria-label="layout.store.active">
             <button
               :for={store <- @stores}
               class="sidebar-menu-action"
@@ -251,7 +258,7 @@ defmodule PosServerWeb.PosLayoutComponents do
             <img :if={avatar_image?(@scope)} class="avatar-image" src={@scope.pic} alt="" />
             <span :if={!avatar_image?(@scope)} class="avatar-fallback">{user_initials(@scope)}</span>
           </summary>
-          <div class="user-menu-content" role="group" aria-label="User menu">
+          <div class="user-menu-content" role="group" aria-label="User menu" data-i18n-aria-label="layout.user.menu">
             <div class="user-menu-identity">
               <span class="avatar avatar-sm" aria-hidden="true">
                 <img :if={avatar_image?(@scope)} class="avatar-image" src={@scope.pic} alt="" />
@@ -273,16 +280,16 @@ defmodule PosServerWeb.PosLayoutComponents do
                 >
                   <path d="M10 17l5-5-5-5" /><path d="M15 12H3" /><path d="M21 19V5a2 2 0 0 0-2-2h-6" />
                 </svg>
-                Logout
+                <span data-i18n="layout.user.logout">Logout</span>
               </button>
             </.form>
           </div>
         </details>
       </nav>
-      <div class="status-strip" aria-label="System status">
+      <div class="status-strip" aria-label="System status" data-i18n-aria-label="layout.status.system">
         <span class="session-store-status" aria-live="polite">{@scope.login}</span>
         <details class="language-switcher">
-          <summary aria-label="Change display language">
+          <summary aria-label="Change display language" data-i18n-aria-label="layout.status.language">
             <svg
               aria-hidden="true"
               viewBox="0 0 24 24"
@@ -295,8 +302,8 @@ defmodule PosServerWeb.PosLayoutComponents do
               <circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.5 3.7 5.5 3.7 9S14.5 18.5 12 21c-2.5-2.5-3.7-5.5-3.7-9S9.5 5.5 12 3Z" />
             </svg>
           </summary>
-          <div class="language-menu" role="group">
-            <button type="button">English</button><button type="button">Español</button><button type="button">Português</button>
+          <div class="language-menu" role="group" aria-label="Change display language" data-i18n-aria-label="layout.status.language">
+            <button type="button" data-language="en">English</button><button type="button" data-language="es">Español</button><button type="button" data-language="pt">Português</button>
           </div>
         </details>
         <button
@@ -310,6 +317,8 @@ defmodule PosServerWeb.PosLayoutComponents do
           phx-hook="PrinterStatus"
           aria-label="Printer disconnected"
           title="Printer disconnected"
+          data-i18n-aria-label="layout.status.printerDisconnected"
+          data-i18n-title="layout.status.printerDisconnected"
         >
           <svg
             role="img"
@@ -330,11 +339,13 @@ defmodule PosServerWeb.PosLayoutComponents do
           class="network-status"
           role="img"
           aria-label="Network connected"
+          data-i18n-aria-label="layout.status.networkConnected"
           data-network-status
           data-status="connected"
           phx-hook="NetworkStatus"
           phx-update="ignore"
           title="Network connected"
+          data-i18n-title="layout.status.networkConnected"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"

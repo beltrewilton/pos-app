@@ -1,5 +1,6 @@
 (() => {
   const MAX_BYTES = 10 * 1024 * 1024
+  const tr = (key, params = {}) => window.PosI18n?.t(key, params) || key
 
   const within = target => target.closest("#company-settings-live")
   const logoParts = target => {
@@ -16,23 +17,23 @@
     const {dropzone, raw, preview, help} = parts
     if (!dropzone || !raw || !preview || !help) return
     if (!file || !file.type.startsWith("image/")) {
-      clear(parts); dropzone.dataset.imageInvalid = "true"; help.textContent = "Choose a valid image before saving."; return
+      clear(parts); dropzone.dataset.imageInvalid = "true"; help.textContent = tr("js.uploadInvalid"); return
     }
     if (file.size > MAX_BYTES) {
-      clear(parts); dropzone.dataset.imageInvalid = "true"; help.textContent = "Image must be 10 MB or smaller."; return
+      clear(parts); dropzone.dataset.imageInvalid = "true"; help.textContent = tr("js.uploadTooLarge"); return
     }
-    dropzone.dataset.preparing = "true"; help.textContent = "Resizing image…"
+    dropzone.dataset.preparing = "true"; help.textContent = tr("js.resizingImage")
     const objectUrl = URL.createObjectURL(file)
     try {
       const image = new Image(); image.src = objectUrl; await image.decode()
       const width = 100; const height = Math.max(1, Math.round(image.naturalHeight * (width / image.naturalWidth)))
       const canvas = document.createElement("canvas"); canvas.width = width; canvas.height = height
       const context = canvas.getContext("2d"); context.imageSmoothingEnabled = true; context.imageSmoothingQuality = "high"; context.drawImage(image, 0, 0, width, height)
-      const blob = await new Promise((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error("Image conversion failed")), "image/jpeg", 0.82))
+      const blob = await new Promise((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error(tr("js.conversionFailed"))), "image/jpeg", 0.82))
       const dataUrl = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(reader.error); reader.readAsDataURL(blob) })
-      raw.value = dataUrl; delete dropzone.dataset.imageInvalid; preview.src = dataUrl; preview.hidden = false; help.textContent = `${file.name} resized to ${width} × ${height}px and ready as Base64.`
+      raw.value = dataUrl; delete dropzone.dataset.imageInvalid; preview.src = dataUrl; preview.hidden = false; help.textContent = tr("js.resizedReady", {name: file.name, size: `${width} × ${height}`})
     } catch (error) {
-      clear(parts); dropzone.dataset.imageInvalid = "true"; help.textContent = `Image could not be prepared: ${error.message}`
+      clear(parts); dropzone.dataset.imageInvalid = "true"; help.textContent = tr("js.prepareFailed", {message: error.message})
     } finally { URL.revokeObjectURL(objectUrl); delete dropzone.dataset.preparing }
   }
 
@@ -43,7 +44,7 @@
       this.onClick = event => {
         const remove = event.target.closest("[data-remove-store-logo]")
         if (remove && within(remove)) {
-          const parts = logoParts(remove); clear(parts); parts.input.value = ""; parts.help.textContent = "Logo will be removed when you save."; remove.remove(); return
+          const parts = logoParts(remove); clear(parts); parts.input.value = ""; parts.help.textContent = tr("js.logoRemoved"); remove.remove(); return
         }
         const action = event.target.closest("[data-company-settings-confirm]")
         if (action && within(action) && window.confirm(action.dataset.companySettingsConfirm)) this.pushEvent("delete", {kind: action.dataset.deleteKind, id: action.dataset.deleteId})
@@ -53,7 +54,7 @@
       this.onDragLeave = event => { const {dropzone} = logoParts(event.target); if (dropzone && within(dropzone)) delete dropzone.dataset.dragging }
       this.onDrop = event => { const {dropzone} = logoParts(event.target); if (dropzone && within(dropzone)) { event.preventDefault(); delete dropzone.dataset.dragging; prepare(event.target, event.dataTransfer.files[0]) } }
       this.onKeydown = event => { const {dropzone, input} = logoParts(event.target); if (dropzone && event.target === dropzone && ["Enter", " "].includes(event.key)) { event.preventDefault(); input.click() } }
-      this.onSubmit = event => { if (!event.target.matches(".company-setting-form")) return; const dropzone = event.target.querySelector(".store-logo-dropzone"); const help = event.target.querySelector(".store-logo-field .field-description"); if (dropzone?.dataset.preparing === "true") { event.preventDefault(); event.stopImmediatePropagation(); help.textContent = "Image is still being prepared. Please wait." } if (dropzone?.dataset.imageInvalid === "true") { event.preventDefault(); event.stopImmediatePropagation(); help.textContent = "Choose a valid image or remove it before saving." } }
+      this.onSubmit = event => { if (!event.target.matches(".company-setting-form")) return; const dropzone = event.target.querySelector(".store-logo-dropzone"); const help = event.target.querySelector(".store-logo-field .field-description"); if (dropzone?.dataset.preparing === "true") { event.preventDefault(); event.stopImmediatePropagation(); help.textContent = tr("js.imagePreparing") } if (dropzone?.dataset.imageInvalid === "true") { event.preventDefault(); event.stopImmediatePropagation(); help.textContent = tr("js.chooseValidOrRemove") } }
       this.el.addEventListener("click", this.onClick); this.el.addEventListener("change", this.onChange); this.el.addEventListener("dragenter", this.onDrag); this.el.addEventListener("dragover", this.onDrag); this.el.addEventListener("dragleave", this.onDragLeave); this.el.addEventListener("drop", this.onDrop); this.el.addEventListener("keydown", this.onKeydown); this.el.addEventListener("submit", this.onSubmit, true)
     },
     updated() { this.focusTitle?.() },

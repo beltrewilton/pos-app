@@ -3,8 +3,8 @@
   <div class="dashboard-main">
     <header class="dashboard-header">
       <div>
-        <p class="dashboard-kicker">Overview</p>
-        <h1 id="dashboard-title">Dashboard</h1>
+        <p class="dashboard-kicker" data-i18n="dashboard.overview">Overview</p>
+        <h1 id="dashboard-title" data-i18n="dashboard.dashboard">Dashboard</h1>
       </div>
       <div class="dashboard-header-actions">
         <button
@@ -14,6 +14,7 @@
           type="button"
           data-theme-toggle
           aria-label="Toggle color theme"
+          data-i18n-aria-label="dashboard.toggleTheme"
         >
           <span aria-hidden="true">◐</span>
         </button>
@@ -39,7 +40,7 @@
             <form action={~p"/logout"} method="post">
               <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
               <button class="dashboard-account-logout" type="submit">
-                <.icon name="hero-arrow-right-on-rectangle" class="size-4" /> Cerrar sesión
+                <.icon name="hero-arrow-right-on-rectangle" class="size-4" /> <span data-i18n="layout.user.logout">Cerrar sesión</span>
               </button>
             </form>
           </div>
@@ -50,33 +51,33 @@
     <div class="dashboard-content">
       <section class="dashboard-intro" aria-labelledby="welcome-title">
         <h2 id="welcome-title">Welcome back, {@user.name}</h2>
-        <p>Manage your account confirmation and workspace setup.</p>
+        <p data-i18n="dashboard.manageAccount">Manage your account confirmation and workspace setup.</p>
       </section>
 
-      <section class="dashboard-summary-grid" aria-label="Account summary">
+      <section class="dashboard-summary-grid" aria-label="Account summary" data-i18n-aria-label="dashboard.accountSummary">
         <article class="card dashboard-summary-card">
           <div class="card-header">
-            <p class="card-description">Account status</p>
+            <p class="card-description" data-i18n="dashboard.accountStatus">Account status</p>
             <h2 class="card-title">
-              {if @user.confirmed_at, do: "Confirmed", else: "Awaiting confirmation"}
+              <span data-i18n={if @user.confirmed_at, do: "invoice.confirmed", else: "dashboard.awaitingConfirmation"}>{if @user.confirmed_at, do: "Confirmed", else: "Awaiting confirmation"}</span>
             </h2>
           </div>
           <div class="card-content">
             <span class="status-badge" data-confirmed={not is_nil(@user.confirmed_at)}>
-              <i></i>{if @user.confirmed_at, do: "Ready", else: "Pending review"}
+              <i></i><span data-i18n={if @user.confirmed_at, do: "dashboard.ready", else: "dashboard.pendingReview"}>{if @user.confirmed_at, do: "Ready", else: "Pending review"}</span>
             </span>
           </div>
         </article>
         <article class="card dashboard-summary-card">
           <div class="card-header">
-            <p class="card-description">Workspace</p>
+            <p class="card-description" data-i18n="dashboard.workspace">Workspace</p>
             <h2 class="card-title">
-              {if @company, do: @company.company_name, else: "Not created"}
+              <span data-i18n={if @company, do: nil, else: "dashboard.notCreated"}>{if @company, do: @company.company_name, else: "Not created"}</span>
             </h2>
           </div>
           <div class="card-content">
             <p class="dashboard-summary-detail">
-              {if @company, do: @user.tenant, else: "Create it after confirmation"}
+              <span data-i18n={if @company, do: nil, else: "dashboard.createAfterConfirmation"}>{if @company, do: @user.tenant, else: "Create it after confirmation"}</span>
             </p>
           </div>
         </article>
@@ -88,8 +89,8 @@
         aria-labelledby="confirmation-title"
       >
         <div class="card-header">
-          <h2 class="card-title" id="confirmation-title">Confirmation pending</h2>
-          <p class="card-description">
+          <h2 class="card-title" id="confirmation-title" data-i18n="dashboard.confirmationPending">Confirmation pending</h2>
+          <p class="card-description" data-i18n="dashboard.awaitingAdmin">
             Your account is awaiting confirmation from an administrator.
           </p>
         </div>
@@ -106,8 +107,8 @@
               <circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" />
             </svg>
             <div class="alert-content">
-              <h3 class="alert-title">No action needed</h3>
-              <p class="alert-description">
+              <h3 class="alert-title" data-i18n="dashboard.noActionNeeded">No action needed</h3>
+              <p class="alert-description" data-i18n="dashboard.createWhenConfirmed">
                 You’ll be able to create a workspace once your account is confirmed.
               </p>
             </div>
@@ -121,8 +122,8 @@
         aria-labelledby="tenant-setup-title"
       >
         <div class="card-header">
-          <h2 class="card-title" id="tenant-setup-title">Create workspace</h2>
-          <p class="card-description">Set up the company workspace for this account.</p>
+          <h2 class="card-title" id="tenant-setup-title" data-i18n="dashboard.createWorkspace">Create workspace</h2>
+          <p class="card-description" data-i18n="dashboard.setupWorkspace">Set up the company workspace for this account.</p>
         </div>
         <form class="card-content" action={~p"/dash/tenant"} method="post">
           <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
@@ -131,7 +132,7 @@
               class="form-field"
               data-invalid={@company_form[:company_name].errors != [] || nil}
             >
-              <label class="label" for={@company_form[:company_name].id}>Company name</label>
+              <label class="label" for={@company_form[:company_name].id} data-i18n="dashboard.companyName">Company name</label>
               <input
                 class="input"
                 id={@company_form[:company_name].id}
@@ -152,7 +153,7 @@
               </p>
             </div>
             <div class="form-field" data-invalid={@tenant_form[:tenant].errors != [] || nil}>
-              <label class="label" for={@tenant_form[:tenant].id}>Workspace ID</label>
+              <label class="label" for={@tenant_form[:tenant].id} data-i18n="dashboard.workspaceId">Workspace ID</label>
               <input
                 class="input"
                 id={@tenant_form[:tenant].id}
@@ -165,7 +166,7 @@
                 aria-invalid={if @tenant_form[:tenant].errors == [], do: "false", else: "true"}
               />
               <p class="field-description" id="tenant-help">
-                Lowercase letters, numbers, and underscores only.
+                <span data-i18n="admin.workspaceHelp">Lowercase letters, numbers, and underscores only.</span>
               </p>
               <p
                 :for={{message, _} <- @tenant_form[:tenant].errors}
@@ -189,7 +190,7 @@
             </div>
           </div>
           <div class="form-actions dashboard-form-actions">
-            <button class="btn" data-variant="default" type="submit">Create workspace</button>
+            <button class="btn" data-variant="default" type="submit"><span data-i18n="dashboard.createWorkspace">Create workspace</span></button>
           </div>
         </form>
       </section>
@@ -200,21 +201,21 @@
         aria-labelledby="workspace-summary-title"
       >
         <div class="card-header">
-          <h2 class="card-title" id="workspace-summary-title">Workspace details</h2>
-          <p class="card-description">Your active company workspace.</p>
+          <h2 class="card-title" id="workspace-summary-title" data-i18n="dashboard.workspaceDetails">Workspace details</h2>
+          <p class="card-description" data-i18n="dashboard.activeWorkspace">Your active company workspace.</p>
         </div>
         <div class="card-content dashboard-detail-grid">
           <div>
-            <p class="dashboard-detail-label">Company</p>
+            <p class="dashboard-detail-label" data-i18n="company.company">Company</p>
             <p class="dashboard-detail-value">{@company.company_name}</p>
           </div>
           <div>
-            <p class="dashboard-detail-label">Workspace ID</p>
+            <p class="dashboard-detail-label" data-i18n="dashboard.workspaceId">Workspace ID</p>
             <p class="dashboard-detail-value">{@user.tenant}</p>
           </div>
           <div>
             <p class="dashboard-detail-label">RNC</p>
-            <p class="dashboard-detail-value">{@company.rnc || "Not provided"}</p>
+            <p class="dashboard-detail-value"><span data-i18n={if @company.rnc, do: nil, else: "dashboard.notProvided"}>{@company.rnc || "Not provided"}</span></p>
           </div>
         </div>
       </section>

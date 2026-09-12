@@ -673,6 +673,7 @@ defmodule PosServerWeb.PosLive do
                   phx-keyup="search_products"
                   phx-debounce="0"
                   placeholder="Search products or scan a barcode"
+                  data-i18n-placeholder="pos.catalog.searchProducts"
                   autocomplete="off"
                 /><button
                   :if={@product_search != ""}
@@ -690,6 +691,7 @@ defmodule PosServerWeb.PosLive do
                 data-size="icon"
                 phx-click={JS.focus(to: "#product-search")}
                 aria-label="Focus product search"
+                data-i18n-aria-label="pos.catalog.focusSearch"
               >
                 <svg aria-hidden="true"><use href="#ui-icon-search" /></svg>
               </button>
@@ -697,13 +699,13 @@ defmodule PosServerWeb.PosLive do
           </header>
           <div class="catalog-heading">
             <div>
-              <p class="eyebrow">Catalog</p>
-              <h2 class="h3">Products</h2>
+              <p class="eyebrow" data-i18n="pos.catalog.catalog">Catalog</p>
+              <h2 class="h3" data-i18n="pos.catalog.products">Products</h2>
             </div>
             <p class="products-status" role="status">{product_status(assigns)}</p>
           </div>
           <button class="btn mobile-cart-trigger" type="button" phx-click="open_mobile_cart">
-            View sale
+            <span data-i18n="pos.catalog.viewSale">View sale</span>
           </button>
           <div id="product-grid" class="product-grid" aria-live="polite">
             <article
@@ -717,6 +719,8 @@ defmodule PosServerWeb.PosLive do
               phx-key="Enter"
               phx-value-id={product.id}
               aria-label={"Add #{product.name}"}
+              data-i18n-aria-label="pos.catalog.addProduct"
+              data-i18n-params={Jason.encode!(%{name: product.name})}
             >
               <img
                 :if={product.image_raw}
@@ -741,7 +745,7 @@ defmodule PosServerWeb.PosLive do
                   <strong class="product-price numeric">{money(float(product.price))}</strong><span class={[
                     "inventory-badge",
                     if(float(product.inventory_quantity) <= 0, do: "inventory-badge-low")
-                  ]}>Stock {product.inventory_quantity || 0}</span>
+                  ]}><span data-i18n="pos.catalog.stock">Stock</span> {product.inventory_quantity || 0}</span>
                 </div>
               </div>
             </article>
@@ -759,8 +763,8 @@ defmodule PosServerWeb.PosLive do
             <div class="brand-lockup">
               <span class="brand-mark" aria-hidden="true">E</span>
               <div>
-                <p class="eyebrow">Customers</p>
-                <h2 id="customers-title" class="h3" tabindex="-1">Customer list</h2>
+                <p class="eyebrow" data-i18n="pos.customers.customers">Customers</p>
+                <h2 id="customers-title" class="h3" tabindex="-1" data-i18n="pos.customers.customerList">Customer list</h2>
               </div>
             </div>
             <div class="customers-header-actions">
@@ -772,17 +776,17 @@ defmodule PosServerWeb.PosLive do
                 phx-click="open_customer_dialog"
                 aria-haspopup="dialog"
               >
-                Crear client
+                <span data-i18n="pos.customers.createCustomerTypo">Crear client</span>
               </button><button
                 class="btn"
                 type="button"
                 data-variant="outline"
                 phx-click="close_dialog"
-              >Back</button>
+              ><span data-i18n="common.back">Back</span></button>
             </div>
           </header>
           <div class="customer-search-field">
-            <label class="sr-only" for="customer-search">Search customers</label>
+            <label class="sr-only" for="customer-search" data-i18n="pos.customers.searchCustomers">Search customers</label>
             <input
               id="customer-search"
               class="input"
@@ -793,18 +797,19 @@ defmodule PosServerWeb.PosLive do
               phx-mounted={JS.focus(to: "#customer-search")}
               autocomplete="off"
               placeholder="Search customers by name or phone"
+              data-i18n-placeholder="pos.customers.searchCustomersPlaceholder"
             />
           </div>
-          <p :if={@customers == []} class="customers-status" role="status">No customers found.</p>
+          <p :if={@customers == []} class="customers-status" role="status" data-i18n="pos.customers.noCustomersFound">No customers found.</p>
           <div class="table-container customer-table-container">
             <table class="table customer-table">
-              <caption class="table-caption">Customer accounts and purchase activity.</caption>
+              <caption class="table-caption" data-i18n="pos.customers.accountsCaption">Customer accounts and purchase activity.</caption>
               <thead>
                 <tr class="table-row">
-                  <th class="table-head" scope="col">Name</th>
-                  <th class="table-head" scope="col">Document ID</th>
-                  <th class="table-head" scope="col">Phone</th>
-                  <th class="table-head" scope="col"><span class="sr-only">Customer action</span></th>
+                  <th class="table-head" scope="col" data-i18n="common.name">Name</th>
+                  <th class="table-head" scope="col" data-i18n="common.documentId">Document ID</th>
+                  <th class="table-head" scope="col" data-i18n="common.phone">Phone</th>
+                  <th class="table-head" scope="col"><span class="sr-only" data-i18n="pos.customers.customerAction">Customer action</span></th>
                 </tr>
               </thead>
               <tbody id="customers-table-body">
@@ -822,7 +827,7 @@ defmodule PosServerWeb.PosLive do
                       phx-value-id={customer.id}
                       aria-label={"Choose: #{customer.name || "customer"}"}
                     >
-                      Choose
+                      <span data-i18n="common.choose">Choose</span>
                     </button>
                   </td>
                 </tr>
@@ -838,7 +843,7 @@ defmodule PosServerWeb.PosLive do
         >
           <header class="checkout-header">
             <div>
-              <p class="eyebrow">Checkout</p>
+              <p class="eyebrow" data-i18n="pos.checkout.checkout">Checkout</p>
               <h1 id="checkout-title" class="h3">
                 {if @checkout_stage == :customer,
                   do: "Customer — #{active_store_name(assigns)}",
@@ -846,12 +851,12 @@ defmodule PosServerWeb.PosLive do
               </h1>
             </div>
             <button class="btn" type="button" data-variant="outline" phx-click="close_checkout">
-              Back to sale
+              <span data-i18n="pos.checkout.backToSale">Back to sale</span>
             </button>
           </header>
-          <ol class="checkout-steps" aria-label="Checkout progress">
-            <li aria-current={if @checkout_stage == :customer, do: "step"}>1. Customer</li>
-            <li aria-current={if @checkout_stage == :payment, do: "step"}>2. Payment</li>
+          <ol class="checkout-steps" aria-label="Checkout progress" data-i18n-aria-label="pos.checkout.progress">
+            <li aria-current={if @checkout_stage == :customer, do: "step"} data-i18n="pos.checkout.stepCustomer">1. Customer</li>
+            <li aria-current={if @checkout_stage == :payment, do: "step"} data-i18n="pos.checkout.stepPayment">2. Payment</li>
           </ol>
           <div class="checkout-stage-wrap">
             <section
@@ -861,8 +866,8 @@ defmodule PosServerWeb.PosLive do
               aria-labelledby="customer-stage-title"
             >
               <div class="checkout-stage-copy">
-                <p class="eyebrow">1. Customer</p>
-                <h2 id="customer-stage-title" class="h2" tabindex="-1">Customer</h2>
+                <p class="eyebrow" data-i18n="pos.checkout.stepCustomer">1. Customer</p>
+                <h2 id="customer-stage-title" class="h2" tabindex="-1" data-i18n="pos.checkout.customer">Customer</h2>
                 <button
                   id="customer-picker"
                   class="customer-choice btn"
@@ -879,7 +884,7 @@ defmodule PosServerWeb.PosLive do
               </div>
               <div class="checkout-actions">
                 <button class="btn" type="button" data-variant="outline" phx-click="close_checkout">
-                  Back
+                  <span data-i18n="common.back">Back</span>
                 </button><button
                   id="customer-continue"
                   class="btn"
@@ -887,7 +892,7 @@ defmodule PosServerWeb.PosLive do
                   data-variant="default"
                   phx-click="checkout_customer_continue"
                   disabled={is_nil(@selected_customer)}
-                >Continue</button>
+                ><span data-i18n="common.continue">Continue</span></button>
               </div>
             </section>
             <section
@@ -897,10 +902,10 @@ defmodule PosServerWeb.PosLive do
               aria-labelledby="payment-stage-title"
             >
               <div class="checkout-stage-copy">
-                <p class="eyebrow">2. Payment</p>
-                <h2 id="payment-stage-title" class="h2" tabindex="-1">Payment & completion</h2>
+                <p class="eyebrow" data-i18n="pos.checkout.stepPayment">2. Payment</p>
+                <h2 id="payment-stage-title" class="h2" tabindex="-1" data-i18n="pos.checkout.paymentCompletion">Payment & completion</h2>
                 <fieldset class="form-fieldset">
-                  <legend>Sequence type</legend>
+                  <legend data-i18n="pos.checkout.sequenceType">Sequence type</legend>
                   <div class="sequence-options" role="group">
                     <div class="sequence-option-buttons">
                       <button
@@ -920,7 +925,7 @@ defmodule PosServerWeb.PosLive do
                   </div>
                 </fieldset>
                 <p class="checkout-total-due">
-                  <span>Total</span><strong id="checkout-total" class="numeric">{money(total(@socket))}</strong>
+                  <span data-i18n="common.total">Total</span><strong id="checkout-total" class="numeric">{money(total(@socket))}</strong>
                 </p>
                 <div class="form-group checkout-payment">
                   <button
@@ -931,7 +936,7 @@ defmodule PosServerWeb.PosLive do
                     aria-pressed={to_string(@delivery_open)}
                     phx-click="toggle_delivery"
                   >
-                    Delivery
+                    <span data-i18n="pos.checkout.delivery">Delivery</span>
                   </button>
                   <div :if={@delivery_open} id="delivery-options" class="delivery-options">
                     <button
@@ -964,6 +969,8 @@ defmodule PosServerWeb.PosLive do
                         inputmode="decimal"
                         placeholder="Free amount"
                         aria-label="Delivery free amount"
+                        data-i18n-placeholder="pos.checkout.freeAmount"
+                        data-i18n-aria-label="pos.checkout.deliveryFreeAmount"
                         value={@delivery_custom_input}
                         required
                         phx-input="change_delivery_amount"
@@ -975,6 +982,7 @@ defmodule PosServerWeb.PosLive do
                         data-variant={if @delivery_custom_selected, do: "default", else: "secondary"}
                         aria-pressed={to_string(@delivery_custom_selected)}
                         aria-label="Select delivery free amount"
+                        data-i18n-aria-label="pos.checkout.selectDeliveryFreeAmount"
                       >✓</button>
                     </form>
                     <button
@@ -1000,7 +1008,7 @@ defmodule PosServerWeb.PosLive do
                     aria-pressed={to_string(@credit)}
                     phx-click="toggle_credit"
                   >
-                    Pay on Credit
+                    <span data-i18n="pos.checkout.payOnCredit">Pay on Credit</span>
                   </button>
                   <form
                     :if={@credit}
@@ -1009,7 +1017,7 @@ defmodule PosServerWeb.PosLive do
                     phx-submit="complete_sale"
                     phx-hook="CreditDueDateForm"
                   >
-                    <label class="label" for="sale-credit-due-date">Due date</label>
+                    <label class="label" for="sale-credit-due-date" data-i18n="pos.checkout.dueDate">Due date</label>
                     <input
                       id="sale-credit-due-date"
                       name="credit_due_date"
@@ -1028,19 +1036,19 @@ defmodule PosServerWeb.PosLive do
                         data-variant="outline"
                         phx-click="checkout_payment_back"
                       >
-                        Back
+                        <span data-i18n="common.back">Back</span>
                       </button><button
                         id="complete-sale"
                         class="btn"
                         type="submit"
                         data-variant="default"
                         disabled
-                      >Complete</button>
+                      ><span data-i18n="common.complete">Complete</span></button>
                     </div>
                   </form>
                   <div :if={!@credit} id="payment-inputs">
                     <fieldset class="form-fieldset">
-                      <legend>Payments</legend>
+                      <legend data-i18n="pos.checkout.payments">Payments</legend>
                       <div
                         id="payment-lines"
                         class="payment-lines"
@@ -1059,8 +1067,8 @@ defmodule PosServerWeb.PosLive do
                             phx-value-id={payment.id}
                             phx-value-field="type"
                           >
-                            <option value="CASH" selected={payment.type == "CASH"}>Cash</option>
-                            <option value="CC" selected={payment.type == "CC"}>Credit Card</option>
+                            <option value="CASH" selected={payment.type == "CASH"} data-i18n="common.cash">Cash</option>
+                            <option value="CC" selected={payment.type == "CC"} data-i18n="pos.checkout.creditCard">Credit Card</option>
                           </select>
                           <input
                             class="input numeric"
@@ -1080,6 +1088,7 @@ defmodule PosServerWeb.PosLive do
                             phx-click="remove_payment_line"
                             phx-value-id={payment.id}
                             aria-label="Remove payment"
+                            data-i18n-aria-label="pos.checkout.removePayment"
                           >
                             ×
                           </button>
@@ -1092,10 +1101,10 @@ defmodule PosServerWeb.PosLive do
                         data-variant="outline"
                         phx-click="add_payment_line"
                       >
-                        Add payment
+                        <span data-i18n="pos.checkout.addPayment">Add payment</span>
                       </button>
                       <p id="payment-balance" class="field-description">
-                        Remaining: {money(remaining(@socket))}
+                        <span data-i18n="pos.checkout.remaining">Remaining:</span> {money(remaining(@socket))}
                       </p>
                       <p
                         :if={paid(@socket) > total(@socket)}
@@ -1103,7 +1112,7 @@ defmodule PosServerWeb.PosLive do
                         class="payment-change"
                         role="status"
                       >
-                        Change: {money(paid(@socket) - total(@socket))}
+                        <span data-i18n="pos.checkout.change">Change:</span> {money(paid(@socket) - total(@socket))}
                       </p>
                     </fieldset>
                   </div>
@@ -1116,7 +1125,7 @@ defmodule PosServerWeb.PosLive do
                   data-variant="outline"
                   phx-click="checkout_payment_back"
                 >
-                  Back
+                  <span data-i18n="common.back">Back</span>
                 </button><button
                   id="complete-sale"
                   class="btn"
@@ -1124,17 +1133,17 @@ defmodule PosServerWeb.PosLive do
                   data-variant="default"
                   phx-click="complete_sale"
                   disabled={!payment_complete?(@socket)}
-                >Complete</button>
+                ><span data-i18n="common.complete">Complete</span></button>
               </div>
               <div class="form-group checkout-memo">
-                <label class="label" for="sale-additional-info">Memo (optional)</label><textarea
+                <label class="label" for="sale-additional-info" data-i18n="pos.checkout.memoOptional">Memo (optional)</label><textarea
                   id="sale-additional-info"
                   class="input"
                   rows="3"
                   maxlength="1000"
                   phx-change="change_memo"
                 >{@memo}</textarea>
-                <p class="field-description">Up to 1000 characters.</p>
+                <p class="field-description" data-i18n="pos.checkout.memoHelp">Up to 1000 characters.</p>
               </div>
             </section>
           </div>
@@ -1151,7 +1160,7 @@ defmodule PosServerWeb.PosLive do
       >
         <header class="order-header">
           <div>
-            <p class="eyebrow">Current sale</p>
+            <p class="eyebrow" data-i18n="pos.cart.currentSale">Current sale</p>
             <div class="customer-picker-wrap">
               <button
                 :if={is_nil(@checkout_stage)}
@@ -1162,6 +1171,7 @@ defmodule PosServerWeb.PosLive do
                 data-size="icon-xs"
                 phx-click="open_customer_purchases"
                 aria-label="View customer purchases"
+                data-i18n-aria-label="pos.cart.viewCustomerPurchases"
                 aria-haspopup="dialog"
               >
                 <svg
@@ -1192,6 +1202,7 @@ defmodule PosServerWeb.PosLive do
                 data-size="icon-xs"
                 phx-click="clear_customer"
                 aria-label="Clear customer"
+                data-i18n-aria-label="pos.cart.clearCustomer"
               >×</button>
             </div>
           </div>
@@ -1202,6 +1213,7 @@ defmodule PosServerWeb.PosLive do
             data-size="icon"
             phx-click="close_mobile_cart"
             aria-label="Close sale"
+            data-i18n-aria-label="pos.cart.closeSale"
           >
             ×
           </button>
@@ -1214,10 +1226,10 @@ defmodule PosServerWeb.PosLive do
             phx-click="clear_sale_prompt"
             disabled={@cart == []}
           >
-            Clear
+            <span data-i18n="common.clear">Clear</span>
           </button>
         </header>
-        <p :if={@cart == []} class="cart-empty">Your order is empty. Select a product to begin.</p>
+        <p :if={@cart == []} class="cart-empty" data-i18n="pos.cart.empty">Your order is empty. Select a product to begin.</p>
         <div id="cart" class="cart-lines" aria-live="polite">
           <article
             :for={line <- @cart}
@@ -1235,18 +1247,19 @@ defmodule PosServerWeb.PosLive do
                 <p
                   class="cart-line-name cart-line-discount-trigger"
                   title="Apply a discount to this item"
+                  data-i18n-title="pos.cart.discountItem"
                   role="button"
                   tabindex="0"
                   phx-click="open_line_discount"
                   phx-keydown="open_line_discount"
                   phx-value-id={line.id}
                 >
-                  {line.name}<span :if={line.discount > 0} class="line-discount">{if line.discount_type == "percent", do: "#{line.discount}%", else: money(line.discount)} off</span>
+                  {line.name}<span :if={line.discount > 0} class="line-discount">{if line.discount_type == "percent", do: "#{line.discount}%", else: money(line.discount)} <span data-i18n="pos.cart.off">off</span></span>
                 </p>
                 <p class="cart-line-breakdown">
                   <span>
-                    <small>Sub</small><strong class="numeric">{money(line.sub * line_factor(line))}</strong>
-                  </span><span><small>Tax</small><strong class="numeric">{money(line.tax * line_factor(line))}</strong></span><span><small>Total</small><strong class="numeric">{money(line.price * line_factor(line))}</strong><small>each</small></span>
+                    <small data-i18n="pos.cart.sub">Sub</small><strong class="numeric">{money(line.sub * line_factor(line))}</strong>
+                  </span><span><small data-i18n="common.tax">Tax</small><strong class="numeric">{money(line.tax * line_factor(line))}</strong></span><span><small data-i18n="common.total">Total</small><strong class="numeric">{money(line.price * line_factor(line))}</strong><small data-i18n="pos.cart.each">each</small></span>
                 </p>
               </div>
               <button
@@ -1257,6 +1270,8 @@ defmodule PosServerWeb.PosLive do
                 phx-click="remove_line"
                 phx-value-id={line.id}
                 aria-label={"Remove #{line.name}"}
+                data-i18n-aria-label="pos.cart.removeProduct"
+                data-i18n-params={Jason.encode!(%{name: line.name})}
                 disabled={not is_nil(@checkout_stage)}
               >
                 ×
@@ -1271,7 +1286,9 @@ defmodule PosServerWeb.PosLive do
                   data-size="icon-xs"
                   phx-click="decrease_quantity"
                   phx-value-id={line.id}
+                  data-quantity-action="decrease"
                   aria-label="Decrease quantity"
+                  data-i18n-aria-label="pos.cart.decreaseQuantity"
                   disabled={not is_nil(@checkout_stage)}
                 >
                   −
@@ -1285,6 +1302,7 @@ defmodule PosServerWeb.PosLive do
                   phx-change="set_quantity"
                   phx-value-id={line.id}
                   aria-label="Item count"
+                  data-i18n-aria-label="pos.cart.itemCount"
                   disabled={not is_nil(@checkout_stage)}
                 /><button
                   class="btn"
@@ -1293,7 +1311,9 @@ defmodule PosServerWeb.PosLive do
                   data-size="icon-xs"
                   phx-click="increase_quantity"
                   phx-value-id={line.id}
+                  data-quantity-action="increase"
                   aria-label="Increase quantity"
+                  data-i18n-aria-label="pos.cart.increaseQuantity"
                   disabled={not is_nil(@checkout_stage)}
                 >
                   +
@@ -1302,6 +1322,7 @@ defmodule PosServerWeb.PosLive do
               <strong
                 class="cart-line-total cart-line-discount-trigger numeric"
                 title="Apply a discount to this item"
+                data-i18n-title="pos.cart.discountItem"
                 role="button"
                 tabindex="0"
                 phx-click="open_line_discount"
@@ -1317,42 +1338,44 @@ defmodule PosServerWeb.PosLive do
           <hr class="separator" role="none" />
           <dl class="totals">
             <div>
-              <dt>Items</dt>
+              <dt data-i18n="common.items">Items</dt>
               <dd>{items(@socket)}</dd>
             </div>
             <div>
-              <dt>Subtotal</dt>
+              <dt data-i18n="common.subtotal">Subtotal</dt>
               <dd class="numeric">{money(subtotal(@socket))}</dd>
             </div>
             <div>
-              <dt>Tax (18%)</dt>
+              <dt data-i18n="common.tax18">Tax (18%)</dt>
               <dd class="numeric">{money(tax(@socket))}</dd>
             </div>
             <div>
-              <dt>Discount</dt>
+              <dt data-i18n="common.discount">Discount</dt>
               <dd class="numeric discount-value">
                 −{money(line_discount_total(@socket) + order_discount_total(@socket))}
               </dd>
             </div>
             <div :if={@delivery > 0}>
-              <dt>Delivery</dt>
+              <dt data-i18n="pos.checkout.delivery">Delivery</dt>
               <dd class="numeric">{money(@delivery)}</dd>
             </div>
             <div
               class="grand-total order-discount-trigger"
               title="Apply a discount to this sale"
+              data-i18n-title="pos.cart.discountSale"
               role="button"
               tabindex="0"
               phx-click="open_order_discount"
               phx-keydown="open_order_discount_key"
               aria-label="Apply order discount. Press Enter."
+              data-i18n-aria-label="pos.cart.applyOrderDiscount"
             >
-              <dt>Total</dt>
+              <dt data-i18n="common.total">Total</dt>
               <dd class="numeric">{money(total(@socket))}</dd>
             </div>
           </dl>
           <div class="payment-label">
-            <span>Payment method</span><span id="payment-choice" class="payment-choice">{payment_choice(@socket)}</span>
+            <span data-i18n="pos.checkout.paymentMethod">Payment method</span><span id="payment-choice" class="payment-choice">{payment_choice(@socket)}</span>
           </div>
           <button
             :if={is_nil(@checkout_stage)}
@@ -1364,7 +1387,7 @@ defmodule PosServerWeb.PosLive do
             phx-click="open_checkout"
             disabled={@cart == []}
           >
-            Continue
+            <span data-i18n="common.continue">Continue</span>
           </button>
         </footer>
       </aside>
@@ -1374,23 +1397,24 @@ defmodule PosServerWeb.PosLive do
         type="button"
         phx-click="close_mobile_cart"
         aria-label="Close sale"
+        data-i18n-aria-label="pos.cart.closeSale"
       >
       </button>
       <dialog :if={@dialog == :clear_sale} open class="dialog" data-size="sm">
         <div class="dialog-content">
           <div class="dialog-header">
-            <h2 class="dialog-title">Clear this order?</h2>
-            <p class="dialog-description">All items and line discounts will be removed.</p>
+            <h2 class="dialog-title" data-i18n="pos.cart.clearTitle">Clear this order?</h2>
+            <p class="dialog-description" data-i18n="pos.cart.clearDescription">All items and line discounts will be removed.</p>
           </div>
           <div class="dialog-footer">
             <button class="btn" type="button" data-variant="outline" phx-click="close_dialog">
-              Cancel
+              <span data-i18n="common.cancel">Cancel</span>
             </button><button
               class="btn"
               type="button"
               data-variant="destructive"
               phx-click="clear_sale"
-            >Clear order</button>
+            ><span data-i18n="pos.cart.clearOrder">Clear order</span></button>
           </div>
         </div>
       </dialog>
@@ -1438,7 +1462,7 @@ defmodule PosServerWeb.PosLive do
             data-discount-type={@discount_type}
           >
             <input id="discount-type" name="discount_type" type="hidden" value={@discount_type} />
-            <div class="discount-switch" role="group" aria-label="Discount type">
+            <div class="discount-switch" role="group" aria-label="Discount type" data-i18n-aria-label="pos.discount.type">
               <button
                 class="btn"
                 type="button"
@@ -1472,7 +1496,7 @@ defmodule PosServerWeb.PosLive do
                   step="0.01"
                   value={@discount_input}
                 /><button class="btn" type="button" data-variant="outline" data-clear-discount>
-                  Clear
+                  <span data-i18n="common.clear">Clear</span>
                 </button>
               </div>
               <p id="discount-help" class="field-description">
@@ -1483,22 +1507,22 @@ defmodule PosServerWeb.PosLive do
             </div>
             <dl class="discount-preview">
               <div>
-                <dt>Amount</dt>
+                <dt data-i18n="pos.discount.amountLabel">Amount</dt>
                 <dd class="numeric">{money(discount_base(assigns))}</dd>
               </div>
               <div>
-                <dt>Discount</dt>
+                <dt data-i18n="common.discount">Discount</dt>
                 <dd class="numeric">−{money(discount_preview(assigns))}</dd>
               </div>
               <div>
-                <dt>After discount</dt>
+                <dt data-i18n="pos.discount.afterDiscount">After discount</dt>
                 <dd class="numeric">{money(discount_base(assigns) - discount_preview(assigns))}</dd>
               </div>
             </dl>
             <div class="dialog-footer">
               <button class="btn" type="button" data-variant="outline" phx-click="close_dialog">
-                Cancel
-              </button><button class="btn" type="submit" data-variant="default">Apply discount</button>
+                <span data-i18n="common.cancel">Cancel</span>
+              </button><button class="btn" type="submit" data-variant="default"><span data-i18n="pos.discount.applyDiscount">Apply discount</span></button>
             </div>
           </form>
         </div>

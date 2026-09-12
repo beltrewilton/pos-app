@@ -1,3 +1,5 @@
+import {t} from "../i18n"
+
 export class WebUSBPrinterTransport extends EventTarget {
   constructor() {
     super()
@@ -10,7 +12,7 @@ export class WebUSBPrinterTransport extends EventTarget {
   }
 
   async connect() {
-    if (!this.supported()) throw new Error("WebUSB is not supported in this browser.")
+    if (!this.supported()) throw new Error(t("js.webUsbUnsupported"))
     const device = await navigator.usb.requestDevice({filters: usbPrinterFilters()})
     await this.open(device)
     return this.deviceInfo()
@@ -36,7 +38,7 @@ export class WebUSBPrinterTransport extends EventTarget {
     const iface = device.configuration.interfaces.find(candidate =>
       candidate.alternates.some(alt => alt.endpoints.some(endpoint => endpoint.direction === "out"))
     )
-    if (!iface) throw new Error("Selected USB device has no writable endpoint.")
+    if (!iface) throw new Error(t("js.noWritableEndpoint"))
     await device.claimInterface(iface.interfaceNumber)
     const alternate = iface.alternates.find(alt => alt.endpoints.some(endpoint => endpoint.direction === "out"))
     this.endpointNumber = alternate.endpoints.find(endpoint => endpoint.direction === "out").endpointNumber
@@ -51,7 +53,7 @@ export class WebUSBPrinterTransport extends EventTarget {
   }
 
   async send(bytes) {
-    if (!this.device?.opened || !this.endpointNumber) throw new Error("Printer is not connected.")
+    if (!this.device?.opened || !this.endpointNumber) throw new Error(t("js.printerDisconnected"))
     await this.device.transferOut(this.endpointNumber, bytes)
   }
 

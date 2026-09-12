@@ -90,8 +90,8 @@ defmodule PosServerWeb.LoginLive do
       <div class="login-panel">
         <div class="card login-card">
           <div class="card-header">
-            <h1 id="login-title" class="card-title">Sign in</h1>
-            <p class="card-description">Use your username or email and password to continue.</p>
+            <h1 id="login-title" class="card-title" data-i18n="pos.login.signIn">Sign in</h1>
+            <p class="card-description" data-i18n="pos.login.copy">Use your username or email and password to continue.</p>
           </div>
           <div class="card-content">
             <form
@@ -102,7 +102,7 @@ defmodule PosServerWeb.LoginLive do
             >
               <.login_error error={@error} />
               <div class="form-field">
-                <label class="label" for="login-identifier">Username or email</label>
+                <label class="label" for="login-identifier" data-i18n="pos.login.usernameOrEmail">Username or email</label>
                 <input
                   id="login-identifier"
                   class="input"
@@ -114,7 +114,7 @@ defmodule PosServerWeb.LoginLive do
                 />
               </div>
               <div class="form-field">
-                <label class="label" for="login-password">Password</label>
+                <label class="label" for="login-password" data-i18n="pos.login.password">Password</label>
                 <input
                   id="login-password"
                   class="input"
@@ -126,12 +126,12 @@ defmodule PosServerWeb.LoginLive do
                 />
               </div>
               <div :if={@phase == :store_selection} id="login-store-field" class="form-field">
-                <label class="label" for="login-store">Store</label><select
+                <label class="label" for="login-store" data-i18n="pos.login.store">Store</label><select
                   id="login-store"
                   class="select"
                   name="store_id"
                   required
-                ><option value="" disabled selected>Select a store</option><option
+                ><option value="" disabled selected data-i18n="pos.login.selectStore">Select a store</option><option
                   :for={store <- @stores}
                   value={store.id}
                 >{store.name}</option></select>
@@ -144,7 +144,7 @@ defmodule PosServerWeb.LoginLive do
                   data-variant="default"
                   disabled={@submitting?}
                 >
-                  {if @phase == :store_selection, do: "Continue", else: "Sign in"}
+                  <span data-i18n={if @phase == :store_selection, do: "common.continue", else: "pos.login.signIn"}>{if @phase == :store_selection, do: "Continue", else: "Sign in"}</span>
                 </button><button
                   id="google-login"
                   class="btn login-submit"
@@ -152,7 +152,7 @@ defmodule PosServerWeb.LoginLive do
                   data-variant="outline"
                   disabled={@phase == :store_selection or @submitting?}
                   phx-click="google_unavailable"
-                >Continue with Google</button>
+                ><span data-i18n="pos.login.continueWithGoogle">Continue with Google</span></button>
               </div>
             </form>
           </div>

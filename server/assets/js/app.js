@@ -25,6 +25,7 @@ import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/pos_server"
 import topbar from "../vendor/topbar"
 import {receiptPrinter} from "./receipt_printer/service"
+import {initI18n, money, t, translatePage} from "./i18n"
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const POS_STORE_KEY = "pos-selected-store-id"
@@ -53,7 +54,8 @@ const hooks = {
       requestAnimationFrame(() => {
         this.el.querySelector("#customer-search")?.focus()
       })
-    }
+    },
+    updated() { translatePage(this.el) }
   },
   UsersScreen: {
     mounted() {
@@ -61,12 +63,14 @@ const hooks = {
         requestAnimationFrame(() => this.el.querySelector("#users-title")?.focus())
       })
       requestAnimationFrame(() => this.el.querySelector("#users-search")?.focus())
-    }
+    },
+    updated() { translatePage(this.el) }
   },
   InventoryScreen: {
     mounted() {
       requestAnimationFrame(() => this.el.querySelector("#inventory-search")?.focus())
-    }
+    },
+    updated() { translatePage(this.el) }
   },
   InfiniteInvoices: {
     mounted() {
@@ -91,7 +95,10 @@ const hooks = {
       document.addEventListener("pointerdown", this.onPointerDown)
       requestAnimationFrame(() => this.el.querySelector("#invoice-search")?.focus())
     },
-    updated() { this.syncStickyOffset?.() },
+    updated() {
+      this.syncStickyOffset?.()
+      translatePage(this.el)
+    },
     destroyed() {
       this.resizeObserver?.disconnect()
       document.removeEventListener("pointerdown", this.onPointerDown)
@@ -211,6 +218,7 @@ const hooks = {
         panel?.removeAttribute("aria-modal")
         catalog?.removeAttribute("inert")
       }
+      translatePage(this.el)
     },
     destroyed() {
       uninstallPrinterStatus(this.el.querySelector("[data-printer-status]"))
@@ -222,11 +230,11 @@ const hooks = {
     mounted() {
       this.recalculate = () => calculateCart(this.el)
       this.onQuantityClick = event => {
-        const button = event.target.closest("[aria-label='Increase quantity'], [aria-label='Decrease quantity']")
+        const button = event.target.closest("[data-quantity-action]")
         if (!button) return
         const input = button.closest(".quantity-control")?.querySelector(".quantity-input")
         if (!input) return
-        const delta = button.getAttribute("aria-label") === "Increase quantity" ? 1 : -1
+        const delta = button.dataset.quantityAction === "increase" ? 1 : -1
         input.value = String(Math.max(1, (Number.parseInt(input.value, 10) || 1) + delta))
         this.recalculate()
       }
@@ -272,8 +280,8 @@ const hooks = {
         })
         const input = this.el.querySelector("#discount-input")
         input.max = type === "percent" ? "100" : ""
-        this.el.querySelector("#discount-input-label").textContent = type === "percent" ? "Discount percentage" : "Discount amount"
-        this.el.querySelector("#discount-help").textContent = type === "percent" ? "Enter 0 to remove this item discount." : "The amount applies to this entire order line."
+        this.el.querySelector("#discount-input-label").textContent = type === "percent" ? t("pos.discount.percentage") : t("pos.discount.amount")
+        this.el.querySelector("#discount-help").textContent = type === "percent" ? t("pos.discount.percentHelp") : t("pos.discount.amountHelp")
         this.updatePreview()
         input.focus()
       }
@@ -313,7 +321,7 @@ const hooks = {
   },
   PaymentAmounts: {
     mounted() {
-      this.money = value => new Intl.NumberFormat("en-US", {style: "currency", currency: "USD"}).format(value)
+      this.money = value => money(value)
       this.updateSummary = () => {
         const total = Number(this.el.dataset.saleTotal) || 0
         const paid = [...this.el.querySelectorAll(".payment-line input")].reduce((sum, input) => sum + (Number(input.value) || 0), 0)
@@ -334,10 +342,10 @@ const hooks = {
         }
         const complete = this.el.closest(".checkout-stage")?.querySelector("#complete-sale")
         if (checkoutTotal) checkoutTotal.textContent = this.money(total)
-        if (balance) balance.textContent = `Remaining: ${this.money(remaining)}`
+        if (balance) balance.textContent = `${t("pos.checkout.remaining")} ${this.money(remaining)}`
         if (changeLabel) {
           changeLabel.hidden = change === 0
-          changeLabel.textContent = change ? `Change: ${this.money(change)}` : ""
+          changeLabel.textContent = change ? `${t("pos.checkout.change")} ${this.money(change)}` : ""
         }
         if (complete) complete.disabled = paid < total
       }
@@ -369,12 +377,15 @@ const hooks = {
         this.updateSummary()
       }
       window.addEventListener("pos:checkout-total", this.onCartTotal)
+      this.onLanguage = () => this.updateSummary()
+      window.addEventListener("pos:language-changed", this.onLanguage)
       this.updateSummary()
     },
     updated() { this.updateSummary() },
     destroyed() {
       this.el.removeEventListener("input", this.onInput)
       window.removeEventListener("pos:checkout-total", this.onCartTotal)
+      window.removeEventListener("pos:language-changed", this.onLanguage)
     }
   },
   FlashToast: {
@@ -391,10 +402,13 @@ const liveSocket = new LiveSocket("/live", Socket, {
   hooks: {...colocatedHooks, ...hooks},
 })
 
+initI18n()
+
 // Show progress bar on live navigation and form submits
 topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
 window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
 window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
+window.addEventListener("phx:page-loading-stop", () => translatePage(document))
 
 // connect if there are any LiveViews on the page
 liveSocket.connect()
@@ -407,11 +421,11 @@ window.liveSocket = liveSocket
 
 function printerStatusLabel(state) {
   return {
-    disconnected: "Printer disconnected",
-    connecting: "Printer connecting",
-    connected: "Printer connected",
-    error: "Printer error"
-  }[state] || "Printer disconnected"
+    disconnected: t("layout.status.printerDisconnected"),
+    connecting: t("layout.status.printerConnecting"),
+    connected: t("layout.status.printerConnected"),
+    error: t("layout.status.printerError")
+  }[state] || t("layout.status.printerDisconnected")
 }
 
 function installPrinterStatus(element) {
@@ -464,7 +478,7 @@ function uninstallPrinterStatus(element) {
 }
 
 function networkStatusLabel(state) {
-  return state === "connected" ? "Network connected" : "Network disconnected"
+  return state === "connected" ? t("layout.status.networkConnected") : t("layout.status.networkDisconnected")
 }
 
 function setNetworkStatus(element, state) {
@@ -595,7 +609,6 @@ function updateDiscountPreview(form) {
   const deduction = form.dataset.discountType === "percent"
     ? base * Math.min(Math.max(entered, 0), 100) / 100
     : Math.min(Math.max(entered, 0), base)
-  const money = value => new Intl.NumberFormat("en-US", {style: "currency", currency: "USD"}).format(value)
   const values = form.querySelectorAll(".discount-preview dd")
   if (values[0]) values[0].textContent = money(base)
   if (values[1]) values[1].textContent = `−${money(deduction)}`
@@ -604,7 +617,6 @@ function updateDiscountPreview(form) {
 
 function calculateCart(panel) {
   const number = value => Number.parseFloat(value) || 0
-  const money = value => new Intl.NumberFormat("en-US", {style: "currency", currency: "USD"}).format(value)
   const lines = [...panel.querySelectorAll(".cart-line")].map(element => {
     const price = number(element.dataset.price)
     const quantity = Math.max(0, number(element.querySelector(".quantity-input")?.value))
@@ -669,6 +681,7 @@ function purchaseOrderLinesHook() {
     mounted() { initializePurchaseOrderLines(this) },
     updated() {
       initializePurchaseOrderLines(this)
+      translatePage(this.el)
       if (!this.focusNewLine) return
       this.focusNewLine = false
       this.el.querySelector("[data-order-line]:last-child [role='combobox']")?.focus()
@@ -702,6 +715,7 @@ function purchaseOrdersHook() {
       }
       this.el.addEventListener("click", this.onProcessOrder, true)
     },
+    updated() { translatePage(this.el) },
     destroyed() { this.el.removeEventListener("keydown", this.onObservedKeydown, true); this.el.removeEventListener("click", this.onProcessOrder, true) }
   }
 }
@@ -743,7 +757,7 @@ function initializePurchaseOrderLines(hook) {
       input.value = option.dataset.productCode ? `${option.dataset.productName} · ${option.dataset.productCode}` : option.dataset.productName
       close()
       hook.pushEvent("line_product", {id: line.dataset.lineId, product_id: option.dataset.productId})
-      line.querySelector("[aria-label='Requested quantity']")?.focus()
+      line.querySelector("[name^='quantity']")?.focus()
     }
     input.addEventListener("input", () => { active = -1; render() })
     input.addEventListener("focus", render)
@@ -756,11 +770,11 @@ function initializePurchaseOrderLines(hook) {
     })
     input.addEventListener("blur", () => setTimeout(close, 120))
     options().forEach(option => option.addEventListener("pointerdown", event => { event.preventDefault(); event.stopPropagation(); choose(option) }))
-    const quantity = line.querySelector("[aria-label='Requested quantity']")
+    const quantity = line.querySelector("[name^='quantity']")
     quantity?.addEventListener("keydown", event => {
       if (event.key !== "Enter") return
       event.preventDefault()
-      if (line.querySelector("[aria-label='Edit selected product']")?.disabled || !quantity.validity.valid) return
+      if (line.querySelector("[phx-click='edit_line_product']")?.disabled || !quantity.validity.valid) return
       hook.focusNewLine = true
       hook.pushEvent("add_line", {})
     })

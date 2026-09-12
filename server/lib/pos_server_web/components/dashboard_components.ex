@@ -8,7 +8,7 @@ defmodule PosServerWeb.DashboardComponents do
     assigns = assign(assigns, :addons, PosServer.Addons.enabled_for(assigns.tenant))
 
     ~H"""
-    <aside class="dashboard-sidebar" aria-label="Primary navigation">
+    <aside class="dashboard-sidebar" aria-label="Primary navigation" data-i18n-aria-label="layout.nav.primary">
       <div class="dashboard-sidebar-brand">
         <a class="brand" href={~p"/dash"} aria-label="tigoo dashboard">
           <img src={~p"/images/tigoo.svg"} alt="tigoo" />
@@ -20,6 +20,7 @@ defmodule PosServerWeb.DashboardComponents do
           type="button"
           data-dashboard-sidebar-toggle
           aria-label="Collapse navigation"
+          data-i18n-aria-label="layout.nav.collapse"
           aria-expanded="true"
         >
           <svg
@@ -33,7 +34,7 @@ defmodule PosServerWeb.DashboardComponents do
           </svg>
         </button>
       </div>
-      <nav class="dashboard-nav" aria-label="Dashboard navigation">
+      <nav class="dashboard-nav" aria-label="Dashboard navigation" data-i18n-aria-label="dashboard.dashboard">
         <a
           class={[@active == :dash && "is-active"]}
           href={~p"/dash"}
@@ -59,14 +60,14 @@ defmodule PosServerWeb.DashboardComponents do
               height="7"
               rx="1"
             />
-          </svg><span class="dashboard-sidebar-label">Dashboard</span>
+          </svg><span class="dashboard-sidebar-label" data-i18n="dashboard.dashboard">Dashboard</span>
         </a>
         <a
           class={[@active == :addons && "is-active"]}
           href={~p"/addons/install"}
           aria-current={if @active == :addons, do: "page"}
         >
-          <span aria-hidden="true">＋</span><span class="dashboard-sidebar-label">Install Addon</span>
+          <span aria-hidden="true">＋</span><span class="dashboard-sidebar-label" data-i18n="dashboard.installAddon">Install Addon</span>
         </a>
         <a
           :for={addon <- @addons}
@@ -78,7 +79,7 @@ defmodule PosServerWeb.DashboardComponents do
         </a>
       </nav>
       <div class="dashboard-sidebar-footer">
-        <span class="dashboard-sidebar-label">Workspace management</span>
+        <span class="dashboard-sidebar-label" data-i18n="dashboard.workspaceManagement">Workspace management</span>
       </div>
     </aside>
     """

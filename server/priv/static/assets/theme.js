@@ -2,6 +2,7 @@
   const THEME_KEY = "pos-theme"
   const THEMES = new Set(["default-light", "nature-light", "nature-dark", "caffeine-light", "caffeine-dark", "bold-tech-light", "bold-tech-dark", "doom-64-light", "doom-64-dark"])
   const LEGACY_THEMES = {default: "default-light", nature: "nature-light", "default-dark": "default-light"}
+  const tr = key => window.PosI18n?.t(key) || key
 
   function getTheme() {
     try {
@@ -73,6 +74,6 @@
 
     const collapsed = shell.classList.toggle("is-sidebar-collapsed")
     toggle.setAttribute("aria-expanded", String(!collapsed))
-    toggle.setAttribute("aria-label", collapsed ? "Expand navigation" : "Collapse navigation")
+    toggle.setAttribute("aria-label", collapsed ? tr("layout.nav.expand") : tr("layout.nav.collapse"))
   })
 })()

@@ -571,6 +571,14 @@ defmodule PosServerWeb.PurchaseOrdersLive do
   defp sort_aria(_, _), do: "none"
   defp source_options(:move, stores, _sources), do: stores
   defp source_options(_, _stores, sources), do: sources
+  defp purchase_order_header_key("Order ID"), do: "orders.orderId"
+  defp purchase_order_header_key("Source"), do: "orders.source"
+  defp purchase_order_header_key("Destination store"), do: "orders.destinationStore"
+  defp purchase_order_header_key("Order cost"), do: "orders.orderCost"
+  defp purchase_order_header_key("Cost difference"), do: "orders.costDifference"
+  defp purchase_order_header_key("Status"), do: "common.status"
+  defp purchase_order_header_key("Last updated"), do: "orders.lastUpdated"
+  defp purchase_order_header_key("Created by"), do: "orders.createdBy"
 
   @impl true
   def render(assigns) do
@@ -596,7 +604,7 @@ defmodule PosServerWeb.PurchaseOrdersLive do
               <div class="brand-lockup">
                 <span class="brand-mark" aria-hidden="true">E</span>
                 <div>
-                  <p class="eyebrow">Operations</p>
+                  <p class="eyebrow" data-i18n="inventory.operations">Operations</p>
                   <h2 id="orders-title" tabindex="-1">
                     Purchase orders — {active_store(@stores, @store_id)}
                   </h2>
@@ -604,13 +612,13 @@ defmodule PosServerWeb.PurchaseOrdersLive do
               </div>
               <div class="form-actions">
                 <button class="btn" type="button" data-variant="default" phx-click="open_create">
-                  Create purchase order
+                  <span data-i18n="orders.createPurchaseOrder">Create purchase order</span>
                 </button><button
                   class="btn"
                   type="button"
                   data-variant="default"
                   phx-click="open_move"
-                >Move Product</button>
+                ><span data-i18n="orders.moveProducts">Move Product</span></button>
               </div>
             </header>
             <p class="operations-status" role="status">{@status}</p>
@@ -631,7 +639,7 @@ defmodule PosServerWeb.PurchaseOrdersLive do
                   </div>
                   <div class="card-content">
                     <p class="inventory-kpi-value numeric">{count}</p>
-                    <p class="inventory-kpi-detail">Purchase orders</p>
+                    <p class="inventory-kpi-detail" data-i18n="orders.purchaseOrders">Purchase orders</p>
                   </div>
                 </button>
               </article>
@@ -639,7 +647,7 @@ defmodule PosServerWeb.PurchaseOrdersLive do
           </section>
           <div class="table-container operations-table-container">
             <table class="table operations-table">
-              <caption class="table-caption">Purchase orders for the current store.</caption>
+              <caption class="table-caption" data-i18n="orders.currentStore">Purchase orders for the current store.</caption>
               <thead>
                 <tr class="table-row">
                   <%= for {label, key} <- [{"Order ID", "id"}, {"Source", "from_origin_id"}, {"Destination store", "to_store_id"}, {"Order cost", nil}, {"Cost difference", nil}, {"Status", "status"}, {"Last updated", "last_updated"}, {"Created by", "user_requester"}] do %>
@@ -656,11 +664,11 @@ defmodule PosServerWeb.PurchaseOrdersLive do
                         phx-click="sort"
                         phx-value-key={key}
                       >
-                        {label}
-                      </button><span :if={!key}>{label}</span>
+                          <span data-i18n={purchase_order_header_key(label)}>{label}</span>
+                      </button><span :if={!key} data-i18n={purchase_order_header_key(label)}>{label}</span>
                     </th>
                   <% end %>
-                  <th class="table-head"><span class="sr-only">Action</span></th>
+                  <th class="table-head"><span class="sr-only" data-i18n="common.action">Action</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -671,19 +679,19 @@ defmodule PosServerWeb.PurchaseOrdersLive do
                     if(closed?(order), do: "purchase-order-received", else: "purchase-order-open")
                   ]}
                 >
-                  <td class="table-cell" data-label="Purchase order">#{order.id}</td>
-                  <td class="table-cell" data-label="Source">{order.from_origin_name || "—"}</td>
-                  <td class="table-cell" data-label="Destination store">
+                  <td class="table-cell" data-label="Purchase order" data-i18n-data-label="orders.purchaseOrder">#{order.id}</td>
+                  <td class="table-cell" data-label="Source" data-i18n-data-label="orders.source">{order.from_origin_name || "—"}</td>
+                  <td class="table-cell" data-label="Destination store" data-i18n-data-label="orders.destinationStore">
                     {order.to_store_name || "—"}
                   </td>
-                  <td class="table-cell numeric" data-label="Order cost">
+                  <td class="table-cell numeric" data-label="Order cost" data-i18n-data-label="orders.orderCost">
                     {money(order_cost(order))}
                   </td>
-                  <td class="table-cell numeric" data-label="Cost difference">
+                  <td class="table-cell numeric" data-label="Cost difference" data-i18n-data-label="orders.costDifference">
                     {money(order_difference(order))}
                   </td>
-                  <td class="table-cell" data-label="Status">
-                    {if closed?(order), do: "Closed", else: "Open"}<span
+                  <td class="table-cell" data-label="Status" data-i18n-data-label="common.status">
+                    <span data-i18n={if closed?(order), do: "common.closed", else: "common.open"}>{if closed?(order), do: "Closed", else: "Open"}</span><span
                       :if={discrepancy?(order)}
                       class="counting-warning"
                       role="img"
@@ -691,11 +699,11 @@ defmodule PosServerWeb.PurchaseOrdersLive do
                       title="Observed quantities differ from requested quantities"
                     > ⚠</span>
                   </td>
-                  <td class="table-cell" data-label="Last updated">
+                  <td class="table-cell" data-label="Last updated" data-i18n-data-label="orders.lastUpdated">
                     {datetime(order.date_closed || order.date_opened)}
                   </td>
-                  <td class="table-cell" data-label="Created by">{order.user_requester || "—"}</td>
-                  <td class="table-cell" data-label="Actions">
+                  <td class="table-cell" data-label="Created by" data-i18n-data-label="orders.createdBy">{order.user_requester || "—"}</td>
+                  <td class="table-cell" data-label="Actions" data-i18n-data-label="common.actions">
                     <button
                       class="btn"
                       type="button"
@@ -704,7 +712,7 @@ defmodule PosServerWeb.PurchaseOrdersLive do
                       phx-click="show_order"
                       phx-value-id={order.id}
                     >
-                      View
+                      <span data-i18n="common.view">View</span>
                     </button>
                   </td>
                 </tr>
@@ -723,7 +731,7 @@ defmodule PosServerWeb.PurchaseOrdersLive do
               <div class="brand-lockup">
                 <span class="brand-mark" aria-hidden="true">E</span>
                 <div>
-                  <p class="eyebrow">Operations</p>
+                  <p class="eyebrow" data-i18n="inventory.operations">Operations</p>
                   <h2 id="purchase-order-title" tabindex="-1">
                     {if @view == :form and @mode == :move, do: "Move products", else: "Purchase order"} — {active_store(
                       @stores,
@@ -739,7 +747,7 @@ defmodule PosServerWeb.PurchaseOrdersLive do
                 data-size="sm"
                 phx-click="back_to_orders"
               >
-                Back to orders
+                <span data-i18n="orders.backToOrders">Back to orders</span>
               </button>
             </header>
           </div>
@@ -748,7 +756,7 @@ defmodule PosServerWeb.PurchaseOrdersLive do
               <div>
                 <p class="eyebrow">Order #{@selected_order.id}</p>
                 <h3 class="card-title">
-                  {if closed?(@selected_order), do: "Closed", else: "Open"}<span
+                  <span data-i18n={if closed?(@selected_order), do: "common.closed", else: "common.open"}>{if closed?(@selected_order), do: "Closed", else: "Open"}</span><span
                     :if={discrepancy?(@selected_order)}
                     class="counting-warning"
                   > ⚠</span>
@@ -770,7 +778,7 @@ defmodule PosServerWeb.PurchaseOrdersLive do
                   phx-value-direction="previous"
                   disabled={order_position(@orders, @selected_order.id) <= 0}
                 >
-                  Previous
+                  <span data-i18n="orders.previous">Previous</span>
                 </button><button
                   class="btn"
                   type="button"
@@ -779,35 +787,35 @@ defmodule PosServerWeb.PurchaseOrdersLive do
                   phx-click="navigate_order"
                   phx-value-direction="next"
                   disabled={order_position(@orders, @selected_order.id) >= length(@orders) - 1}
-                >Next</button><button
+                ><span data-i18n="orders.next">Next</span></button><button
                   :if={!closed?(@selected_order) and !@counting?}
                   class="btn"
                   type="button"
                   data-variant="default"
                   phx-click="start_counting"
-                >Start Counting</button><button
+                ><span data-i18n="orders.startCounting">Start Counting</span></button><button
                   :if={!closed?(@selected_order) and @counting?}
                   class="btn"
                   type="submit"
                   form="receive-order-form"
                   data-variant="default"
-                >Process Order</button>
+                ><span data-i18n="orders.processOrder">Process Order</span></button>
               </div>
             </div>
             <form id="receive-order-form" class="card-content" phx-submit="receive_order">
               <div class="table-container purchase-order-lines-scroll">
                 <table class="table purchase-order-lines-table">
-                  <caption class="table-caption">Products in this purchase order.</caption>
+                  <caption class="table-caption" data-i18n="orders.productsInOrder">Products in this purchase order.</caption>
                   <thead>
                     <tr class="table-row">
-                      <th class="table-head">Product</th>
-                      <th class="table-head">SKU</th>
-                      <th class="table-head">Current quantity</th>
-                      <th class="table-head">Requested</th>
-                      <th class="table-head">Observed</th>
-                      <th class="table-head">Item cost</th>
-                      <th class="table-head">Cost difference</th>
-                      <th class="table-head">Status</th>
+                      <th class="table-head" data-i18n="common.product">Product</th>
+                      <th class="table-head" data-i18n="pos.catalog.sku">SKU</th>
+                      <th class="table-head" data-i18n="inventory.currentQuantity">Current quantity</th>
+                      <th class="table-head" data-i18n="orders.requested">Requested</th>
+                      <th class="table-head" data-i18n="orders.observed">Observed</th>
+                      <th class="table-head" data-i18n="orders.itemCost">Item cost</th>
+                      <th class="table-head" data-i18n="orders.costDifference">Cost difference</th>
+                      <th class="table-head" data-i18n="common.status">Status</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -855,14 +863,14 @@ defmodule PosServerWeb.PurchaseOrdersLive do
           <article :if={@view == :form} class="card purchase-order-detail">
             <div class="card-header">
               <div>
-                <p class="eyebrow">Operations</p>
+                <p class="eyebrow" data-i18n="inventory.operations">Operations</p>
                 <h3 class="card-title">
-                  {if @mode == :move, do: "Move products", else: "Create purchase order"}
+                  <span data-i18n={if @mode == :move, do: "orders.moveProducts", else: "orders.createPurchaseOrder"}>{if @mode == :move, do: "Move products", else: "Create purchase order"}</span>
                 </h3>
                 <p class="field-description">
-                  {if @mode == :move,
+                  <span data-i18n={if @mode == :move, do: "orders.moveProductsCopy", else: "orders.addProductsCopy"}>{if @mode == :move,
                     do: "Move products from an origin store to a destination store.",
-                    else: "Add products and confirm the requested quantities."}
+                    else: "Add products and confirm the requested quantities."}</span>
                 </p>
               </div>
             </div>
@@ -870,21 +878,21 @@ defmodule PosServerWeb.PurchaseOrdersLive do
               <div class="order-form-grid">
                 <div class="form-field">
                   <label class="label" for="purchase-order-source">
-                    {if @mode == :move, do: "Origin store", else: "Source / provider"}
+                    <span data-i18n={if @mode == :move, do: "orders.originStore", else: "orders.sourceProvider"}>{if @mode == :move, do: "Origin store", else: "Source / provider"}</span>
                   </label><select
                     id="purchase-order-source"
                     class="select"
                     name="source_id"
                     phx-change="change_source"
                     required
-                  ><option value="" selected={@source_id == ""} disabled>Select a source</option><option
+                  ><option value="" selected={@source_id == ""} disabled data-i18n="orders.selectSource">Select a source</option><option
                     :for={source <- source_options(@mode, @stores, @sources)}
                     value={source.id}
                     selected={to_string(source.id) == @source_id}
                   >{source.name}</option></select>
                 </div>
                 <div class="form-field">
-                  <label class="label" for="purchase-order-destination">Destination store</label><select
+                  <label class="label" for="purchase-order-destination" data-i18n="orders.destinationStore">Destination store</label><select
                     id="purchase-order-destination"
                     class="select"
                     name="destination_id"
@@ -924,12 +932,14 @@ defmodule PosServerWeb.PurchaseOrdersLive do
                       type="text"
                       value={line.query}
                       placeholder="Search products"
+                      data-i18n-placeholder="inventory.searchProduct"
                       autocomplete="off"
                       spellcheck="false"
                       autocorrect="off"
                       autocapitalize="off"
                       role="combobox"
                       aria-label="Product"
+                      data-i18n-aria-label="common.product"
                       aria-autocomplete="list"
                       aria-expanded="false"
                       aria-controls={"#{line.id}-products"}
@@ -941,6 +951,7 @@ defmodule PosServerWeb.PurchaseOrdersLive do
                       data-variant="outline"
                       data-size="icon-sm"
                       aria-label="Create product"
+                      data-i18n-aria-label="inventory.createProduct"
                       phx-click="open_line_product"
                       phx-value-line_id={line.id}
                     >
@@ -968,6 +979,7 @@ defmodule PosServerWeb.PurchaseOrdersLive do
                     value={line.current_quantity}
                     readonly
                     aria-label="Current inventory quantity"
+                    data-i18n-aria-label="inventory.currentQuantity"
                   /><input
                     class="input"
                     type="number"
@@ -975,6 +987,7 @@ defmodule PosServerWeb.PurchaseOrdersLive do
                     name={"quantity[#{line.id}]"}
                     value={line.quantity}
                     aria-label="Requested quantity"
+                    data-i18n-aria-label="orders.requested"
                     phx-change="line_quantity"
                   /><button
                     class="btn"

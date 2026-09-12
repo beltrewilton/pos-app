@@ -684,7 +684,7 @@ defmodule PosServerWeb.InventoryLive do
               <div class="brand-lockup">
                 <span class="brand-mark" aria-hidden="true">E</span>
                 <div>
-                  <p class="eyebrow">Operations</p>
+                  <p class="eyebrow" data-i18n="inventory.operations">Operations</p>
                   <h2 id="inventory-title" tabindex="-1">Inventory — {active_store(assigns)}</h2>
                 </div>
               </div>
@@ -699,6 +699,7 @@ defmodule PosServerWeb.InventoryLive do
                     value={@search}
                     phx-debounce="0"
                     placeholder="Search product"
+                    data-i18n-placeholder="inventory.searchProduct"
                     autocomplete="off"
                   />
                 </div>
@@ -708,7 +709,7 @@ defmodule PosServerWeb.InventoryLive do
                     type="checkbox"
                     checked={@show_archived?}
                     phx-click="toggle_archived"
-                  />Archived
+                  /><span data-i18n="inventory.archived">Archived</span>
                 </label>
                 <button
                   :if={Scope.allowed?(@scope, "product.add")}
@@ -719,13 +720,13 @@ defmodule PosServerWeb.InventoryLive do
                   aria-haspopup="dialog"
                   phx-click="open_product_dialog"
                 >
-                  Create product
+                  <span data-i18n="inventory.createProduct">Create product</span>
                 </button>
               </form>
             </header>
             <p id="inventory-status" class="operations-status" role="status">{@status}</p>
           </div>
-          <section class="inventory-summary-section" aria-label="Inventory and operations KPIs">
+          <section class="inventory-summary-section" aria-label="Inventory and operations KPIs" data-i18n-aria-label="inventory.kpis">
             <section
               id="inventory-summary"
               class={["inventory-summary", if(!@kpis_expanded, do: "is-collapsed")]}
@@ -733,14 +734,14 @@ defmodule PosServerWeb.InventoryLive do
             >
               <article class="card inventory-summary-card inventory-summary-valuation">
                 <div class="card-header">
-                  <p class="card-title">Inventory valuation</p>
+                  <p class="card-title" data-i18n="inventory.valuation">Inventory valuation</p>
                 </div>
                 <div class="card-content inventory-valuation-content">
                   <div class="inventory-valuation-company">
                     <p class="inventory-kpi-value numeric">
                       {money(value(@summary || %{}, :company_inventory_valuation))}
                     </p>
-                    <p class="inventory-valuation-caption numeric">Company total</p>
+                    <p class="inventory-valuation-caption numeric" data-i18n="inventory.companyTotal">Company total</p>
                   </div>
                   <div class="inventory-valuation-breakdown">
                     <div
@@ -782,7 +783,7 @@ defmodule PosServerWeb.InventoryLive do
                   }
                 >
                   <div class="card-header">
-                    <p class="card-title">{card.title}</p>
+                    <p class="card-title" data-i18n={metric_title_key(card.title)}>{card.title}</p>
                   </div>
                   <div class="card-content">
                     <p class="inventory-kpi-value numeric">{card.value}</p>
@@ -794,7 +795,7 @@ defmodule PosServerWeb.InventoryLive do
                   class="inventory-kpi"
                 >
                   <div class="card-header">
-                    <p class="card-title">{card.title}</p>
+                    <p class="card-title" data-i18n={metric_title_key(card.title)}>{card.title}</p>
                   </div>
                   <div class="card-content">
                     <p class="inventory-kpi-value numeric">{card.value}</p>
@@ -812,13 +813,13 @@ defmodule PosServerWeb.InventoryLive do
               aria-expanded={to_string(@kpis_expanded)}
               aria-controls="inventory-summary"
             >
-              {if @kpis_expanded, do: "Show fewer KPIs", else: "Show more KPIs"}
+              <span data-i18n={if @kpis_expanded, do: "inventory.showFewerKpis", else: "inventory.showMoreKpis"}>{if @kpis_expanded, do: "Show fewer KPIs", else: "Show more KPIs"}</span>
               <span aria-hidden="true">⌄</span>
             </button>
           </section>
           <div class="table-container operations-table-container">
             <table class="table operations-table">
-              <caption class="table-caption">Inventory by store.</caption>
+              <caption class="table-caption" data-i18n="inventory.byStore">Inventory by store.</caption>
               <thead>
                 <tr class="table-row">
                   <th
@@ -840,16 +841,16 @@ defmodule PosServerWeb.InventoryLive do
                       phx-click="sort"
                       phx-value-key={key}
                     >
-                      {label}
+                      <span data-i18n={inventory_header_key(label)}>{label}</span>
                     </button>
-                    <span :if={is_nil(key)} class="sr-only">{label}</span>
+                    <span :if={is_nil(key)} class="sr-only" data-i18n={inventory_header_key(label)}>{label}</span>
                   </th>
                 </tr>
               </thead>
               <tbody id="inventory-table-body">
                 <%= for entry <- visible_entries(assigns) do %>
                   <tr class="table-row" data-inventory-product-id={entry.product_id}>
-                    <td class="table-cell" data-label="Product">
+                    <td class="table-cell" data-label="Product" data-i18n-data-label="common.product">
                       <button
                         class="btn"
                         type="button"
@@ -860,7 +861,7 @@ defmodule PosServerWeb.InventoryLive do
                         {entry.product_name || "Product ##{entry.product_id}"}
                       </button>
                     </td>
-                    <td class="table-cell inventory-product-status-cell" data-label="Status">
+                    <td class="table-cell inventory-product-status-cell" data-label="Status" data-i18n-data-label="common.status">
                       <details class="inventory-product-status-menu">
                         <summary
                           class={["inventory-product-status", product_status_tone(entry)]}
@@ -885,7 +886,7 @@ defmodule PosServerWeb.InventoryLive do
                             <span class="inventory-product-status-mini is-active">
                               <.product_status_icon entry={%{active: 1, archived: "0"}} />
                             </span>
-                            Active
+                            <span data-i18n="inventory.active">Active</span>
                           </button>
                           <button
                             class={[
@@ -902,12 +903,12 @@ defmodule PosServerWeb.InventoryLive do
                             <span class="inventory-product-status-mini is-archived">
                               <.product_status_icon entry={%{active: 1, archived: "1"}} />
                             </span>
-                            Archive it
+                            <span data-i18n="inventory.archiveIt">Archive it</span>
                           </button>
                         </div>
                       </details>
                     </td>
-                    <td class="table-cell" data-label="SKU">
+                    <td class="table-cell" data-label="SKU" data-i18n-data-label="pos.catalog.sku">
                       <button
                         class="btn inventory-sku-trace"
                         type="button"
@@ -919,11 +920,11 @@ defmodule PosServerWeb.InventoryLive do
                         {entry.product_code || "—"}
                       </button>
                     </td>
-                    <td class="table-cell numeric" data-label="Cost">{money(entry.product_cost)}</td>
-                    <td class="table-cell numeric" data-label="Price">
+                    <td class="table-cell numeric" data-label="Cost" data-i18n-data-label="inventory.cost">{money(entry.product_cost)}</td>
+                    <td class="table-cell numeric" data-label="Price" data-i18n-data-label="common.price">
                       {if is_nil(entry.product_price), do: "—", else: money(entry.product_price)}
                     </td>
-                    <td class="table-cell numeric inventory-total-quantity-cell" data-label="Total quantity">
+                    <td class="table-cell numeric inventory-total-quantity-cell" data-label="Total quantity" data-i18n-data-label="inventory.totalQuantity">
                       <button
                         class="btn inventory-total-quantity"
                         type="button"
@@ -936,7 +937,7 @@ defmodule PosServerWeb.InventoryLive do
                           entry.quantity || 0}
                       </button>
                     </td>
-                    <td class="table-cell" data-label="Current quantity">
+                    <td class="table-cell" data-label="Current quantity" data-i18n-data-label="inventory.currentQuantity">
                       <%= if @editing_product_id == entry.product_id do %>
                         <form class="inventory-inline-editor" phx-submit="save_quantity">
                           <input type="hidden" name="product_id" value={entry.product_id} /><input
@@ -946,14 +947,14 @@ defmodule PosServerWeb.InventoryLive do
                             type="number"
                             value={entry.quantity || 0}
                           /><button class="btn" type="submit" data-variant="default" data-size="sm">
-                            Update
+                            <span data-i18n="inventory.update">Update</span>
                           </button><button
                             class="btn"
                             type="button"
                             data-variant="ghost"
                             data-size="sm"
                             phx-click="cancel_edit"
-                          >Cancel</button>
+                          ><span data-i18n="common.cancel">Cancel</span></button>
                         </form>
                       <% else %>
                         <div class="inventory-inline-editor">
@@ -964,17 +965,17 @@ defmodule PosServerWeb.InventoryLive do
                             data-size="sm"
                             phx-click="edit_quantity"
                             phx-value-product_id={entry.product_id}
-                          >Update</button>
+                          ><span data-i18n="inventory.update">Update</span></button>
                         </div>
                       <% end %>
                     </td>
-                    <td class="table-cell numeric inventory-previous-quantity-cell" data-label="Previous quantity">
+                    <td class="table-cell numeric inventory-previous-quantity-cell" data-label="Previous quantity" data-i18n-data-label="inventory.previousQuantity">
                       {entry.prev_quantity || "—"}
                     </td>
-                    <td class="table-cell" data-label="Last updated">
+                    <td class="table-cell" data-label="Last updated" data-i18n-data-label="inventory.lastUpdated">
                       {datetime(entry.last_update)}
                     </td>
-                    <td class="table-cell" data-label="Updated by">{entry.user_updated || "—"}</td>
+                    <td class="table-cell" data-label="Updated by" data-i18n-data-label="inventory.updatedBy">{entry.user_updated || "—"}</td>
                   </tr>
                   <tr
                     :for={store <- @store_quantities}
@@ -982,11 +983,11 @@ defmodule PosServerWeb.InventoryLive do
                     class="table-row inventory-store-row"
                   >
                     <td class="table-cell" colspan="4"></td>
-                    <td class="table-cell inventory-store-name" data-label="Store">
+                    <td class="table-cell inventory-store-name" data-label="Store" data-i18n-data-label="common.store">
                       {store.store_name}
                     </td>
-                    <td class="table-cell inventory-total-quantity-cell" data-label="Total quantity"></td>
-                    <td class="table-cell" data-label="Current quantity">
+                    <td class="table-cell inventory-total-quantity-cell" data-label="Total quantity" data-i18n-data-label="inventory.totalQuantity"></td>
+                    <td class="table-cell" data-label="Current quantity" data-i18n-data-label="inventory.currentQuantity">
                       <form class="inventory-inline-editor" phx-submit="save_store_quantity">
                         <input type="hidden" name="product_id" value={entry.product_id} /><input
                           type="hidden"
@@ -999,17 +1000,17 @@ defmodule PosServerWeb.InventoryLive do
                           type="number"
                           value={store.quantity || 0}
                         /><button class="btn" type="submit" data-variant="default" data-size="sm">
-                          Update
+                          <span data-i18n="inventory.update">Update</span>
                         </button>
                       </form>
                     </td>
-                    <td class="table-cell inventory-previous-quantity-cell" data-label="Previous quantity">
+                    <td class="table-cell inventory-previous-quantity-cell" data-label="Previous quantity" data-i18n-data-label="inventory.previousQuantity">
                       {store.prev_quantity || "—"}
                     </td>
-                    <td class="table-cell" data-label="Last updated">
+                    <td class="table-cell" data-label="Last updated" data-i18n-data-label="inventory.lastUpdated">
                       {datetime(store.last_update)}
                     </td>
-                    <td class="table-cell" data-label="Updated by">{store.user_updated || "—"}</td>
+                    <td class="table-cell" data-label="Updated by" data-i18n-data-label="inventory.updatedBy">{store.user_updated || "—"}</td>
                   </tr>
                   <tr
                     :if={@expanded == {:traces, entry.product_id}}
@@ -1017,19 +1018,19 @@ defmodule PosServerWeb.InventoryLive do
                   >
                     <td class="table-cell" colspan="10">
                       <%= if @traces == [] do %>
-                        <p class="field-description">No trace history yet.</p>
+                        <p class="field-description" data-i18n="inventory.noTraceHistory">No trace history yet.</p>
                       <% else %>
                         <div class="inventory-trace-wrap">
                           <table class="table inventory-trace-table">
                             <thead>
                               <tr class="table-row">
-                                <th class="table-head">Date</th>
-                                <th class="table-head">Action</th>
-                                <th class="table-head">Store</th>
-                                <th class="table-head">Change</th>
-                                <th class="table-head">Previous → Current</th>
-                                <th class="table-head">Updated by</th>
-                                <th class="table-head">Context</th>
+                                <th class="table-head" data-i18n="common.date">Date</th>
+                                <th class="table-head" data-i18n="common.action">Action</th>
+                                <th class="table-head" data-i18n="common.store">Store</th>
+                                <th class="table-head" data-i18n="inventory.change">Change</th>
+                                <th class="table-head" data-i18n="inventory.previousCurrent">Previous → Current</th>
+                                <th class="table-head" data-i18n="inventory.updatedBy">Updated by</th>
+                                <th class="table-head" data-i18n="inventory.context">Context</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -1262,6 +1263,29 @@ defmodule PosServerWeb.InventoryLive do
       {"Last updated", "last_update"},
       {"Updated by", "user_updated"}
     ]
+
+  defp inventory_header_key("Product"), do: "common.product"
+  defp inventory_header_key("Status"), do: "common.status"
+  defp inventory_header_key("SKU"), do: "pos.catalog.sku"
+  defp inventory_header_key("Cost"), do: "inventory.cost"
+  defp inventory_header_key("Price"), do: "common.price"
+  defp inventory_header_key("Total quantity"), do: "inventory.totalQuantity"
+  defp inventory_header_key("Current quantity"), do: "inventory.currentQuantity"
+  defp inventory_header_key("Previous quantity"), do: "inventory.previousQuantity"
+  defp inventory_header_key("Last updated"), do: "inventory.lastUpdated"
+  defp inventory_header_key("Updated by"), do: "inventory.updatedBy"
+
+  defp metric_title_key("Negative stock"), do: "inventory.negativeStock"
+  defp metric_title_key("Uncosted inventory"), do: "inventory.uncostedInventory"
+  defp metric_title_key("Stockout"), do: "inventory.stockout"
+  defp metric_title_key("Net sales"), do: "inventory.netSales"
+  defp metric_title_key("Sales mix"), do: "inventory.salesMix"
+  defp metric_title_key("Average order"), do: "inventory.averageOrder"
+  defp metric_title_key("Best products"), do: "inventory.bestProducts"
+  defp metric_title_key("Discount rate"), do: "inventory.discountRate"
+  defp metric_title_key("Payment mix"), do: "inventory.paymentMix"
+  defp metric_title_key("Retention"), do: "inventory.retention"
+  defp metric_title_key("Order flow"), do: "inventory.orderFlow"
 
   defp price_for(nil, _pricing_id), do: nil
 

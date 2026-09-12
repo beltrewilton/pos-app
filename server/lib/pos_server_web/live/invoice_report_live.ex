@@ -591,6 +591,12 @@ defmodule PosServerWeb.InvoiceReportLive do
   defp status_label("close"), do: "Paid"
   defp status_label("cancelled"), do: "Cancelled"
   defp status_label(_), do: "Pending"
+  defp status_label_key("close"), do: "invoice.paid"
+  defp status_label_key("cancelled"), do: "invoice.cancelled"
+  defp status_label_key(_), do: "invoice.pending"
+  defp kpi_label_key("paid"), do: "invoice.paid"
+  defp kpi_label_key("pending"), do: "invoice.pending"
+  defp kpi_label_key("cancelled"), do: "invoice.cancelled"
 
   defp sort_aria(%{key: key, direction: direction}, key),
     do: if(direction == :asc, do: "ascending", else: "descending")
@@ -645,7 +651,7 @@ defmodule PosServerWeb.InvoiceReportLive do
               <div class="brand-lockup">
                 <span class="brand-mark" aria-hidden="true">E</span>
                 <div>
-                  <p class="eyebrow">Sales</p>
+                  <p class="eyebrow" data-i18n="invoice.sales">Sales</p>
                   <h2 id="invoice-report-title" tabindex="-1">
                     Invoice report — {active_store(assigns)}
                   </h2>
@@ -663,8 +669,10 @@ defmodule PosServerWeb.InvoiceReportLive do
                     phx-change="search"
                     phx-debounce="250"
                     aria-label="Search invoices by customer"
+                    data-i18n-aria-label="invoice.search"
                     autocomplete="off"
                     placeholder="Search by customer name"
+                    data-i18n-placeholder="invoice.searchPlaceholder"
                   />
                 </div>
                 <div class="invoice-date-picker">
@@ -686,17 +694,17 @@ defmodule PosServerWeb.InvoiceReportLive do
                     range={@pending_range}
                   />
                 </div>
-                <button class="btn" type="submit" data-variant="outline" data-size="sm">Apply</button><button
+                <button class="btn" type="submit" data-variant="outline" data-size="sm"><span data-i18n="common.apply">Apply</span></button><button
                   id="invoice-filters-clear"
                   class="btn"
                   type="button"
                   data-variant="ghost"
                   data-size="sm"
                   phx-click="clear_filters"
-                >Clear</button>
+                ><span data-i18n="common.clear">Clear</span></button>
               </form>
             </header>
-            <section class="invoice-summary" aria-label="Invoice status summary">
+            <section class="invoice-summary" aria-label="Invoice status summary" data-i18n-aria-label="invoice.summary">
               <.kpi
                 name="paid"
                 label="Paid"
@@ -721,11 +729,11 @@ defmodule PosServerWeb.InvoiceReportLive do
           </div>
           <div class="table-container invoice-table-container">
             <table class="table invoice-table">
-              <caption class="table-caption">Invoices for the selected store.</caption>
+              <caption class="table-caption" data-i18n="invoice.selectedStoreCaption">Invoices for the selected store.</caption>
               <thead>
                 <tr class="table-row">
                   <th
-                    :for={{label, key} <- headers()}
+                    :for={{label, key, i18n_key} <- headers()}
                     class="table-head"
                     scope="col"
                     aria-sort={sort_aria(@sort, key)}
@@ -737,10 +745,10 @@ defmodule PosServerWeb.InvoiceReportLive do
                       phx-click="sort"
                       phx-value-key={key}
                     >
-                      {label}
+                      <span data-i18n={i18n_key}>{label}</span>
                     </button>
                   </th>
-                  <th class="table-head" scope="col"><span class="sr-only">Actions</span></th>
+                  <th class="table-head" scope="col"><span class="sr-only" data-i18n="common.actions">Actions</span></th>
                 </tr>
               </thead>
               <tbody id="invoice-table-body">
@@ -790,7 +798,7 @@ defmodule PosServerWeb.InvoiceReportLive do
         aria-pressed={to_string(@selected == @status)}
       >
         <div class="card-header">
-          <p class="card-title">{@label}</p>
+          <p class="card-title" data-i18n={kpi_label_key(@name)}>{@label}</p>
         </div>
         <div class="card-content">
           <p id={"invoice-#{@name}-total"} class="invoice-kpi-value numeric">
@@ -817,7 +825,7 @@ defmodule PosServerWeb.InvoiceReportLive do
       class={["table-row", "invoice-row", invoice_due_marker_class(@invoice)]}
       style={"--invoice-due-width: #{invoice_due_marker_width(@invoice)};"}
     >
-      <td class="table-cell" data-label="Invoice">
+      <td class="table-cell" data-label="Invoice" data-i18n-data-label="pos.customers.invoice">
         <button
           class="btn invoice-detail-trigger"
           type="button"
@@ -832,7 +840,7 @@ defmodule PosServerWeb.InvoiceReportLive do
           ) || "##{@id}"}
         </button>
       </td>
-      <td class="table-cell" data-label="Customer">
+      <td class="table-cell" data-label="Customer" data-i18n-data-label="pos.checkout.customer">
         <button
           class="btn invoice-detail-trigger"
           type="button"
@@ -841,32 +849,33 @@ defmodule PosServerWeb.InvoiceReportLive do
           phx-value-id={@id}
           aria-expanded={to_string(@expanded)}
         >
-          {value(@invoice, "client_name") || "Walk-in customer"}
+          <span data-i18n={if value(@invoice, "client_name"), do: nil, else: "invoice.walkIn"}>{value(@invoice, "client_name") || "Walk-in customer"}</span>
         </button>
       </td>
-      <td class="table-cell" data-label="Date">
+      <td class="table-cell" data-label="Date" data-i18n-data-label="common.date">
         <span class="invoice-date">{date_only(value(@invoice, "date_create"))}</span><span class="invoice-time">{time_only(value(@invoice, "date_create"))}</span>
       </td>
-      <td class="table-cell invoice-due-date-cell" data-label="Due Date">
+      <td class="table-cell invoice-due-date-cell" data-label="Due Date" data-i18n-data-label="invoice.dueDateHeader">
         <span class="invoice-date">{invoice_due_date(value(@invoice, "due_date"))}</span>
       </td>
-      <td class="table-cell" data-label="Status">
+      <td class="table-cell" data-label="Status" data-i18n-data-label="common.status">
         <span class={["invoice-status", "invoice-status-#{value(@invoice, "invoice_status")}"]}>
-          {status_label(value(@invoice, "invoice_status"))}
+          <span data-i18n={status_label_key(value(@invoice, "invoice_status"))}>{status_label(value(@invoice, "invoice_status"))}</span>
         </span>
       </td>
-      <td class="table-cell numeric" data-label="Total">{money(value(@invoice, "amount"))}</td>
-      <td class="table-cell numeric" data-label="Balance">
+      <td class="table-cell numeric" data-label="Total" data-i18n-data-label="common.total">{money(value(@invoice, "amount"))}</td>
+      <td class="table-cell numeric" data-label="Balance" data-i18n-data-label="common.balance">
         {money(max(decimal(value(@invoice, "due_balance")), 0))}
       </td>
       <td
         class="table-cell invoice-salesperson"
         data-label="Sales Person"
+        data-i18n-data-label="pos.customers.salesPerson"
         title={value(@invoice, "login") || ""}
       >
         {value(@invoice, "login") || "—"}
       </td>
-      <td class="table-cell invoice-actions" data-label="Actions">
+      <td class="table-cell invoice-actions" data-label="Actions" data-i18n-data-label="common.actions">
         <button
           :if={value(@invoice, "invoice_status") != "cancelled"}
           class="btn invoice-cancel"
@@ -876,7 +885,7 @@ defmodule PosServerWeb.InvoiceReportLive do
           phx-click="open_cancel"
           phx-value-id={@id}
         >
-          Cancel
+          <span data-i18n="common.cancel">Cancel</span>
         </button><span :if={value(@invoice, "invoice_status") == "cancelled"}>{value(@invoice, "cancelled_by") || "—"}</span>
       </td>
     </tr>
@@ -907,11 +916,11 @@ defmodule PosServerWeb.InvoiceReportLive do
               <div class="invoice-detail-heading">
                 <h3 class="card-title">{@detail.sequence || "Invoice ##{@detail.id}"}</h3>
                 <p class="card-description">
-                  {(@detail.client && @detail.client.name) || "Walk-in customer"} · {@detail.sale_type ||
+                  <span data-i18n={if @detail.client && @detail.client.name, do: nil, else: "invoice.walkIn"}>{(@detail.client && @detail.client.name) || "Walk-in customer"}</span> · {@detail.sale_type ||
                     "Sales"} · {@detail.login || "—"}
                 </p>
                 <p class="card-description invoice-due-date">
-                  Due date: {invoice_due_date(@detail.due_date)}
+                  <span data-i18n="invoice.dueDate">Due date:</span> {invoice_due_date(@detail.due_date)}
                 </p>
               </div>
               <div class="invoice-detail-print">
@@ -923,7 +932,7 @@ defmodule PosServerWeb.InvoiceReportLive do
                   phx-click="reprint_invoice"
                   phx-value-id={@detail.id}
                 >
-                  Print Copy
+                  <span data-i18n="invoice.printCopy">Print Copy</span>
                 </button>
               </div>
               <div class="invoice-detail-actions">
@@ -939,38 +948,38 @@ defmodule PosServerWeb.InvoiceReportLive do
                     "invoice-detail-status",
                     "invoice-status-#{@detail.invoice_status}"
                   ]}
-                >{status_label(@detail.invoice_status)}</span>
+                ><span data-i18n={status_label_key(@detail.invoice_status)}>{status_label(@detail.invoice_status)}</span></span>
               </div>
             </div>
             <div class="card-content">
               <div class="table-container invoice-payment-history">
-                <p class="invoice-table-section-title">Payments</p>
+                <p class="invoice-table-section-title" data-i18n="invoice.payments">Payments</p>
                 <table class="table">
                   <thead>
                     <tr class="table-row invoice-payment-columns">
-                      <th class="table-head">Payment</th>
-                      <th class="table-head">Date</th>
-                      <th class="table-head">User</th>
-                      <th class="table-head">Method</th>
-                      <th class="table-head">Amount</th>
-                      <th class="table-head">Status</th>
-                      <th class="table-head"><span class="sr-only">Action</span></th>
+                      <th class="table-head" data-i18n="common.payment">Payment</th>
+                      <th class="table-head" data-i18n="common.date">Date</th>
+                      <th class="table-head" data-i18n="common.user">User</th>
+                      <th class="table-head" data-i18n="invoice.method">Method</th>
+                      <th class="table-head" data-i18n="invoice.amount">Amount</th>
+                      <th class="table-head" data-i18n="common.status">Status</th>
+                      <th class="table-head"><span class="sr-only" data-i18n="common.action">Action</span></th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr :if={@detail.payments == []} class="table-row">
-                      <td class="table-cell muted" colspan="7">No payments recorded.</td>
+                      <td class="table-cell muted" colspan="7" data-i18n="invoice.noPayments">No payments recorded.</td>
                     </tr>
                     <tr :for={payment <- @detail.payments} class="table-row">
-                      <td class="table-cell">Payment</td>
+                      <td class="table-cell" data-i18n="common.payment">Payment</td>
                       <td class="table-cell">{date_only(payment.date_create)}</td>
                       <td class="table-cell">{payment.login || @detail.login || "—"}</td>
                       <td class="table-cell">
-                        {if payment.type == "CC", do: "Credit Card", else: "Cash"}
+                        <span data-i18n={if payment.type == "CC", do: "pos.checkout.creditCard", else: "common.cash"}>{if payment.type == "CC", do: "Credit Card", else: "Cash"}</span>
                       </td>
                       <td class="table-cell numeric">{money(payment.amount)}</td>
                       <td class="table-cell">
-                        {if @detail.invoice_status == "close", do: "Complete", else: "Partial"}
+                        <span data-i18n={if @detail.invoice_status == "close", do: "common.complete", else: "invoice.partial"}>{if @detail.invoice_status == "close", do: "Complete", else: "Partial"}</span>
                       </td>
                       <td class="table-cell">
                         <button
@@ -982,7 +991,7 @@ defmodule PosServerWeb.InvoiceReportLive do
                           phx-value-invoice_id={@detail.id}
                           phx-value-payment_id={payment.id}
                         >
-                          Print payment
+                          <span data-i18n="invoice.printPayment">Print payment</span>
                         </button>
                       </td>
                     </tr>
@@ -990,16 +999,16 @@ defmodule PosServerWeb.InvoiceReportLive do
                 </table>
               </div>
               <div class="table-container">
-                <p class="invoice-table-section-title">Line items</p>
+                <p class="invoice-table-section-title" data-i18n="invoice.lineItems">Line items</p>
                 <table class="table invoice-detail-lines">
                   <thead>
                     <tr class="table-row invoice-line-columns">
-                      <th class="table-head">Product</th>
-                      <th class="table-head">Quantity</th>
-                      <th class="table-head">Unit price</th>
-                      <th class="table-head">Discount</th>
+                      <th class="table-head" data-i18n="common.product">Product</th>
+                      <th class="table-head" data-i18n="common.quantity">Quantity</th>
+                      <th class="table-head" data-i18n="invoice.unitPrice">Unit price</th>
+                      <th class="table-head" data-i18n="common.discount">Discount</th>
                       <th class="table-head" aria-hidden="true"></th>
-                      <th class="table-head">Total</th>
+                      <th class="table-head" data-i18n="common.total">Total</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1020,13 +1029,13 @@ defmodule PosServerWeb.InvoiceReportLive do
                       <td class="table-cell numeric invoice-line-summary-discount">
                         {if decimal(@detail.discount) > 0, do: money(@detail.discount), else: "-"}
                       </td>
-                      <th class="table-cell">Subtotal</th>
+                      <th class="table-cell" data-i18n="common.subtotal">Subtotal</th>
                       <td class="table-cell numeric">{money(@detail.sub)}</td>
                     </tr>
                     <tr class="table-row invoice-line-summary">
                       <td class="table-cell" colspan="3" aria-hidden="true"></td>
                       <td class="table-cell numeric invoice-line-summary-discount">-</td>
-                      <th class="table-cell">Tax (18%)</th>
+                      <th class="table-cell" data-i18n="common.tax18">Tax (18%)</th>
                       <td class="table-cell numeric">{money(@detail.tax_amount)}</td>
                     </tr>
                     <tr
@@ -1035,13 +1044,13 @@ defmodule PosServerWeb.InvoiceReportLive do
                     >
                       <td class="table-cell" colspan="3" aria-hidden="true"></td>
                       <td class="table-cell numeric invoice-line-summary-discount">-</td>
-                      <th class="table-cell">Delivery</th>
+                      <th class="table-cell" data-i18n="pos.checkout.delivery">Delivery</th>
                       <td class="table-cell numeric">{money(@detail.delivery_charge)}</td>
                     </tr>
                     <tr class="table-row invoice-line-summary invoice-line-summary-total">
                       <td class="table-cell" colspan="3" aria-hidden="true"></td>
                       <td class="table-cell numeric invoice-line-summary-discount">-</td>
-                      <th class="table-cell">Total</th>
+                      <th class="table-cell" data-i18n="common.total">Total</th>
                       <td class="table-cell numeric">{money(@detail.amount)}</td>
                     </tr>
                   </tfoot>
@@ -1076,7 +1085,7 @@ defmodule PosServerWeb.InvoiceReportLive do
       <input type="hidden" name="_id" value={@detail.id} />
       <div class="invoice-payment-row">
         <div class="invoice-payment-amount">
-          <label class="sr-only" for={"invoice-payment-#{@detail.id}"}>Payment amount</label>
+          <label class="sr-only" for={"invoice-payment-#{@detail.id}"} data-i18n="invoice.paymentAmount">Payment amount</label>
           <input
             id={"invoice-payment-#{@detail.id}"}
             class="input numeric"
@@ -1097,7 +1106,7 @@ defmodule PosServerWeb.InvoiceReportLive do
           data-variant="outline"
           phx-disable-with="Apply"
         >
-          Apply
+          <span data-i18n="common.apply">Apply</span>
         </button>
       </div>
       <div class="invoice-payment-row invoice-payment-payoff">
@@ -1114,7 +1123,7 @@ defmodule PosServerWeb.InvoiceReportLive do
           data-variant="default"
           phx-disable-with="Pay off"
         >
-          Pay off
+          <span data-i18n="invoice.payOff">Pay off</span>
         </button>
       </div>
     </form>
@@ -1130,7 +1139,7 @@ defmodule PosServerWeb.InvoiceReportLive do
     assigns = assign(assigns, :selected, selected)
 
     ~H"""
-    <div class="invoice-payment-methods sequence-options" role="group" aria-label="Payment method">
+    <div class="invoice-payment-methods sequence-options" role="group" aria-label="Payment method" data-i18n-aria-label="pos.checkout.paymentMethod">
       <button
         :for={{type, label} <- [{"CASH", "Cash"}, {"CC", "Credit Card"}]}
         class="btn"
@@ -1142,7 +1151,7 @@ defmodule PosServerWeb.InvoiceReportLive do
         phx-value-type={type}
         aria-pressed={to_string(@selected == type)}
       >
-        {label}
+        <span data-i18n={if type == "CC", do: "pos.checkout.creditCard", else: "common.cash"}>{label}</span>
       </button>
     </div>
     """
@@ -1168,11 +1177,13 @@ defmodule PosServerWeb.InvoiceReportLive do
     >
       <div class="dialog-content">
         <div class="dialog-header">
-          <h2 id="invoice-date-range-title" class="dialog-title">Select date range</h2>
+          <h2 id="invoice-date-range-title" class="dialog-title" data-i18n="invoice.selectDateRange">Select date range</h2>
           <p class="dialog-description">
-            {if @range.from != "" && @range.to == "",
-              do: "Choose an end date.",
-              else: "Choose a start date, then an end date."}
+            <span data-i18n={if @range.from != "" && @range.to == "", do: "invoice.chooseEndDate", else: "invoice.chooseStartEndDate"}>
+              {if @range.from != "" && @range.to == "",
+                do: "Choose an end date.",
+                else: "Choose a start date, then an end date."}
+            </span>
           </p>
         </div>
         <hr class="separator" />
@@ -1185,6 +1196,7 @@ defmodule PosServerWeb.InvoiceReportLive do
             phx-click="calendar_month"
             phx-value-direction="previous"
             aria-label="Previous month"
+            data-i18n-aria-label="invoice.previousMonth"
           >
             ‹
           </button>
@@ -1197,6 +1209,7 @@ defmodule PosServerWeb.InvoiceReportLive do
             phx-click="calendar_month"
             phx-value-direction="next"
             aria-label="Next month"
+            data-i18n-aria-label="invoice.nextMonth"
           >
             ›
           </button>
@@ -1219,13 +1232,13 @@ defmodule PosServerWeb.InvoiceReportLive do
         </div>
         <div class="dialog-footer">
           <button class="btn" type="button" data-variant="ghost" phx-click="clear_range">
-            Clear
-          </button><button class="btn" type="button" data-variant="outline" phx-click="close_calendar">Cancel</button><button
+            <span data-i18n="common.clear">Clear</span>
+          </button><button class="btn" type="button" data-variant="outline" phx-click="close_calendar"><span data-i18n="common.cancel">Cancel</span></button><button
             class="btn"
             type="button"
             data-variant="default"
             phx-click="apply_range"
-          >Apply range</button>
+          ><span data-i18n="invoice.applyRange">Apply range</span></button>
         </div>
       </div>
     </div>
@@ -1247,8 +1260,8 @@ defmodule PosServerWeb.InvoiceReportLive do
     >
       <div class="dialog-content">
         <div class="dialog-header">
-          <h2 id="invoice-cancel-title" class="dialog-title">Cancel invoice?</h2>
-          <p class="dialog-description">
+          <h2 id="invoice-cancel-title" class="dialog-title" data-i18n="invoice.cancelInvoiceTitle">Cancel invoice?</h2>
+          <p class="dialog-description" data-i18n="invoice.cancelInvoiceCopy">
             This restores the sold inventory. This action cannot be undone from the report.
           </p>
         </div>
@@ -1256,7 +1269,7 @@ defmodule PosServerWeb.InvoiceReportLive do
           <div class="alert-content">
             <h5 class="alert-title">{value(@invoice || %{}, "sequence") || "Selected invoice"}</h5>
             <p class="alert-description">
-              {value(@invoice || %{}, "client_name") || "Walk-in customer"} · {money(
+              <span data-i18n={if value(@invoice || %{}, "client_name"), do: nil, else: "invoice.walkIn"}>{value(@invoice || %{}, "client_name") || "Walk-in customer"}</span> · {money(
                 value(@invoice || %{}, "amount")
               )} · {date_only(value(@invoice || %{}, "date_create"))}
             </p>
@@ -1264,13 +1277,13 @@ defmodule PosServerWeb.InvoiceReportLive do
         </div>
         <div class="dialog-footer">
           <button class="btn" type="button" data-variant="outline" phx-click="close_cancel">
-            Keep invoice
+            <span data-i18n="invoice.keepInvoice">Keep invoice</span>
           </button><button
             class="btn"
             type="button"
             data-variant="destructive"
             phx-click="confirm_cancel"
-          >Cancel invoice</button>
+          ><span data-i18n="invoice.cancelInvoice">Cancel invoice</span></button>
         </div>
       </div>
     </dialog>
@@ -1278,14 +1291,14 @@ defmodule PosServerWeb.InvoiceReportLive do
 
   defp headers,
     do: [
-      {"Invoice", "sequence"},
-      {"Customer", "client_name"},
-      {"Date", "date_create"},
-      {"Due Date", "due_date"},
-      {"Status", "invoice_status"},
-      {"Total", "amount"},
-      {"Balance", "due_balance"},
-      {"Sales Person", "login"}
+      {"Invoice", "sequence", "pos.customers.invoice"},
+      {"Customer", "client_name", "pos.checkout.customer"},
+      {"Date", "date_create", "common.date"},
+      {"Due Date", "due_date", "invoice.dueDateHeader"},
+      {"Status", "invoice_status", "common.status"},
+      {"Total", "amount", "common.total"},
+      {"Balance", "due_balance", "common.balance"},
+      {"Sales Person", "login", "pos.customers.salesPerson"}
     ]
 
   defp calendar_blanks(month), do: List.duplicate(:blank, Date.day_of_week(month, :sunday) - 1)
@@ -1314,8 +1327,11 @@ defmodule PosServerWeb.InvoiceReportLive do
   defp print_prompt(:payment, sale, payment),
     do: %{
       title: "Print Payment",
+      title_key: "invoice.printPaymentTitle",
       description: "Would you like to print this payment receipt?",
+      description_key: "invoice.printPaymentPrompt",
       button: "Print payment",
+      button_key: "invoice.printPayment",
       event: "printer:print-payment",
       payload: %{request_id: print_request_id(), sale: sale, payment: payment}
     }
@@ -1323,8 +1339,11 @@ defmodule PosServerWeb.InvoiceReportLive do
   defp print_prompt(:invoice, invoice),
     do: %{
       title: "Print copy",
+      title_key: "invoice.printCopyTitle",
       description: "Would you like to print the receipt?",
+      description_key: "pos.print.prompt",
       button: "Print receipt",
+      button_key: "pos.print.printReceipt",
       event: "printer:reprint-invoice",
       payload: %{request_id: print_request_id(), invoice: invoice}
     }
@@ -1350,8 +1369,8 @@ defmodule PosServerWeb.InvoiceReportLive do
     >
       <div class="dialog-content">
         <div class="dialog-header">
-          <h2 id="receipt-dialog-title" class="dialog-title">{@prompt.title}</h2>
-          <p id="receipt-print-description" class="dialog-description">{@prompt.description}</p>
+          <h2 id="receipt-dialog-title" class="dialog-title" data-i18n={@prompt[:title_key]}>{@prompt.title}</h2>
+          <p id="receipt-print-description" class="dialog-description" data-i18n={@prompt[:description_key]}>{@prompt.description}</p>
         </div>
         <p id="receipt-print-status" class="print-status" role="status">{@prompt[:status] || ""}</p>
         <div class="dialog-footer">
@@ -1363,7 +1382,7 @@ defmodule PosServerWeb.InvoiceReportLive do
             phx-click="skip_print"
             disabled={@prompt[:printing] == true}
           >
-            No, return to POS
+            <span data-i18n="invoice.noReturnToPos">No, return to POS</span>
           </button><button
             id="print-receipt"
             class="btn"
@@ -1371,7 +1390,7 @@ defmodule PosServerWeb.InvoiceReportLive do
             data-variant="default"
             phx-click="confirm_print"
             disabled={@prompt[:printing] == true}
-          >{@prompt.button}</button>
+          ><span data-i18n={@prompt[:button_key]}>{@prompt.button}</span></button>
         </div>
       </div>
     </dialog>

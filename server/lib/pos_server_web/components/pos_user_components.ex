@@ -17,8 +17,8 @@ defmodule PosServerWeb.PosUserComponents do
         <div class="brand-lockup">
           <span class="brand-mark" aria-hidden="true">E</span>
           <div>
-            <p class="eyebrow">Users</p>
-            <h1 id="users-title" class="h3" tabindex="-1">Users</h1>
+            <p class="eyebrow" data-i18n="users.users">Users</p>
+            <h1 id="users-title" class="h3" tabindex="-1" data-i18n="users.users">Users</h1>
           </div>
         </div>
         <div class="users-header-actions">
@@ -28,6 +28,8 @@ defmodule PosServerWeb.PosUserComponents do
             type="search"
             placeholder="Search users"
             aria-label="Search users"
+            data-i18n-placeholder="users.searchUsers"
+            data-i18n-aria-label="users.searchUsers"
             value={@filter}
             phx-keyup="filter_users"
             phx-debounce="150"
@@ -40,7 +42,7 @@ defmodule PosServerWeb.PosUserComponents do
             data-variant="default"
             phx-click="new_user"
           >
-            Create user
+            <span data-i18n="users.createUser">Create user</span>
           </button>
         </div>
       </header>
@@ -51,19 +53,19 @@ defmodule PosServerWeb.PosUserComponents do
             <div class="user-card-heading">
               <h3 class="card-title">{user_name(user)}</h3>
               <span class={["user-status", active?(user) && "is-active"]}>
-                {if active?(user), do: "Active", else: "Inactive"}
+                <span data-i18n={if active?(user), do: "users.active", else: "users.inactive"}>{if active?(user), do: "Active", else: "Inactive"}</span>
               </span>
             </div>
             <dl class="user-meta">
-              <div><dt>Username</dt><dd>{user.username}</dd></div>
-              <div><dt>User type</dt><dd>Employee</dd></div>
-              <div><dt>Stores</dt><dd>{store_names(@options.stores, user.store_ids)}</dd></div>
-              <div><dt>Permissions</dt><dd>{permission_names(user.scopes)}</dd></div>
+              <div><dt data-i18n="users.username">Username</dt><dd>{user.username}</dd></div>
+              <div><dt data-i18n="users.userType">User type</dt><dd data-i18n="users.employee">Employee</dd></div>
+              <div><dt data-i18n="users.stores">Stores</dt><dd>{store_names(@options.stores, user.store_ids)}</dd></div>
+              <div><dt data-i18n="users.permissions">Permissions</dt><dd>{permission_names(user.scopes)}</dd></div>
             </dl>
           </div>
           <div class="card-footer">
             <button class="btn" type="button" data-variant="outline" phx-click="view_user" phx-value-id={user.id}>
-              View
+              <span data-i18n="common.view">View</span>
             </button>
             <button
               :if={Scope.allowed?(@scope, "user.setting")}
@@ -73,7 +75,7 @@ defmodule PosServerWeb.PosUserComponents do
               phx-click="edit_user"
               phx-value-id={user.id}
             >
-              Edit
+              <span data-i18n="common.edit">Edit</span>
             </button>
             <button
               :if={Scope.allowed?(@scope, "user.setting") and active?(user)}
@@ -84,7 +86,7 @@ defmodule PosServerWeb.PosUserComponents do
               phx-value-id={user.id}
               phx-confirm={"Deactivate #{user_name(user)}?"}
             >
-              Deactivate
+              <span data-i18n="users.deactivate">Deactivate</span>
             </button>
           </div>
         </article>
@@ -104,20 +106,21 @@ defmodule PosServerWeb.PosUserComponents do
     <section id="users-screen" class="users-screen application-screen" aria-labelledby="users-title">
       <header class="users-header">
         <div>
-          <p class="eyebrow">Users</p>
-          <h2 id="users-title" class="h3" tabindex="-1">{form_title(@mode)}</h2>
+          <p class="eyebrow" data-i18n="users.users">Users</p>
+          <h2 id="users-title" class="h3" tabindex="-1" data-i18n={form_title_key(@mode)}>{form_title(@mode)}</h2>
         </div>
       </header>
       <div class="card user-form-card">
         <div class="card-content">
           <form class="form" novalidate phx-submit="save_user">
             <input :if={@user} type="hidden" name="id" value={@user.id} />
-            <.text_field name="first_name" label="First name" value={field_value(@user, :first_name)} required disabled={@mode == :view} />
-            <.text_field name="last_name" label="Last name" value={field_value(@user, :last_name)} required disabled={@mode == :view} />
-            <.text_field name="username" label="Username" value={field_value(@user, :username)} required disabled={@mode == :view} />
+            <.text_field name="first_name" label="First name" label_key="users.firstName" value={field_value(@user, :first_name)} required disabled={@mode == :view} />
+            <.text_field name="last_name" label="Last name" label_key="users.lastName" value={field_value(@user, :last_name)} required disabled={@mode == :view} />
+            <.text_field name="username" label="Username" label_key="users.username" value={field_value(@user, :username)} required disabled={@mode == :view} />
             <.text_field
               name="password"
               label={if @user, do: "New password (leave blank to keep current)", else: "Password"}
+              label_key={if @user, do: "users.newPassword", else: "pos.login.password"}
               type="password"
               value=""
               required={is_nil(@user)}
@@ -133,17 +136,17 @@ defmodule PosServerWeb.PosUserComponents do
                 checked={if @user, do: active?(@user), else: true}
                 disabled={@mode == :view}
               />
-              <label class="label" for="user-active">Active user</label>
+              <label class="label" for="user-active" data-i18n="users.activeUser">Active user</label>
             </div>
-            <.checkboxes items={@options.stores} selected={selected(@user, :store_ids)} name="store_ids" label="Assigned stores" disabled={@mode == :view} />
-            <.checkboxes items={@options.scopes} selected={selected(@user, :scopes)} name="scopes" label="Permissions" disabled={@mode == :view} />
+            <.checkboxes items={@options.stores} selected={selected(@user, :store_ids)} name="store_ids" label="Assigned stores" label_key="users.assignedStores" disabled={@mode == :view} />
+            <.checkboxes items={@options.scopes} selected={selected(@user, :scopes)} name="scopes" label="Permissions" label_key="users.permissions" disabled={@mode == :view} />
             <p class="field-description" role="status">{@status}</p>
             <div class="form-actions">
               <button class="btn" type="button" data-variant="outline" phx-click="list_users">
-                {if @mode == :view, do: "Back", else: "Cancel"}
+                <span data-i18n={if @mode == :view, do: "common.back", else: "common.cancel"}>{if @mode == :view, do: "Back", else: "Cancel"}</span>
               </button>
               <button :if={@mode != :view} class="btn" type="submit" data-variant="default" disabled={@saving}>
-                Save
+                <span data-i18n="common.save">Save</span>
               </button>
             </div>
           </form>
@@ -155,6 +158,7 @@ defmodule PosServerWeb.PosUserComponents do
 
   attr :name, :string, required: true
   attr :label, :string, required: true
+  attr :label_key, :string, required: true
   attr :type, :string, default: "text"
   attr :value, :string, default: ""
   attr :required, :boolean, default: false
@@ -163,7 +167,7 @@ defmodule PosServerWeb.PosUserComponents do
   defp text_field(assigns) do
     ~H"""
     <div class="form-field">
-      <label class="label" for={"user-#{@name}"}>{@label}</label>
+      <label class="label" for={"user-#{@name}"} data-i18n={@label_key}>{@label}</label>
       <input
         class="input"
         name={"user[#{@name}]"}
@@ -181,12 +185,13 @@ defmodule PosServerWeb.PosUserComponents do
   attr :selected, :list, required: true
   attr :name, :string, required: true
   attr :label, :string, required: true
+  attr :label_key, :string, required: true
   attr :disabled, :boolean, default: false
 
   defp checkboxes(assigns) do
     ~H"""
     <fieldset class="form-fieldset user-assignment">
-      <legend>{@label}</legend>
+      <legend data-i18n={@label_key}>{@label}</legend>
       <div class="form-group">
         <div :for={item <- @items} class="form-field-inline">
           <input
@@ -208,6 +213,9 @@ defmodule PosServerWeb.PosUserComponents do
   defp form_title(:view), do: "Details"
   defp form_title(:edit), do: "Edit"
   defp form_title(:new), do: "Create"
+  defp form_title_key(:view), do: "users.details"
+  defp form_title_key(:edit), do: "common.edit"
+  defp form_title_key(:new), do: "common.create"
 
   defp user_name(user) do
     name = Enum.join(Enum.filter([user.first_name, user.last_name], &present?/1), " ")

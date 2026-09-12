@@ -154,14 +154,14 @@ defmodule PosServerWeb.CompanySettingsLive do
               <div class="brand-lockup">
                 <span class="brand-mark" aria-hidden="true">E</span>
                 <div>
-                  <p class="eyebrow">Company</p>
-                  <h2 id="company-settings-title" tabindex="-1">Company settings</h2>
+                  <p class="eyebrow" data-i18n="company.company">Company</p>
+                  <h2 id="company-settings-title" tabindex="-1" data-i18n="company.title">Company settings</h2>
                 </div>
               </div>
             </header>
             <article class="card company-summary" aria-labelledby="company-summary-title">
               <div class="card-header">
-                <h3 id="company-summary-title" class="card-title">Current company</h3>
+                <h3 id="company-summary-title" class="card-title" data-i18n="company.currentCompany">Current company</h3>
                 <p id="company-settings-company" class="card-description">
                   {company_name(@overview.company)}
                 </p>
@@ -233,8 +233,8 @@ defmodule PosServerWeb.CompanySettingsLive do
     <article class="card company-settings-card" aria-labelledby={title_id(@kind)}>
       <div class="card-header company-settings-card-header">
         <div>
-          <h3 id={title_id(@kind)} class="card-title">{@title}</h3>
-          <p class="card-description">{@description}</p>
+          <h3 id={title_id(@kind)} class="card-title" data-i18n={card_title_key(@kind)}>{@title}</h3>
+          <p class="card-description" data-i18n={card_description_key(@kind)}>{@description}</p>
         </div>
         <button
           id={add_id(@kind)}
@@ -245,7 +245,7 @@ defmodule PosServerWeb.CompanySettingsLive do
           phx-click="add"
           phx-value-kind={@kind}
         >
-          {@add_label}
+          <span data-i18n={card_add_key(@kind)}>{@add_label}</span>
         </button>
       </div>
       <div id={content_id(@kind)} class="card-content">
@@ -263,7 +263,7 @@ defmodule PosServerWeb.CompanySettingsLive do
           :if={@entries == [] and @editing != {@kind, :new}}
           class="field-description company-settings-empty"
         >
-          {@empty}
+          <span data-i18n={card_empty_key(@kind)}>{@empty}</span>
         </p>
       </div>
     </article>
@@ -279,25 +279,29 @@ defmodule PosServerWeb.CompanySettingsLive do
     <form class="form company-setting-form" phx-submit="save" phx-value-kind={@kind}>
       <input type="hidden" name="kind" value={@kind} />
       <%= if @kind == "sequence" do %>
-        <.field label="Name" name="name" value={value(@entry, :name)} required /><.field
+        <.field label="Name" label_key="common.name" name="name" value={value(@entry, :name)} required /><.field
           label="Code"
+          label_key="common.code"
           name="code"
           value={value(@entry, :code)}
           required
-        /><.field label="Prefix" name="prefix" value={value(@entry, :prefix)} required /><.field
+        /><.field label="Prefix" label_key="company.prefix" name="prefix" value={value(@entry, :prefix)} required /><.field
           label="Digits"
+          label_key="company.digits"
           name="fill"
           value={value(@entry, :fill) || 8}
           type="number"
           required
         /><.field
           label="Increment"
+          label_key="company.increment"
           name="increment_by"
           value={value(@entry, :increment_by) || 1}
           type="number"
           required
         /><.field
           label="Next number"
+          label_key="company.nextNumber"
           name="current_seq"
           value={value(@entry, :current_seq) || 0}
           type="number"
@@ -306,16 +310,18 @@ defmodule PosServerWeb.CompanySettingsLive do
       <% else %>
         <.field
           label={setting_name_label(@kind)}
+          label_key={setting_name_label_key(@kind)}
           name="name"
           value={value(@entry, setting_name_key(@kind))}
           required
         />
         <%= if @kind == "store" do %>
           <p class="field-description store-company-context">
-            Company: {value(@company, :name) || "Current company"}
+            <span data-i18n="company.company">Company</span>: {value(@company, :name) || "Current company"}
           </p>
-          <.field label="Slogan" name="slogan" value={value(@entry, :slogan)} /><.field
+          <.field label="Slogan" label_key="company.slogan" name="slogan" value={value(@entry, :slogan)} /><.field
             label="Address"
+            label_key="company.address"
             name="address"
             value={value(@entry, :address)}
             multiline
@@ -330,9 +336,10 @@ defmodule PosServerWeb.CompanySettingsLive do
                 class="product-image-preview store-logo-preview"
                 src={value(@entry, :logo)}
                 alt="Store logo preview"
+                data-i18n-alt="company.storeLogoPreview"
                 hidden={is_nil(value(@entry, :logo))}
-              /><label class="label">Store logo</label>
-              <p class="field-description">
+              /><label class="label" data-i18n="company.storeLogo">Store logo</label>
+              <p class="field-description" data-i18n="company.uploadHelp">
                 Drop an image here or choose a file (max 10 MB). It will be resized and stored as Base64.
               </p>
               <input class="input" type="file" accept="image/*" />
@@ -344,23 +351,24 @@ defmodule PosServerWeb.CompanySettingsLive do
               data-variant="outline"
               data-remove-store-logo
             >
-              Remove logo
+              <span data-i18n="company.removeLogo">Remove logo</span>
             </button>
           </div>
         <% end %>
       <% end %>
       <div class="form-actions">
-        <button class="btn" type="button" data-variant="outline" phx-click="cancel">Cancel</button><button
+        <button class="btn" type="button" data-variant="outline" phx-click="cancel"><span data-i18n="common.cancel">Cancel</span></button><button
           class="btn"
           type="submit"
           data-variant="default"
-        >{submit_label(@kind, @entry)}</button>
+        ><span data-i18n={submit_label_key(@entry)}>{submit_label(@kind, @entry)}</span></button>
       </div>
     </form>
     """
   end
 
   attr :label, :string, required: true
+  attr :label_key, :string, required: true
   attr :name, :string, required: true
   attr :value, :any, default: nil
   attr :type, :string, default: "text"
@@ -370,7 +378,7 @@ defmodule PosServerWeb.CompanySettingsLive do
   defp field(assigns) do
     ~H"""
     <div class="form-field">
-      <label class="label" for={"company-setting-#{@name}"}>{@label}</label><textarea
+      <label class="label" for={"company-setting-#{@name}"} data-i18n={@label_key}>{@label}</label><textarea
         :if={@multiline}
         id={"company-setting-#{@name}"}
         class="input"
@@ -413,7 +421,7 @@ defmodule PosServerWeb.CompanySettingsLive do
           phx-value-kind={@kind}
           phx-value-id={@entry.id}
         >
-          Edit
+          <span data-i18n="common.edit">Edit</span>
         </button><button
           :if={@kind != "store"}
           class="btn"
@@ -423,7 +431,7 @@ defmodule PosServerWeb.CompanySettingsLive do
           data-company-settings-confirm={delete_message(@kind)}
           data-delete-kind={@kind}
           data-delete-id={@entry.id}
-        >Delete</button>
+        ><span data-i18n="common.delete">Delete</span></button>
       </div>
     </div>
     """
@@ -501,11 +509,32 @@ defmodule PosServerWeb.CompanySettingsLive do
   defp content_id("store"), do: "stores-content"
   defp content_id("sequence"), do: "sequence-sets-content"
   defp content_id("provider"), do: "providers-content"
+  defp card_title_key("price-list"), do: "company.priceLists"
+  defp card_title_key("store"), do: "company.stores"
+  defp card_title_key("sequence"), do: "company.sequenceSets"
+  defp card_title_key("provider"), do: "company.providers"
+  defp card_description_key("price-list"), do: "company.priceListsCopy"
+  defp card_description_key("store"), do: "company.storesCopy"
+  defp card_description_key("sequence"), do: "company.sequenceCopy"
+  defp card_description_key("provider"), do: "company.providersCopy"
+  defp card_add_key("price-list"), do: "company.addPriceList"
+  defp card_add_key("store"), do: "company.addStore"
+  defp card_add_key("sequence"), do: "company.addSequence"
+  defp card_add_key("provider"), do: "company.addProvider"
+  defp card_empty_key("price-list"), do: "company.noPriceLists"
+  defp card_empty_key("store"), do: "company.noStores"
+  defp card_empty_key("sequence"), do: "company.noSequences"
+  defp card_empty_key("provider"), do: "company.noProviders"
   defp setting_name_label("price-list"), do: "Price list label"
   defp setting_name_label("provider"), do: "Provider name"
   defp setting_name_label(_), do: "Store name"
+  defp setting_name_label_key("price-list"), do: "company.priceListLabel"
+  defp setting_name_label_key("provider"), do: "company.providerName"
+  defp setting_name_label_key(_), do: "company.storeName"
   defp setting_name_key("price-list"), do: :label
   defp setting_name_key(_), do: :name
+  defp submit_label_key(entry) when not is_nil(entry), do: "common.save"
+  defp submit_label_key(nil), do: "common.create"
   defp submit_label(_kind, entry) when not is_nil(entry), do: "Save"
   defp submit_label("sequence", nil), do: "Save"
   defp submit_label(_, nil), do: "Create"
