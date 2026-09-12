@@ -2,11 +2,20 @@
   "name": "tigoo POS",
   "short_name": "tigoo",
   "description": "tigoo POS LiveView",
+
+  "id": "/pos",
   "start_url": "/pos",
   "scope": "/pos",
+
   "display": "standalone",
+
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  },
+
   "background_color": "#f8fafc",
   "theme_color": "#088674",
+
   "icons": [
     {
       "src": "/pwa/icons/icon-192.png",
