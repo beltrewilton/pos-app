@@ -44,7 +44,7 @@
       </section>
 
       <section
-        :if={is_nil(@user.confirmed_at)}
+        :if={@scope.actor == :admin and is_nil(@user.confirmed_at)}
         class="card dashboard-panel"
         aria-labelledby="confirmation-title"
       >
@@ -77,7 +77,7 @@
       </section>
 
       <section
-        :if={@user.confirmed_at && is_nil(@user.tenant)}
+        :if={@scope.actor == :admin and @user.confirmed_at && is_nil(@user.tenant)}
         class="card dashboard-panel"
         aria-labelledby="tenant-setup-title"
       >

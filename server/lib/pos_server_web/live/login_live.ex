@@ -3,13 +3,27 @@ defmodule PosServerWeb.LoginLive do
   use PosServerWeb, :live_view
 
   alias PosServer.{Authentication, TenantContext}
+  alias PosServer.Accounts.Scope
   alias PosServer.Retaily.InventoryContext
 
   @impl true
   def mount(_params, session, socket) do
     case session["user_token"] && Authentication.authenticate(session["user_token"]) do
-      {:ok, _scope} ->
-        {:ok, redirect(socket, to: ~p"/pos")}
+      {:ok, scope} ->
+        case landing_path(scope) do
+          nil ->
+            {:ok,
+             socket
+             |> assign(:page_title, "Tigoo Sign in")
+             |> assign(:phase, :credentials)
+             |> assign(:pending_token, nil)
+             |> assign(:stores, [])
+             |> assign(:error, "Your account does not have access to Dashboard or POS.")
+             |> assign(:submitting?, false)}
+
+          path ->
+            {:ok, redirect(socket, to: path)}
+        end
 
       _ ->
         {:ok,
@@ -20,6 +34,14 @@ defmodule PosServerWeb.LoginLive do
          |> assign(:stores, [])
          |> assign(:error, "")
          |> assign(:submitting?, false)}
+    end
+  end
+
+  defp landing_path(scope) do
+    cond do
+      Scope.admin?(scope) -> ~p"/pos/dashboard"
+      Scope.allowed?(scope, "dashboard.view") -> ~p"/pos/dashboard"
+      true -> ~p"/pos"
     end
   end
 

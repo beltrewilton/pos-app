@@ -211,6 +211,8 @@ defmodule PosServerWeb.SaleController do
   defp error(conn, :forbidden_store),
     do: conn |> put_status(:forbidden) |> json(%{error: "store is not assigned to cashier"})
 
+  defp error(conn, :forbidden), do: conn |> put_status(:forbidden) |> json(%{error: "forbidden"})
+
   defp error(conn, reason),
     do: conn |> put_status(:unprocessable_entity) |> json(%{error: to_string(reason)})
 end

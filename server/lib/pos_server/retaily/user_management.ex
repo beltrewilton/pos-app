@@ -48,7 +48,7 @@ defmodule PosServer.Retaily.Users do
   def deactivate(scope, id), do: update_user(scope, id, %{"is_active" => 0})
 
   defp update_user(scope, id, attrs) do
-    with :ok <- authorize(scope, "user.setting"),
+    with :ok <- authorize(scope, "user.view"),
          %User{} = user <- Repo.get(User, id, prefix: scope.tenant) do
       persist(user, attrs, scope.tenant, :update)
     else
@@ -58,7 +58,7 @@ defmodule PosServer.Retaily.Users do
   end
 
   defp save(scope, user, attrs, :create) do
-    with :ok <- authorize(scope, "user.setting"), do: persist(user, attrs, scope.tenant, :create)
+    with :ok <- authorize(scope, "user.view"), do: persist(user, attrs, scope.tenant, :create)
   end
 
   defp persist(user, attrs, tenant, _action) do

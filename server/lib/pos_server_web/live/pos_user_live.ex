@@ -13,6 +13,7 @@ defmodule PosServerWeb.PosUserLive do
   def mount(_params, session, socket) do
     with token when is_binary(token) <- session["user_token"],
          {:ok, scope} <- Authentication.authenticate(token),
+         true <- Scope.allowed?(scope, "user.view"),
          _ <- TenantContext.put_tenant(scope.tenant),
          {:ok, stores} <- InventoryContext.stores(scope),
          %{id: store_id} <- selected_store(stores, session["store_id"]) do
@@ -37,7 +38,7 @@ defmodule PosServerWeb.PosUserLive do
       _ ->
         {:ok,
          socket
-         |> put_flash(:error, "Sign in is required to manage users.")
+         |> put_flash(:error, "User access is required.")
          |> redirect(to: ~p"/pos/login")}
     end
   end
@@ -90,7 +91,7 @@ defmodule PosServerWeb.PosUserLive do
     do: {:noreply, assign(socket, :filter, String.trim(String.downcase(value)))}
 
   def handle_event("new_user", _, socket) do
-    if Scope.allowed?(socket.assigns.scope, "user.setting") do
+    if Scope.allowed?(socket.assigns.scope, "user.view") do
       {:noreply,
        socket
        |> assign(:mode, :new)
@@ -104,7 +105,7 @@ defmodule PosServerWeb.PosUserLive do
 
   def handle_event("view_user", %{"id" => id}, socket), do: select_user(socket, id, :view)
   def handle_event("edit_user", %{"id" => id}, socket) do
-    if Scope.allowed?(socket.assigns.scope, "user.setting"),
+    if Scope.allowed?(socket.assigns.scope, "user.view"),
       do: select_user(socket, id, :edit),
       else: {:noreply, assign(socket, :status, "User settings permission is required.")}
   end
@@ -119,7 +120,7 @@ defmodule PosServerWeb.PosUserLive do
   end
 
   def handle_event("save_user", %{"user" => attrs} = params, socket) do
-    if Scope.allowed?(socket.assigns.scope, "user.setting") do
+    if Scope.allowed?(socket.assigns.scope, "user.view") do
       attrs = normalize_attrs(attrs, params)
 
       result =
@@ -146,7 +147,7 @@ defmodule PosServerWeb.PosUserLive do
   end
 
   def handle_event("deactivate_user", %{"id" => id}, socket) do
-    if Scope.allowed?(socket.assigns.scope, "user.setting") do
+    if Scope.allowed?(socket.assigns.scope, "user.view") do
       case Users.deactivate(socket.assigns.scope, id) do
         {:ok, _user} -> {:noreply, load_users(socket)}
         {:error, reason} -> {:noreply, assign(socket, :status, error_message(reason))}

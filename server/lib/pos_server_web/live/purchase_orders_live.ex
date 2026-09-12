@@ -14,7 +14,7 @@ defmodule PosServerWeb.PurchaseOrdersLive do
   def mount(_params, session, socket) do
     with token when is_binary(token) <- session["user_token"],
          {:ok, scope} <- Authentication.authenticate(token),
-         true <- Scope.allowed?(scope, "inventory.view"),
+         true <- Scope.allowed?(scope, "pos.orders"),
          _ <- TenantContext.put_tenant(scope.tenant),
          {:ok, stores} <- InventoryContext.stores(scope),
          %{id: store_id} <- selected_store(stores, session["store_id"]) do
@@ -50,7 +50,7 @@ defmodule PosServerWeb.PurchaseOrdersLive do
       _ ->
         {:ok,
          socket
-         |> put_flash(:error, "Inventory access is required.")
+         |> put_flash(:error, "Order access is required.")
          |> redirect(to: ~p"/pos/login")}
     end
   end

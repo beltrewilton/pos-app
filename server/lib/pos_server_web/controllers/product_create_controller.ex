@@ -4,6 +4,7 @@ defmodule PosServerWeb.ProductCreateController do
   import Ecto.Query
   alias Ecto.Changeset
   alias PosServer.{InventoryEvents, Repo, TenantContext}
+  alias PosServer.Accounts.Scope
   alias PosServer.Retaily.{Inventory, InventoryContext, PricingList, Product, Sql, Store}
 
   def create(conn, attrs) do
@@ -30,7 +31,6 @@ defmodule PosServerWeb.ProductCreateController do
              :ok <- save_prices(attrs["prices"], product.id, username, now, tenant) do
           product
         else
-          {:error, changeset} -> Repo.rollback(changeset)
           {:error, reason} -> Repo.rollback(reason)
         end
       end)
@@ -40,10 +40,10 @@ defmodule PosServerWeb.ProductCreateController do
 
           case Sql.active_product(product.id, store_id) do
             {:ok, product} when is_map(product) ->
-              conn |> put_status(:created) |> json(product)
+              conn |> put_status(:created) |> json(mask_cost(conn.assigns.current_scope, product))
 
             _ ->
-              conn |> put_status(:created) |> json(product_response(product))
+              conn |> put_status(:created) |> json(mask_cost(conn.assigns.current_scope, product_response(product)))
           end
 
         {:error, %Changeset{} = changeset} ->
@@ -82,7 +82,12 @@ defmodule PosServerWeb.ProductCreateController do
           prefix: tenant
         )
 
-      json(conn, Map.put(product_response(product), :prices, prices))
+      product =
+        product
+        |> product_response()
+        |> Map.put(:prices, prices)
+
+      json(conn, mask_cost(conn.assigns.current_scope, product))
     else
       {:error, :invalid_params} ->
         conn |> put_status(:bad_request) |> json(%{error: "invalid product id"})
@@ -108,7 +113,7 @@ defmodule PosServerWeb.ProductCreateController do
 
       case product |> Product.changeset(product_attrs) |> Repo.update(prefix: tenant) do
         {:ok, updated} ->
-          json(conn, product_response(updated))
+          json(conn, mask_cost(conn.assigns.current_scope, product_response(updated)))
 
         {:error, %Changeset{} = changeset} ->
           conn
@@ -274,6 +279,12 @@ defmodule PosServerWeb.ProductCreateController do
       active: product.active,
       archived: product.archived
     }
+
+  defp mask_cost(scope, product) when is_map(product) do
+    if Scope.allowed?(scope, "product.view.cost"),
+      do: product,
+      else: Map.put(product, :cost, nil)
+  end
 
   defp archived_flag(value) when value in [1, "1", true, "true", "on"], do: "1"
   defp archived_flag(_), do: "0"

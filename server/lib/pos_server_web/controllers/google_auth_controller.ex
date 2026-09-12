@@ -2,6 +2,7 @@ defmodule PosServerWeb.GoogleAuthController do
   use PosServerWeb, :controller
 
   alias PosServer.{Accounts, Authentication}
+  alias PosServer.Accounts.Scope
 
   @google_authorize_url "https://accounts.google.com/o/oauth2/v2/auth"
   @google_token_url "https://oauth2.googleapis.com/token"
@@ -179,14 +180,22 @@ defmodule PosServerWeb.GoogleAuthController do
         end
 
       _ ->
-        with {:ok, session_token, _scope} <- Authentication.log_in_user(user) do
+        with {:ok, session_token, scope} <- Authentication.log_in_user(user) do
           conn
           |> delete_session(:google_oauth_state)
           |> configure_session(renew: true)
           |> put_session(:user_token, session_token)
           |> put_flash(:info, "Sesión iniciada con Google.")
-          |> redirect(to: ~p"/pos/dashboard")
+          |> redirect(to: landing_path(scope))
         end
+    end
+  end
+
+  defp landing_path(scope) do
+    cond do
+      Scope.admin?(scope) -> ~p"/pos/dashboard"
+      Scope.allowed?(scope, "dashboard.view") -> ~p"/pos/dashboard"
+      true -> ~p"/pos"
     end
   end
 

@@ -16,7 +16,7 @@ defmodule PosServerWeb.CustomerLive do
   def mount(_params, session, socket) do
     with token when is_binary(token) <- session["user_token"],
          {:ok, scope} <- Authentication.authenticate(token),
-         true <- customer_access?(scope),
+         true <- Scope.allowed?(scope, "pos.customer"),
          _ <- TenantContext.put_tenant(scope.tenant),
          {:ok, stores} <- InventoryContext.stores(scope),
          %{id: store_id} <- selected_store(stores, session["store_id"]) do
@@ -335,6 +335,4 @@ defmodule PosServerWeb.CustomerLive do
   defp wholesaler_value(value) when value in [true, 1, "1", "true", "on"], do: 1
   defp wholesaler_value(_), do: 0
 
-  defp customer_access?(scope),
-    do: Scope.allowed?(scope, "sales.view") or Scope.allowed?(scope, "sales.pos")
 end

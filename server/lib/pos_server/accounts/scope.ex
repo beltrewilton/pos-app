@@ -36,6 +36,7 @@ defmodule PosServer.Accounts.Scope do
   def admin?(%__MODULE__{actor: :admin}), do: true
   def admin?(_), do: false
 
+  def allowed?(%__MODULE__{actor: :admin}, _permission), do: true
   def allowed?(scope, _permission) when is_map(scope) and scope.scopes == :admin, do: true
   def allowed?(%__MODULE__{scopes: scopes}, permission), do: permission in scopes
   def allowed?(_, _), do: false

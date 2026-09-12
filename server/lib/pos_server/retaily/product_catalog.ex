@@ -66,7 +66,7 @@ defmodule PosServer.Retaily.ProductCatalog do
   end
 
   def get(%Scope{tenant: tenant} = scope, product_id) do
-    with true <- Scope.allowed?(scope, "product.view"),
+    with true <- can_open_product?(scope),
          %Product{} = product <- Repo.get(Product, product_id, prefix: tenant) do
       prices =
         Repo.all(
@@ -82,7 +82,7 @@ defmodule PosServer.Retaily.ProductCatalog do
          id: product.id,
          name: product.name,
          code: product.code,
-         cost: product.cost,
+         cost: permitted_cost(scope, product.cost),
          image_raw: product.image_raw,
          active: product.active,
          archived: product.archived,
@@ -190,6 +190,12 @@ defmodule PosServer.Retaily.ProductCatalog do
   defp archived_flag(_), do: "0"
 
   defp store_ids(tenant), do: Repo.all(from(store in Store, select: store.id), prefix: tenant)
+
+  defp permitted_cost(scope, cost),
+    do: if(Scope.allowed?(scope, "product.view.cost"), do: cost, else: nil)
+
+  defp can_open_product?(scope),
+    do: Scope.allowed?(scope, "product.view") or Scope.allowed?(scope, "product.edit")
 
   defp initialize_inventory(product_id, username, now, tenant, store_ids) do
     rows =

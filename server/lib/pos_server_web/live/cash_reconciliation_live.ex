@@ -18,7 +18,7 @@ defmodule PosServerWeb.CashReconciliationLive do
 
     with token when is_binary(token) <- session["user_token"],
          {:ok, scope} <- Authentication.authenticate(token),
-         true <- Scope.allowed?(scope, "sales.view"),
+         true <- Scope.allowed?(scope, "pos.reconciliation"),
          _ <- TenantContext.put_tenant(scope.tenant),
          {:ok, stores} <- InventoryContext.stores(scope),
          %{id: store_id} <- selected_store(stores, session["store_id"]) do
@@ -45,7 +45,7 @@ defmodule PosServerWeb.CashReconciliationLive do
       _ ->
         {:ok,
          socket
-         |> put_flash(:error, "Sales-report access is required.")
+         |> put_flash(:error, "Cash reconciliation access is required.")
          |> redirect(to: ~p"/pos/login")}
     end
   end

@@ -2,14 +2,13 @@ defmodule PosServerWeb.DashboardController do
   use PosServerWeb, :controller
 
   alias PosServer.{Accounts, Authentication}
-  alias PosServer.Accounts.Company
+  alias PosServer.Accounts.{Company, Scope}
   alias PosServer.Retaily.InventoryContext
 
-  def index(%{assigns: %{current_scope: %{actor: :admin, actor_id: user_id}}} = conn, _params) do
-    case Accounts.get_user(user_id) do
-      nil -> redirect(conn, to: ~p"/")
-      user -> render_dashboard(conn, user)
-    end
+  def index(%{assigns: %{current_scope: scope}} = conn, _params) do
+    if Scope.allowed?(scope, "dashboard.view"),
+      do: render_dashboard(conn, dashboard_user(scope)),
+      else: redirect(conn, to: landing_path(scope))
   end
 
   def index(conn, _params), do: redirect(conn, to: ~p"/")
@@ -63,26 +62,15 @@ defmodule PosServerWeb.DashboardController do
   def create(conn, _params), do: redirect(conn, to: ~p"/")
 
   defp render_dashboard(conn, user, opts \\ []) do
-    tenant_changeset =
-      Keyword.get(
-        opts,
-        :tenant_changeset,
-        Accounts.change_tenant(user, Keyword.get(opts, :tenant_attrs, %{}))
-      )
-
-    company_changeset =
-      Keyword.get(
-        opts,
-        :company_changeset,
-        Accounts.change_company(%Company{}, Keyword.get(opts, :company_attrs, %{}))
-      )
+    tenant_changeset = tenant_changeset(conn, user, opts)
+    company_changeset = company_changeset(conn, opts)
 
     {stores, store_id} =
       pos_layout_store_assigns(conn.assigns.current_scope, get_session(conn, :store_id))
 
     render(conn, :index,
       user: user,
-      company: Accounts.get_company_for_user(user),
+      company: dashboard_company(conn.assigns.current_scope, user),
       tenant_form: Phoenix.Component.to_form(tenant_changeset, as: :tenant),
       company_form: Phoenix.Component.to_form(company_changeset, as: :company),
       scope: conn.assigns.current_scope,
@@ -90,6 +78,43 @@ defmodule PosServerWeb.DashboardController do
       store_id: store_id
     )
   end
+
+  defp dashboard_user(%{actor: :admin, actor_id: user_id}) do
+    Accounts.get_user(user_id) || %{name: "User", tenant: nil, confirmed_at: nil}
+  end
+
+  defp dashboard_user(%{user: user, tenant: tenant}) do
+    %{
+      name: Map.get(user || %{}, :name) || "User",
+      tenant: tenant,
+      confirmed_at: DateTime.utc_now()
+    }
+  end
+
+  defp dashboard_company(%{actor: :admin}, user), do: Accounts.get_company_for_user(user)
+  defp dashboard_company(%{tenant: tenant}, _user) when is_binary(tenant),
+    do: %{company_name: tenant, rnc: nil}
+  defp dashboard_company(_, _), do: nil
+
+  defp tenant_changeset(%{assigns: %{current_scope: %{actor: :admin}}}, user, opts) do
+    Keyword.get(
+      opts,
+      :tenant_changeset,
+      Accounts.change_tenant(user, Keyword.get(opts, :tenant_attrs, %{}))
+    )
+  end
+
+  defp tenant_changeset(_conn, _user, _opts), do: Accounts.change_tenant(%Accounts.User{}, %{})
+
+  defp company_changeset(%{assigns: %{current_scope: %{actor: :admin}}}, opts) do
+    Keyword.get(
+      opts,
+      :company_changeset,
+      Accounts.change_company(%Company{}, Keyword.get(opts, :company_attrs, %{}))
+    )
+  end
+
+  defp company_changeset(_conn, _opts), do: Accounts.change_company(%Company{}, %{})
 
   defp attrs_param(params, key) do
     case Map.get(params, key) do
@@ -111,5 +136,13 @@ defmodule PosServerWeb.DashboardController do
 
   defp selected_store(stores, selected_id) do
     Enum.find(stores, &(to_string(&1.id) == to_string(selected_id))) || List.first(stores)
+  end
+
+  defp landing_path(scope) do
+    cond do
+      Scope.admin?(scope) -> ~p"/pos/dashboard"
+      Scope.allowed?(scope, "dashboard.view") -> ~p"/pos/dashboard"
+      true -> ~p"/pos"
+    end
   end
 end

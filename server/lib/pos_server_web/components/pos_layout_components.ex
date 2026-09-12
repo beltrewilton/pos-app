@@ -32,6 +32,7 @@ defmodule PosServerWeb.PosLayoutComponents do
         data-i18n-aria-label="layout.nav.primary"
       >
         <a
+          :if={nav_allowed?(@scope, :dashboard)}
           class="sidebar-link"
           href={~p"/pos/dashboard"}
           aria-current={current_page(@active_page, :dashboard)}
@@ -63,6 +64,7 @@ defmodule PosServerWeb.PosLayoutComponents do
           </svg>
         </a>
         <a
+          :if={nav_allowed?(@scope, :pos)}
           class="sidebar-link"
           href={pos_href(@active_page)}
           aria-current={current_page(@active_page, :pos)}
@@ -80,6 +82,25 @@ defmodule PosServerWeb.PosLayoutComponents do
           </svg>
         </a>
         <a
+          :if={nav_allowed?(@scope, :invoices)}
+          class="sidebar-link"
+          href={~p"/pos/invoices"}
+          aria-current={current_page(@active_page, :invoices)}
+          aria-label="Invoice report"
+          data-i18n-aria-label="layout.nav.invoices"
+        >
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M4 2v20h16" /><path d="M8 6h8M8 10h8M8 14h5" />
+          </svg>
+        </a>
+        <a
+          :if={nav_allowed?(@scope, :reconciliation)}
           class="sidebar-link"
           href={~p"/pos/reconciliation"}
           aria-current={current_page(@active_page, :reconciliation)}
@@ -101,6 +122,7 @@ defmodule PosServerWeb.PosLayoutComponents do
           </svg>
         </a>
         <a
+          :if={nav_allowed?(@scope, :customers)}
           class="sidebar-link"
           href={~p"/pos/customers"}
           aria-current={current_page(@active_page, :customers)}
@@ -118,23 +140,7 @@ defmodule PosServerWeb.PosLayoutComponents do
           </svg>
         </a>
         <a
-          class="sidebar-link"
-          href={~p"/pos/invoices"}
-          aria-current={current_page(@active_page, :invoices)}
-          aria-label="Invoice report"
-          data-i18n-aria-label="layout.nav.invoices"
-        >
-          <svg
-            aria-hidden="true"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <path d="M4 2v20h16" /><path d="M8 6h8M8 10h8M8 14h5" />
-          </svg>
-        </a>
-        <a
+          :if={nav_allowed?(@scope, :inventory)}
           class="sidebar-link"
           href={~p"/pos/inventory"}
           aria-current={current_page(@active_page, :inventory)}
@@ -152,6 +158,7 @@ defmodule PosServerWeb.PosLayoutComponents do
           </svg>
         </a>
         <a
+          :if={nav_allowed?(@scope, :orders)}
           class="sidebar-link"
           href={~p"/pos/orders"}
           aria-current={current_page(@active_page, :orders)}
@@ -169,6 +176,7 @@ defmodule PosServerWeb.PosLayoutComponents do
           </svg>
         </a>
         <a
+          :if={nav_allowed?(@scope, :installed_addons)}
           class="sidebar-link"
           href={~p"/pos/addons"}
           aria-current={current_page(@active_page, :installed_addons)}
@@ -186,7 +194,7 @@ defmodule PosServerWeb.PosLayoutComponents do
           </svg>
         </a>
         <a
-          :if={Scope.allowed?(@scope, "company.settings")}
+          :if={nav_allowed?(@scope, :company_settings)}
           id="company-settings-nav"
           class="sidebar-link"
           href={~p"/pos/company-settings"}
@@ -207,7 +215,7 @@ defmodule PosServerWeb.PosLayoutComponents do
           </svg>
         </a>
         <a
-          :if={Scope.allowed?(@scope, "user.view")}
+          :if={nav_allowed?(@scope, :users)}
           id="users-nav"
           class="sidebar-link"
           href={~p"/pos/users"}
@@ -228,6 +236,7 @@ defmodule PosServerWeb.PosLayoutComponents do
           </svg>
         </a>
         <a
+          :if={nav_allowed?(@scope, :addons)}
           class="sidebar-link"
           href={~p"/pos/addons/install"}
           aria-current={current_page(@active_page, :addons)}
@@ -535,6 +544,20 @@ defmodule PosServerWeb.PosLayoutComponents do
   defp current_page(_, _), do: nil
   defp pos_href(:pos), do: "#"
   defp pos_href(_), do: ~p"/pos"
+  defp nav_allowed?(scope, page), do: Scope.allowed?(scope, nav_permission(page))
+
+  defp nav_permission(:dashboard), do: "dashboard.view"
+  defp nav_permission(:pos), do: "sales.pos"
+  defp nav_permission(:reconciliation), do: "pos.reconciliation"
+  defp nav_permission(:customers), do: "pos.customer"
+  defp nav_permission(:invoices), do: "sales.view"
+  defp nav_permission(:inventory), do: "inventory.view"
+  defp nav_permission(:orders), do: "pos.orders"
+  defp nav_permission(:installed_addons), do: "pos.addons"
+  defp nav_permission(:company_settings), do: "company.settings"
+  defp nav_permission(:users), do: "user.view"
+  defp nav_permission(:addons), do: "pos.addons.install"
+
   defp selected_store?(store_id, selected_id), do: to_string(store_id) == to_string(selected_id)
 
   defp avatar_image?(%{pic: pic}), do: is_binary(pic) and String.trim(pic) != ""

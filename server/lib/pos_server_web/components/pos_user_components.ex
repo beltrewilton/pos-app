@@ -36,7 +36,7 @@ defmodule PosServerWeb.PosUserComponents do
             autocomplete="off"
           />
           <button
-            :if={Scope.allowed?(@scope, "user.setting")}
+            :if={Scope.allowed?(@scope, "user.view")}
             class="btn"
             type="button"
             data-variant="default"
@@ -68,7 +68,7 @@ defmodule PosServerWeb.PosUserComponents do
               <span data-i18n="common.view">View</span>
             </button>
             <button
-              :if={Scope.allowed?(@scope, "user.setting")}
+              :if={Scope.allowed?(@scope, "user.view")}
               class="btn"
               type="button"
               data-variant="default"
@@ -78,7 +78,7 @@ defmodule PosServerWeb.PosUserComponents do
               <span data-i18n="common.edit">Edit</span>
             </button>
             <button
-              :if={Scope.allowed?(@scope, "user.setting") and active?(user)}
+              :if={Scope.allowed?(@scope, "user.view") and active?(user)}
               class="btn"
               type="button"
               data-variant="destructive"

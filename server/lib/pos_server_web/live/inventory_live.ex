@@ -111,13 +111,17 @@ defmodule PosServerWeb.InventoryLive do
   def handle_event("toggle_kpis", _, socket),
     do: {:noreply, assign(socket, :kpis_expanded, !socket.assigns.kpis_expanded)}
 
-  def handle_event("open_product_dialog", _, socket),
-    do:
+  def handle_event("open_product_dialog", _, socket) do
+    if Scope.allowed?(socket.assigns.scope, "product.add") do
       {:noreply,
        socket
        |> assign(:product_dialog, true)
        |> assign(:editing_product, nil)
        |> assign(:product_form_status, "")}
+    else
+      {:noreply, put_flash(socket, :error, "You do not have permission to create products.")}
+    end
+  end
 
   def handle_event("close_product_dialog", _, socket),
     do:
@@ -128,7 +132,10 @@ defmodule PosServerWeb.InventoryLive do
        |> assign(:product_form_status, "")}
 
   def handle_event("open_product_editor", %{"product_id" => id}, socket) do
-    case ProductCatalog.get(socket.assigns.scope, integer(id)) do
+    if !Scope.allowed?(socket.assigns.scope, "product.edit") do
+      {:noreply, put_flash(socket, :error, "You do not have permission to edit products.")}
+    else
+      case ProductCatalog.get(socket.assigns.scope, integer(id)) do
       {:ok, product} ->
         {:noreply,
          socket
@@ -141,6 +148,7 @@ defmodule PosServerWeb.InventoryLive do
 
       _ ->
         {:noreply, put_flash(socket, :error, "Product could not be loaded.")}
+      end
     end
   end
 
@@ -287,7 +295,7 @@ defmodule PosServerWeb.InventoryLive do
   def handle_event("save_quantity", %{"product_id" => id, "quantity" => value}, socket) do
     product_id = integer(id)
 
-    with true <- Scope.allowed?(socket.assigns.scope, "inventory.stores"),
+    with true <- Scope.allowed?(socket.assigns.scope, "inventory.view"),
          %{quantity: current} <-
            Enum.find(socket.assigns.entries, &(&1.product_id == product_id)),
          {quantity, ""} <- Integer.parse(value),
@@ -320,7 +328,7 @@ defmodule PosServerWeb.InventoryLive do
     product_id = integer(product_id)
     store_id = integer(store_id)
 
-    with true <- Scope.allowed?(socket.assigns.scope, "inventory.stores"),
+    with true <- Scope.allowed?(socket.assigns.scope, "inventory.view"),
          %{quantity: current} <-
            Enum.find(socket.assigns.store_quantities, &(&1.store_id == store_id)),
          {quantity, ""} <- Integer.parse(value),
@@ -526,6 +534,9 @@ defmodule PosServerWeb.InventoryLive do
 
   defp value(map, key), do: Map.get(map, key) || Map.get(map, Atom.to_string(key))
   defp money(value), do: :erlang.float_to_binary(decimal(value), decimals: 2) |> then(&"$#{&1}")
+  defp cost_value(scope, value),
+    do: if(Scope.allowed?(scope, "product.view.cost"), do: money(value), else: "—")
+
   defp decimal(%Decimal{} = value), do: Decimal.to_float(value)
   defp decimal(value) when is_number(value), do: value * 1.0
 
@@ -576,14 +587,14 @@ defmodule PosServerWeb.InventoryLive do
   defp metric(title, value, detail, tone \\ ""),
     do: %{title: title, value: value, detail: detail, tone: tone}
 
-  defp metrics(nil), do: []
+  defp metrics(nil, _scope), do: []
 
-  defp metrics(summary) do
+  defp metrics(summary, scope) do
     [
       metric(
         "Negative stock",
         "#{value(summary, :negative_stock_sku_count) || 0} SKUs",
-        "#{value(summary, :negative_stock_units) || 0} units · #{money(value(summary, :negative_stock_value))}",
+        "#{value(summary, :negative_stock_units) || 0} units · #{cost_value(scope, value(summary, :negative_stock_value))}",
         "inventory-summary-negative inventory-summary-compact"
       ),
       metric(
@@ -732,7 +743,10 @@ defmodule PosServerWeb.InventoryLive do
               class={["inventory-summary", if(!@kpis_expanded, do: "is-collapsed")]}
               aria-live="polite"
             >
-              <article class="card inventory-summary-card inventory-summary-valuation">
+              <article
+                :if={Scope.allowed?(@scope, "product.view.cost")}
+                class="card inventory-summary-card inventory-summary-valuation"
+              >
                 <div class="card-header">
                   <p class="card-title" data-i18n="inventory.valuation">Inventory valuation</p>
                 </div>
@@ -759,7 +773,7 @@ defmodule PosServerWeb.InventoryLive do
                 </div>
               </article>
               <article
-                :for={card <- metrics(@summary)}
+                :for={card <- metrics(@summary, @scope)}
                 class={["card inventory-summary-card", card.tone]}
               >
                 <button
@@ -852,6 +866,7 @@ defmodule PosServerWeb.InventoryLive do
                   <tr class="table-row" data-inventory-product-id={entry.product_id}>
                     <td class="table-cell" data-label="Product" data-i18n-data-label="common.product">
                       <button
+                        :if={Scope.allowed?(@scope, "product.edit")}
                         class="btn"
                         type="button"
                         data-variant="link"
@@ -860,9 +875,15 @@ defmodule PosServerWeb.InventoryLive do
                       >
                         {entry.product_name || "Product ##{entry.product_id}"}
                       </button>
+                      <span :if={!Scope.allowed?(@scope, "product.edit")}>
+                        {entry.product_name || "Product ##{entry.product_id}"}
+                      </span>
                     </td>
                     <td class="table-cell inventory-product-status-cell" data-label="Status" data-i18n-data-label="common.status">
-                      <details class="inventory-product-status-menu">
+                      <details
+                        :if={Scope.allowed?(@scope, "product.edit")}
+                        class="inventory-product-status-menu"
+                      >
                         <summary
                           class={["inventory-product-status", product_status_tone(entry)]}
                           title={product_status_label(entry)}
@@ -907,6 +928,14 @@ defmodule PosServerWeb.InventoryLive do
                           </button>
                         </div>
                       </details>
+                      <span
+                        :if={!Scope.allowed?(@scope, "product.edit")}
+                        class={["inventory-product-status", product_status_tone(entry)]}
+                        title={product_status_label(entry)}
+                        aria-label={"Product status: #{product_status_label(entry)}"}
+                      >
+                        <.product_status_icon entry={entry} />
+                      </span>
                     </td>
                     <td class="table-cell" data-label="SKU" data-i18n-data-label="pos.catalog.sku">
                       <button
@@ -920,7 +949,9 @@ defmodule PosServerWeb.InventoryLive do
                         {entry.product_code || "—"}
                       </button>
                     </td>
-                    <td class="table-cell numeric" data-label="Cost" data-i18n-data-label="inventory.cost">{money(entry.product_cost)}</td>
+                    <td class="table-cell numeric" data-label="Cost" data-i18n-data-label="inventory.cost">
+                      {if Scope.allowed?(@scope, "product.view.cost"), do: money(entry.product_cost), else: "—"}
+                    </td>
                     <td class="table-cell numeric" data-label="Price" data-i18n-data-label="common.price">
                       {if is_nil(entry.product_price), do: "—", else: money(entry.product_price)}
                     </td>
@@ -939,7 +970,11 @@ defmodule PosServerWeb.InventoryLive do
                     </td>
                     <td class="table-cell" data-label="Current quantity" data-i18n-data-label="inventory.currentQuantity">
                       <%= if @editing_product_id == entry.product_id do %>
-                        <form class="inventory-inline-editor" phx-submit="save_quantity">
+                        <form
+                          :if={Scope.allowed?(@scope, "inventory.view")}
+                          class="inventory-inline-editor"
+                          phx-submit="save_quantity"
+                        >
                           <input type="hidden" name="product_id" value={entry.product_id} /><input
                             id={"inventory-quantity-#{entry.product_id}"}
                             class="input"
@@ -959,6 +994,7 @@ defmodule PosServerWeb.InventoryLive do
                       <% else %>
                         <div class="inventory-inline-editor">
                           <span>{entry.quantity || 0}</span><button
+                            :if={Scope.allowed?(@scope, "inventory.view")}
                             class="btn"
                             type="button"
                             data-variant="outline"
@@ -988,7 +1024,11 @@ defmodule PosServerWeb.InventoryLive do
                     </td>
                     <td class="table-cell inventory-total-quantity-cell" data-label="Total quantity" data-i18n-data-label="inventory.totalQuantity"></td>
                     <td class="table-cell" data-label="Current quantity" data-i18n-data-label="inventory.currentQuantity">
-                      <form class="inventory-inline-editor" phx-submit="save_store_quantity">
+                      <form
+                        :if={Scope.allowed?(@scope, "inventory.view")}
+                        class="inventory-inline-editor"
+                        phx-submit="save_store_quantity"
+                      >
                         <input type="hidden" name="product_id" value={entry.product_id} /><input
                           type="hidden"
                           name="store_id"
@@ -1100,7 +1140,7 @@ defmodule PosServerWeb.InventoryLive do
                 />
               </div>
               <div class="product-form-row">
-                <div class="form-field">
+                <div :if={Scope.allowed?(@scope, "product.view.cost")} class="form-field">
                   <label class="label" for="product-cost">Cost</label>
                   <input
                     id="product-cost"
@@ -1241,7 +1281,12 @@ defmodule PosServerWeb.InventoryLive do
                 phx-click="close_product_dialog"
               >
                 Cancel
-              </button><button class="btn" type="submit" data-variant="default">Save</button>
+              </button><button
+                :if={is_nil(@editing_product) or Scope.allowed?(@scope, "product.edit")}
+                class="btn"
+                type="submit"
+                data-variant="default"
+              >Save</button>
             </div>
           </form>
         </div>

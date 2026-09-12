@@ -2,6 +2,7 @@ defmodule PosServerWeb.BrowserLoginController do
   use PosServerWeb, :controller
 
   alias PosServer.{Authentication, TenantContext}
+  alias PosServer.Accounts.Scope
   alias PosServer.Retaily.InventoryContext
 
   def create(conn, %{"token" => token, "store_id" => store_id}) do
@@ -13,7 +14,7 @@ defmodule PosServerWeb.BrowserLoginController do
       |> configure_session(renew: true)
       |> put_session(:user_token, token)
       |> put_session(:store_id, store_id)
-      |> json(%{redirect_to: ~p"/pos"})
+      |> json(%{redirect_to: landing_path(scope)})
     else
       _ -> conn |> put_status(:unauthorized) |> json(%{error: "invalid login session"})
     end
@@ -26,5 +27,13 @@ defmodule PosServerWeb.BrowserLoginController do
     conn
     |> configure_session(drop: true)
     |> redirect(to: ~p"/pos/login")
+  end
+
+  defp landing_path(scope) do
+    cond do
+      Scope.admin?(scope) -> ~p"/pos/dashboard"
+      Scope.allowed?(scope, "dashboard.view") -> ~p"/pos/dashboard"
+      true -> ~p"/pos"
+    end
   end
 end

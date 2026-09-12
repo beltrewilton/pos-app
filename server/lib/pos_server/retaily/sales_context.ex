@@ -29,6 +29,7 @@ defmodule PosServer.Retaily.Sales do
 
   def create_sale(scope, attrs) do
     with {:ok, checkout} <- valid_checkout(attrs),
+         :ok <- delivery_allowed?(scope, checkout),
          {:ok, cashier, tenant} <- cashier(scope) do
       with {:ok, sale} <-
              Repo.transaction(fn ->
@@ -63,6 +64,13 @@ defmodule PosServer.Retaily.Sales do
         {:ok, sale.sale}
       end
     end
+  end
+
+  defp delivery_allowed?(scope, checkout) do
+    if Decimal.compare(checkout.delivery_charge || @zero, @zero) == :gt and
+         !AccessScope.allowed?(scope, "pos.delivery"),
+       do: {:error, :forbidden},
+       else: :ok
   end
 
   def add_payment(scope, sale_id, attrs) do

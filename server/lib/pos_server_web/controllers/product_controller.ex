@@ -2,6 +2,7 @@ defmodule PosServerWeb.ProductController do
   use PosServerWeb, :controller
 
   alias PosServer.Retaily.{InventoryContext, Sql}
+  alias PosServer.Accounts.Scope
 
   @page_size 100
 
@@ -16,7 +17,7 @@ defmodule PosServerWeb.ProductController do
              search: params["search"]
            ) do
       json(conn, %{
-        entries: page.entries,
+        entries: Enum.map(page.entries, &mask_cost(conn.assigns.current_scope, &1)),
         has_more: page.has_more?,
         next_cursor: page.next_cursor
       })
@@ -58,6 +59,18 @@ defmodule PosServerWeb.ProductController do
     case Integer.parse(cursor) do
       {value, ""} when value >= 0 -> {:ok, value}
       _ -> {:error, :invalid_cursor}
+    end
+  end
+
+  defp mask_cost(scope, product) when is_map(product) do
+    if Scope.allowed?(scope, "product.view.cost") do
+      product
+    else
+      product
+      |> Map.put(:cost, nil)
+      |> Map.put(:product_cost, nil)
+      |> Map.put("cost", nil)
+      |> Map.put("product_cost", nil)
     end
   end
 end

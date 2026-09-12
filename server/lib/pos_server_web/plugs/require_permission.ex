@@ -11,7 +11,7 @@ defmodule PosServerWeb.Plugs.RequirePermission do
         conn
 
       permission ->
-        if Scope.allowed?(scope, permission) do
+        if allowed?(scope, permission) do
           conn
         else
           conn
@@ -30,19 +30,22 @@ defmodule PosServerWeb.Plugs.RequirePermission do
         "user.view"
 
       path == "/api/users" and method == "POST" ->
-        "user.setting"
+        "user.view"
 
       String.starts_with?(path, "/api/users/") and method == "GET" ->
         "user.view"
 
       String.starts_with?(path, "/api/users/") and method in ["PATCH", "DELETE"] ->
-        "user.setting"
+        "user.view"
 
-      String.starts_with?(path, "/api/products") and method == "GET" ->
+      path == "/api/products" and method == "GET" ->
         "product.view"
+
+      String.starts_with?(path, "/api/products/") and method == "GET" ->
+        ["product.view", "product.edit"]
 
       path == "/api/stores" and method == "GET" ->
-        "product.view"
+        "inventory.view"
 
       path == "/api/products" and method == "POST" ->
         "product.add"
@@ -57,7 +60,7 @@ defmodule PosServerWeb.Plugs.RequirePermission do
         "inventory.view"
 
       path == "/api/inventory/adjustments" and method == "POST" ->
-        "inventory.stores"
+        "inventory.view"
 
       String.starts_with?(path, "/api/sales") and method == "GET" ->
         "sales.view"
@@ -70,10 +73,18 @@ defmodule PosServerWeb.Plugs.RequirePermission do
         "inventory.view"
 
       String.starts_with?(path, "/api/product-orders") and method == "POST" ->
-        "inventory.movement.request"
+        "pos.orders"
+
+      String.starts_with?(path, "/api/customers") ->
+        "pos.customer"
 
       true ->
         nil
     end
   end
+
+  defp allowed?(scope, permissions) when is_list(permissions),
+    do: Enum.any?(permissions, &Scope.allowed?(scope, &1))
+
+  defp allowed?(scope, permission), do: Scope.allowed?(scope, permission)
 end

@@ -5,6 +5,7 @@ defmodule PosServerWeb.PosLive do
   import PosServerWeb.PosLayoutComponents
 
   alias PosServer.{Authentication, InventoryEvents, Repo, TenantContext}
+  alias PosServer.Accounts.Scope
   alias PosServer.Retaily.{Client, InventoryContext, Sales, Sql}
 
   @impl true
@@ -350,42 +351,58 @@ defmodule PosServerWeb.PosLive do
     do: {:noreply, assign(socket, :checkout_stage, :customer)}
 
   def handle_event("toggle_delivery", _, socket) do
-    socket = assign(socket, :delivery_open, !socket.assigns.delivery_open)
-    socket =
-      if socket.assigns.delivery_open,
-        do: socket,
-        else:
-          socket
-          |> assign(:delivery_custom_input, "")
-          |> assign(:delivery_custom_selected, false)
-          |> set_delivery_total(0.0)
+    if !Scope.allowed?(socket.assigns.scope, "pos.delivery") do
+      {:noreply, socket |> clear_delivery() |> sync()}
+    else
+      socket = assign(socket, :delivery_open, !socket.assigns.delivery_open)
 
-    {:noreply, sync(socket)}
+      socket =
+        if socket.assigns.delivery_open,
+          do: socket,
+          else:
+            socket
+            |> assign(:delivery_custom_input, "")
+            |> assign(:delivery_custom_selected, false)
+            |> set_delivery_total(0.0)
+
+      {:noreply, sync(socket)}
+    end
   end
 
-  def handle_event("set_delivery", %{"amount" => amount}, socket),
-    do:
+  def handle_event("set_delivery", %{"amount" => amount}, socket) do
+    if !Scope.allowed?(socket.assigns.scope, "pos.delivery") do
+      {:noreply, socket |> clear_delivery() |> sync()}
+    else
       {:noreply,
        socket
        |> assign(:delivery_open, true)
        |> assign(:delivery_custom_selected, false)
        |> set_delivery_total(float(amount))
        |> sync()}
+    end
+  end
 
-  def handle_event("change_delivery_amount", %{"value" => amount}, socket),
-    do: {:noreply, change_custom_delivery_amount(socket, amount)}
+  def handle_event("change_delivery_amount", %{"value" => amount}, socket) do
+    if Scope.allowed?(socket.assigns.scope, "pos.delivery"),
+      do: {:noreply, change_custom_delivery_amount(socket, amount)},
+      else: {:noreply, socket |> clear_delivery() |> sync()}
+  end
 
   def handle_event("apply_custom_delivery", params, socket) do
-    amount = Map.get(params, "value", socket.assigns.delivery_custom_input)
-    amount = delivery_amount_input(amount)
+    if !Scope.allowed?(socket.assigns.scope, "pos.delivery") do
+      {:noreply, socket |> clear_delivery() |> sync()}
+    else
+      amount = Map.get(params, "value", socket.assigns.delivery_custom_input)
+      amount = delivery_amount_input(amount)
 
-    {:noreply,
-     socket
-     |> assign(:delivery_open, true)
-     |> assign(:delivery_custom_input, amount)
-     |> assign(:delivery_custom_selected, true)
-     |> set_delivery_total(float(amount))
-     |> sync()}
+      {:noreply,
+       socket
+       |> assign(:delivery_open, true)
+       |> assign(:delivery_custom_input, amount)
+       |> assign(:delivery_custom_selected, true)
+       |> set_delivery_total(float(amount))
+       |> sync()}
+    end
   end
 
   def handle_event("toggle_credit", _, socket) do
@@ -461,8 +478,8 @@ defmodule PosServerWeb.PosLive do
         "sequence_type" => socket.assigns.sequence,
         "status" => if(socket.assigns.credit, do: "CREDIT", else: "CASH"),
         "due_date" => if(socket.assigns.credit, do: socket.assigns.credit_due_date, else: nil),
-        "sale_type" => if(socket.assigns.delivery > 0, do: "FOR_DELIVER", else: "IN_SHOP"),
-        "delivery_charge" => socket.assigns.delivery,
+        "sale_type" => if(delivery_total(socket) > 0, do: "FOR_DELIVER", else: "IN_SHOP"),
+        "delivery_charge" => delivery_total(socket),
         "discount" => order_discount_total(socket),
         "discount_type" => discount_type_for_sale(socket),
         "discount_input" => socket.assigns.order_discount,
@@ -931,6 +948,7 @@ defmodule PosServerWeb.PosLive do
                 </p>
                 <div class="form-group checkout-payment">
                   <button
+                    :if={Scope.allowed?(@scope, "pos.delivery")}
                     id="delivery-toggle"
                     class="btn"
                     type="button"
@@ -1642,6 +1660,18 @@ defmodule PosServerWeb.PosLive do
   defp load_products(%{assigns: %{has_more: false}} = socket), do: socket
 
   defp load_products(socket) do
+    if !Scope.allowed?(socket.assigns.scope, "product.view") do
+      socket
+      |> assign(:products, [])
+      |> assign(:cursor, nil)
+      |> assign(:has_more, false)
+      |> assign(:loading_products, false)
+    else
+      load_visible_products(socket)
+    end
+  end
+
+  defp load_visible_products(socket) do
     assign(socket, :loading_products, true)
 
     case Sql.active_products_page(socket.assigns.cursor,
@@ -1713,10 +1743,7 @@ defmodule PosServerWeb.PosLive do
       |> assign(:selected_customer, restore_customer(Map.get(draft, "selected_customer")))
       |> assign(:order_discount, float(Map.get(draft, "order_discount")))
       |> assign(:order_discount_type, discount_type(Map.get(draft, "order_discount_type")))
-      |> assign(:delivery, max(0.0, float(Map.get(draft, "delivery"))))
-      |> assign(:delivery_open, truthy?(Map.get(draft, "delivery_open")))
-      |> assign(:delivery_custom_input, delivery_amount_input(Map.get(draft, "delivery_custom_input", "")))
-      |> assign(:delivery_custom_selected, truthy?(Map.get(draft, "delivery_custom_selected")))
+      |> restore_delivery(draft)
       |> assign(:credit, truthy?(Map.get(draft, "credit")))
       |> assign(:credit_due_date, text(Map.get(draft, "credit_due_date")))
       |> assign(:payments, restore_payments(Map.get(draft, "payments", [])))
@@ -1729,6 +1756,18 @@ defmodule PosServerWeb.PosLive do
   end
 
   defp restore_pos_draft(socket, _), do: socket
+
+  defp restore_delivery(socket, draft) do
+    if Scope.allowed?(socket.assigns.scope, "pos.delivery") do
+      socket
+      |> assign(:delivery, max(0.0, float(Map.get(draft, "delivery"))))
+      |> assign(:delivery_open, truthy?(Map.get(draft, "delivery_open")))
+      |> assign(:delivery_custom_input, delivery_amount_input(Map.get(draft, "delivery_custom_input", "")))
+      |> assign(:delivery_custom_selected, truthy?(Map.get(draft, "delivery_custom_selected")))
+    else
+      clear_delivery(socket)
+    end
+  end
 
   defp restore_cart(lines, store_id) when is_list(lines) do
     Enum.flat_map(lines, fn line ->
@@ -2018,6 +2057,17 @@ defmodule PosServerWeb.PosLive do
 
     assign(socket, :payments, payments)
   end
+
+  defp clear_delivery(socket) do
+    socket
+    |> assign(:delivery, 0.0)
+    |> assign(:delivery_open, false)
+    |> assign(:delivery_custom_input, "")
+    |> assign(:delivery_custom_selected, false)
+  end
+
+  defp delivery_total(socket),
+    do: if(Scope.allowed?(socket.assigns.scope, "pos.delivery"), do: socket.assigns.delivery, else: 0.0)
 
   defp line_gross(line), do: line.price * line.qty
 

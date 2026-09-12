@@ -3,12 +3,14 @@ defmodule PosServerWeb.AddonController do
 
   alias PosServer.Addons
   alias PosServer.Addons.Installer
+  alias PosServer.Accounts.Scope
   alias PosServer.Retaily.InventoryContext
 
-  def index(%{assigns: %{current_scope: %{actor: :admin}}} = conn, _params) do
-    tenant = conn.assigns.current_scope.tenant
+  def index(%{assigns: %{current_scope: scope}} = conn, _params) do
+    tenant = scope.tenant
 
-    with {:ok, layout} <- pos_layout_assigns(conn) do
+    with true <- Scope.allowed?(scope, "pos.addons"),
+         {:ok, layout} <- pos_layout_assigns(conn) do
       render(conn, :index,
         installed: Addons.enabled_for(tenant),
         tenant: tenant,
@@ -26,7 +28,8 @@ defmodule PosServerWeb.AddonController do
   def install_index(%{assigns: %{current_scope: %{actor: :admin}}} = conn, _params) do
     tenant = conn.assigns.current_scope.tenant
 
-    with {:ok, layout} <- pos_layout_assigns(conn) do
+    with true <- Scope.allowed?(conn.assigns.current_scope, "pos.addons.install"),
+         {:ok, layout} <- pos_layout_assigns(conn) do
       render(conn, :install,
         catalog: Installer.catalog(),
         installed: Addons.enabled_for(tenant),
@@ -42,14 +45,19 @@ defmodule PosServerWeb.AddonController do
 
   def install_index(conn, _params), do: redirect(conn, to: ~p"/")
 
-  def install(%{assigns: %{current_scope: %{actor: :admin, tenant: tenant}}} = conn, %{
+  def install(%{assigns: %{current_scope: %{actor: :admin, tenant: tenant} = scope}} = conn, %{
         "identifier" => identifier
       }) do
-    case Installer.install(identifier, tenant) do
+    case Scope.allowed?(scope, "pos.addons.install") && Installer.install(identifier, tenant) do
       :ok ->
         conn
         |> put_flash(:info, "#{identifier} is installed.")
         |> redirect(to: ~p"/pos/addons/install")
+
+      false ->
+        conn
+        |> put_flash(:error, "Add-on installation access is required.")
+        |> redirect(to: ~p"/pos")
 
       {:error, reason} ->
         conn
@@ -60,10 +68,10 @@ defmodule PosServerWeb.AddonController do
 
   def install(conn, _params), do: redirect(conn, to: ~p"/")
 
-  def uninstall(%{assigns: %{current_scope: %{actor: :admin, tenant: tenant}}} = conn, %{
+  def uninstall(%{assigns: %{current_scope: %{actor: :admin, tenant: tenant} = scope}} = conn, %{
         "identifier" => identifier
       }) do
-    case Installer.uninstall(identifier, tenant) do
+    case Scope.allowed?(scope, "pos.addons.install") && Installer.uninstall(identifier, tenant) do
       {:ok, :purged} ->
         conn
         |> put_flash(:info, "#{identifier} was uninstalled and unloaded.")
@@ -82,6 +90,11 @@ defmodule PosServerWeb.AddonController do
         )
         |> redirect(to: ~p"/pos/addons/install")
 
+      false ->
+        conn
+        |> put_flash(:error, "Add-on installation access is required.")
+        |> redirect(to: ~p"/pos")
+
       {:error, reason} ->
         conn
         |> put_flash(:error, "Could not uninstall add-on: #{inspect(reason)}")
@@ -92,10 +105,11 @@ defmodule PosServerWeb.AddonController do
   def uninstall(conn, _params), do: redirect(conn, to: ~p"/")
 
   # Runtime registry lookup selects the add-on behind the generic POS route.
-  def show(%{assigns: %{current_scope: %{actor: :admin} = scope}} = conn, %{
+  def show(%{assigns: %{current_scope: scope}} = conn, %{
         "identifier" => identifier
       }) do
-    with addon when not is_nil(addon) <- Addons.get_enabled_for(identifier, scope.tenant),
+    with true <- Scope.allowed?(scope, "pos.addons"),
+         addon when not is_nil(addon) <- Addons.get_enabled_for(identifier, scope.tenant),
          {:ok, handler} <- Installer.handler(addon),
          {:ok, layout} <- pos_layout_assigns(conn) do
       render(conn, :show,
