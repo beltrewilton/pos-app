@@ -47,8 +47,8 @@ defmodule PosServerWeb.Router do
     get "/auth/google/callback", GoogleAuthController, :callback
     get "/google_helper", GoogleAuthController, :helper
     post "/logout", GoogleAuthController, :logout
-    get "/dash", DashboardController, :index
-    post "/dash/tenant", DashboardController, :create
+    get "/pos/dashboard", DashboardController, :index
+    post "/pos/dashboard/tenant", DashboardController, :create
     live "/pos/login", LoginLive, :index
     post "/pos/login/session", BrowserLoginController, :create
     delete "/pos/logout", BrowserLoginController, :delete
@@ -57,6 +57,7 @@ defmodule PosServerWeb.Router do
     live "/pos/invoices", InvoiceReportLive, :index
     live "/pos/inventory", InventoryLive, :index
     live "/pos/orders", PurchaseOrdersLive, :index
+    get "/pos/addons", AddonController, :index
     live "/pos/company-settings", CompanySettingsLive, :index
     live "/pos/users", PosUserLive, :index
   end
@@ -69,13 +70,19 @@ defmodule PosServerWeb.Router do
     get "/login-client.css", LiveViewAssetController, :login_css
   end
 
-  scope "/addons", PosServerWeb do
+  scope "/pos/addons", PosServerWeb do
     pipe_through :browser
 
     get "/install", AddonController, :install_index
     post "/install", AddonController, :install
-    post "/:identifier/uninstall", AddonController, :uninstall
     get "/:identifier", AddonController, :show
+  end
+
+  scope "/addons", PosServerWeb do
+    pipe_through :browser
+
+    post "/:identifier/uninstall", AddonController, :uninstall
+    get "/:identifier", AddonController, :legacy_show
   end
 
   scope "/admin", PosServerWeb do

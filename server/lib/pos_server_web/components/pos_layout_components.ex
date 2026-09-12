@@ -26,7 +26,42 @@ defmodule PosServerWeb.PosLayoutComponents do
       >
       </span>
       {render_slot(@before_layout)}
-      <nav class="sidebar-rail" aria-label="Primary navigation" data-i18n-aria-label="layout.nav.primary">
+      <nav
+        class="sidebar-rail"
+        aria-label="Primary navigation"
+        data-i18n-aria-label="layout.nav.primary"
+      >
+        <a
+          class="sidebar-link"
+          href={~p"/pos/dashboard"}
+          aria-current={current_page(@active_page, :dashboard)}
+          aria-label="Dashboard"
+          data-i18n-aria-label="dashboard.dashboard"
+        >
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="3" y="3" width="7" height="9" rx="1" /><rect
+              x="14"
+              y="3"
+              width="7"
+              height="5"
+              rx="1"
+            /><rect x="14" y="12" width="7" height="9" rx="1" /><rect
+              x="3"
+              y="16"
+              width="7"
+              height="5"
+              rx="1"
+            />
+          </svg>
+        </a>
         <a
           class="sidebar-link"
           href={pos_href(@active_page)}
@@ -113,6 +148,23 @@ defmodule PosServerWeb.PosLayoutComponents do
           </svg>
         </a>
         <a
+          class="sidebar-link"
+          href={~p"/pos/addons"}
+          aria-current={current_page(@active_page, :installed_addons)}
+          aria-label="Installed Add-ons"
+          data-i18n-aria-label="addons.installedAddons"
+        >
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M4 4h6v6H4z" /><path d="M14 4h6v6h-6z" /><path d="M4 14h6v6H4z" /><path d="M14 14h6v6h-6z" />
+          </svg>
+        </a>
+        <a
           :if={Scope.allowed?(@scope, "company.settings")}
           id="company-settings-nav"
           class="sidebar-link"
@@ -154,11 +206,34 @@ defmodule PosServerWeb.PosLayoutComponents do
             <circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /><path d="M19 8v4M17 10h4" />
           </svg>
         </a>
+        <a
+          class="sidebar-link"
+          href={~p"/pos/addons/install"}
+          aria-current={current_page(@active_page, :addons)}
+          aria-label="Install Addons"
+          data-i18n-aria-label="dashboard.installAddon"
+        >
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M12 5v14" /><path d="M5 12h14" />
+          </svg>
+        </a>
         <details
           id={"#{@id}-theme-selector"}
           class="sidebar-menu sidebar-theme-selector"
         >
-          <summary class="sidebar-menu-trigger" aria-label="Choose theme" data-i18n-aria-label="layout.theme.choose">
+          <summary
+            class="sidebar-menu-trigger"
+            aria-label="Choose theme"
+            data-i18n-aria-label="layout.theme.choose"
+          >
             <svg
               class="sidebar-theme-icon"
               aria-hidden="true"
@@ -182,38 +257,92 @@ defmodule PosServerWeb.PosLayoutComponents do
               /><path d="M12 3a9 9 0 1 0 0 18 1.5 1.5 0 0 0 1.5-1.5c0-.4-.16-.78-.44-1.06a1.5 1.5 0 0 1 1.06-2.56H16a5 5 0 0 0 0-10Z" />
             </svg>
           </summary>
-          <div class="user-menu-content sidebar-menu-content" role="group" aria-label="Theme" data-i18n-aria-label="layout.theme.label">
-            <button class="sidebar-menu-action" type="button" data-theme="default-light" data-i18n="layout.theme.defaultLight">
+          <div
+            class="user-menu-content sidebar-menu-content"
+            role="group"
+            aria-label="Theme"
+            data-i18n-aria-label="layout.theme.label"
+          >
+            <button
+              class="sidebar-menu-action"
+              type="button"
+              data-theme="default-light"
+              data-i18n="layout.theme.defaultLight"
+            >
               Default Light
             </button>
-            <button class="sidebar-menu-action" type="button" data-theme="nature-light" data-i18n="layout.theme.natureLight">
+            <button
+              class="sidebar-menu-action"
+              type="button"
+              data-theme="nature-light"
+              data-i18n="layout.theme.natureLight"
+            >
               Nature Light
             </button>
-            <button class="sidebar-menu-action" type="button" data-theme="nature-dark" data-i18n="layout.theme.natureDark">
+            <button
+              class="sidebar-menu-action"
+              type="button"
+              data-theme="nature-dark"
+              data-i18n="layout.theme.natureDark"
+            >
               Nature Dark
             </button>
-            <button class="sidebar-menu-action" type="button" data-theme="caffeine-light" data-i18n="layout.theme.caffeineLight">
+            <button
+              class="sidebar-menu-action"
+              type="button"
+              data-theme="caffeine-light"
+              data-i18n="layout.theme.caffeineLight"
+            >
               Caffeine Light
             </button>
-            <button class="sidebar-menu-action" type="button" data-theme="caffeine-dark" data-i18n="layout.theme.caffeineDark">
+            <button
+              class="sidebar-menu-action"
+              type="button"
+              data-theme="caffeine-dark"
+              data-i18n="layout.theme.caffeineDark"
+            >
               Caffeine Dark
             </button>
-            <button class="sidebar-menu-action" type="button" data-theme="bold-tech-light" data-i18n="layout.theme.boldTechLight">
+            <button
+              class="sidebar-menu-action"
+              type="button"
+              data-theme="bold-tech-light"
+              data-i18n="layout.theme.boldTechLight"
+            >
               Bold Tech Light
             </button>
-            <button class="sidebar-menu-action" type="button" data-theme="bold-tech-dark" data-i18n="layout.theme.boldTechDark">
+            <button
+              class="sidebar-menu-action"
+              type="button"
+              data-theme="bold-tech-dark"
+              data-i18n="layout.theme.boldTechDark"
+            >
               Bold Tech Dark
             </button>
-            <button class="sidebar-menu-action" type="button" data-theme="doom-64-light" data-i18n="layout.theme.doom64Light">
+            <button
+              class="sidebar-menu-action"
+              type="button"
+              data-theme="doom-64-light"
+              data-i18n="layout.theme.doom64Light"
+            >
               Doom 64 Light
             </button>
-            <button class="sidebar-menu-action" type="button" data-theme="doom-64-dark" data-i18n="layout.theme.doom64Dark">
+            <button
+              class="sidebar-menu-action"
+              type="button"
+              data-theme="doom-64-dark"
+              data-i18n="layout.theme.doom64Dark"
+            >
               Doom 64 Dark
             </button>
           </div>
         </details>
         <details id={"#{@id}-store-selector"} class="sidebar-menu sidebar-store-selector">
-          <summary class="sidebar-menu-trigger" aria-label="Choose active store" data-i18n-aria-label="layout.store.choose">
+          <summary
+            class="sidebar-menu-trigger"
+            aria-label="Choose active store"
+            data-i18n-aria-label="layout.store.choose"
+          >
             <svg
               class="sidebar-store-icon"
               aria-hidden="true"
@@ -227,7 +356,12 @@ defmodule PosServerWeb.PosLayoutComponents do
               <path d="m3 9 2-5h14l2 5" /><path d="M3 9h18v11H3z" /><path d="M7 20v-6h4v6" /><path d="M3 9c0 2 2 3 4 3s4-1 4-3c0 2 2 3 4 3s4-1 4-3" />
             </svg>
           </summary>
-          <div class="user-menu-content sidebar-menu-content" role="group" aria-label="Active store" data-i18n-aria-label="layout.store.active">
+          <div
+            class="user-menu-content sidebar-menu-content"
+            role="group"
+            aria-label="Active store"
+            data-i18n-aria-label="layout.store.active"
+          >
             <button
               :for={store <- @stores}
               class="sidebar-menu-action"
@@ -258,11 +392,18 @@ defmodule PosServerWeb.PosLayoutComponents do
             <img :if={avatar_image?(@scope)} class="avatar-image" src={@scope.pic} alt="" />
             <span :if={!avatar_image?(@scope)} class="avatar-fallback">{user_initials(@scope)}</span>
           </summary>
-          <div class="user-menu-content" role="group" aria-label="User menu" data-i18n-aria-label="layout.user.menu">
+          <div
+            class="user-menu-content"
+            role="group"
+            aria-label="User menu"
+            data-i18n-aria-label="layout.user.menu"
+          >
             <div class="user-menu-identity">
               <span class="avatar avatar-sm" aria-hidden="true">
                 <img :if={avatar_image?(@scope)} class="avatar-image" src={@scope.pic} alt="" />
-                <span :if={!avatar_image?(@scope)} class="avatar-fallback">{user_initials(@scope)}</span>
+                <span :if={!avatar_image?(@scope)} class="avatar-fallback">
+                  {user_initials(@scope)}
+                </span>
               </span>
               <span><strong>{user_name(@scope)}</strong><small>{@scope.login}</small></span>
             </div>
@@ -302,8 +443,16 @@ defmodule PosServerWeb.PosLayoutComponents do
               <circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.5 3.7 5.5 3.7 9S14.5 18.5 12 21c-2.5-2.5-3.7-5.5-3.7-9S9.5 5.5 12 3Z" />
             </svg>
           </summary>
-          <div class="language-menu" role="group" aria-label="Change display language" data-i18n-aria-label="layout.status.language">
-            <button type="button" data-language="en">English</button><button type="button" data-language="es">Español</button><button type="button" data-language="pt">Português</button>
+          <div
+            class="language-menu"
+            role="group"
+            aria-label="Change display language"
+            data-i18n-aria-label="layout.status.language"
+          >
+            <button type="button" data-language="en">English</button><button
+              type="button"
+              data-language="es"
+            >Español</button><button type="button" data-language="pt">Português</button>
           </div>
         </details>
         <button

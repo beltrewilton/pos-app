@@ -3,6 +3,7 @@ defmodule PosServerWeb.DashboardController do
 
   alias PosServer.{Accounts, Authentication}
   alias PosServer.Accounts.Company
+  alias PosServer.Retaily.InventoryContext
 
   def index(%{assigns: %{current_scope: %{actor: :admin, actor_id: user_id}}} = conn, _params) do
     case Accounts.get_user(user_id) do
@@ -30,7 +31,7 @@ defmodule PosServerWeb.DashboardController do
             |> configure_session(renew: true)
             |> put_session(:user_token, session_token)
             |> put_flash(:info, "Your workspace has been created.")
-            |> redirect(to: ~p"/dash")
+            |> redirect(to: ~p"/pos/dashboard")
 
           {:error, :tenant, changeset} ->
             render_dashboard(conn, user,
@@ -44,17 +45,17 @@ defmodule PosServerWeb.DashboardController do
           {:error, :unconfirmed} ->
             conn
             |> put_flash(:error, "Your account must be confirmed before creating a workspace.")
-            |> redirect(to: ~p"/dash")
+            |> redirect(to: ~p"/pos/dashboard")
 
           {:error, :tenant_exists} ->
             conn
             |> put_flash(:error, "This account already has a workspace.")
-            |> redirect(to: ~p"/dash")
+            |> redirect(to: ~p"/pos/dashboard")
 
           {:error, :provisioning, _reason} ->
             conn
             |> put_flash(:error, "The workspace could not be created. Please try again.")
-            |> redirect(to: ~p"/dash")
+            |> redirect(to: ~p"/pos/dashboard")
         end
     end
   end
@@ -76,11 +77,17 @@ defmodule PosServerWeb.DashboardController do
         Accounts.change_company(%Company{}, Keyword.get(opts, :company_attrs, %{}))
       )
 
+    {stores, store_id} =
+      pos_layout_store_assigns(conn.assigns.current_scope, get_session(conn, :store_id))
+
     render(conn, :index,
       user: user,
       company: Accounts.get_company_for_user(user),
       tenant_form: Phoenix.Component.to_form(tenant_changeset, as: :tenant),
-      company_form: Phoenix.Component.to_form(company_changeset, as: :company)
+      company_form: Phoenix.Component.to_form(company_changeset, as: :company),
+      scope: conn.assigns.current_scope,
+      stores: stores,
+      store_id: store_id
     )
   end
 
@@ -89,5 +96,20 @@ defmodule PosServerWeb.DashboardController do
       attrs when is_map(attrs) -> attrs
       _ -> %{}
     end
+  end
+
+  defp pos_layout_store_assigns(%{tenant: tenant} = scope, selected_id) when is_binary(tenant) do
+    with {:ok, stores} <- InventoryContext.stores(scope) do
+      store = selected_store(stores, selected_id)
+      {stores, store && store.id}
+    else
+      _ -> {[], nil}
+    end
+  end
+
+  defp pos_layout_store_assigns(_scope, _selected_id), do: {[], nil}
+
+  defp selected_store(stores, selected_id) do
+    Enum.find(stores, &(to_string(&1.id) == to_string(selected_id))) || List.first(stores)
   end
 end

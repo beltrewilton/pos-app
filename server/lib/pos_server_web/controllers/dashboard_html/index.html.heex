@@ -1,53 +1,13 @@
-<main class="dashboard-shell" aria-labelledby="dashboard-title">
-  <.dashboard_sidebar active={:dash} tenant={@user.tenant} />
-  <div class="dashboard-main">
-    <header class="dashboard-header">
-      <div>
-        <p class="dashboard-kicker" data-i18n="dashboard.overview">Overview</p>
-        <h1 id="dashboard-title" data-i18n="dashboard.dashboard">Dashboard</h1>
-      </div>
-      <div class="dashboard-header-actions">
-        <button
-          class="btn"
-          data-variant="ghost"
-          data-size="icon-sm"
-          type="button"
-          data-theme-toggle
-          aria-label="Toggle color theme"
-          data-i18n-aria-label="dashboard.toggleTheme"
-        >
-          <span aria-hidden="true">◐</span>
-        </button>
-        <details class="dashboard-account-menu">
-          <summary class="dashboard-account" aria-label={"Abrir menú de cuenta de #{@user.name}"}>
-            <img
-              :if={is_binary(@user.google_picture_url) and @user.google_picture_url != ""}
-              class="dashboard-account-avatar"
-              src={@user.google_picture_url}
-              alt=""
-              referrerpolicy="no-referrer"
-            />
-            <span
-              :if={is_nil(@user.google_picture_url) or @user.google_picture_url == ""}
-              class="dashboard-account-avatar dashboard-account-avatar-fallback"
-              aria-hidden="true"
-            >
-              {@user.name |> String.first() |> String.upcase()}
-            </span>
-            <span class="dashboard-account-name">{@user.name}</span>
-          </summary>
-          <div class="dashboard-account-menu-content">
-            <form action={~p"/logout"} method="post">
-              <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
-              <button class="dashboard-account-logout" type="submit">
-                <.icon name="hero-arrow-right-on-rectangle" class="size-4" /> <span data-i18n="layout.user.logout">Cerrar sesión</span>
-              </button>
-            </form>
-          </div>
-        </details>
-      </div>
-    </header>
-
+<.pos_layout
+  id="dashboard-page"
+  class="pos-shell invoice-view"
+  active_page={:dashboard}
+  scope={@scope}
+  stores={@stores}
+  store_id={@store_id}
+  aria-labelledby="dashboard-title"
+>
+  <section class="catalog-panel">
     <div class="dashboard-content">
       <section class="dashboard-intro" aria-labelledby="welcome-title">
         <h2 id="welcome-title">Welcome back, {@user.name}</h2>
@@ -125,7 +85,7 @@
           <h2 class="card-title" id="tenant-setup-title" data-i18n="dashboard.createWorkspace">Create workspace</h2>
           <p class="card-description" data-i18n="dashboard.setupWorkspace">Set up the company workspace for this account.</p>
         </div>
-        <form class="card-content" action={~p"/dash/tenant"} method="post">
+        <form class="card-content" action={~p"/pos/dashboard/tenant"} method="post">
           <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
           <div class="form-grid dashboard-form-grid">
             <div
@@ -220,5 +180,5 @@
         </div>
       </section>
     </div>
-  </div>
-</main>
+  </section>
+</.pos_layout>

@@ -1,6 +1,13 @@
-<main class="dashboard-shell" aria-labelledby="addons-title">
-  <.dashboard_sidebar active={:addons} tenant={@tenant} />
-  <div class="dashboard-main">
+<.pos_layout
+  id="addons-install-page"
+  class="pos-shell invoice-view"
+  active_page={:addons}
+  scope={@scope}
+  stores={@stores}
+  store_id={@store_id}
+  aria-labelledby="addons-title"
+>
+  <section class="catalog-panel">
     <header class="dashboard-header">
       <div>
         <p class="dashboard-kicker" data-i18n="addons.extensions">Extensions</p>
@@ -37,7 +44,7 @@
             <div class="card-footer addon-card-footer">
               <form
                 :if={not Enum.any?(@installed, &(&1.identifier == addon.identifier))}
-                action={~p"/addons/install"}
+                action={~p"/pos/addons/install"}
                 method="post"
               >
                 <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
@@ -61,5 +68,5 @@
         </div>
       </section>
     </div>
-  </div>
-</main>
+  </section>
+</.pos_layout>

@@ -1,46 +1,31 @@
 defmodule PosServer.Addons.Installer do
   @moduledoc """
-  Discovery and loading boundary for the local first-version add-on catalog.
+  Discovery and loading boundary for local add-ons.
 
-  Add-on source remains outside the Phoenix project. This prototype intentionally
-  recognizes only explicitly catalogued identifiers; it must not load a path
-  supplied by a request.
+  Add-on source remains outside the Phoenix project. The host discovers add-ons
+  by scanning the configured add-ons root for `*/addon.ex` and only accepts safe
+  identifier-shaped directory names.
   """
 
   alias PosServer.Addons
 
-  @catalog %{
-    "simply_print" => %{
-      path: Path.expand("../../../../../addons-pos-app/simply_print/addon.ex", __DIR__),
-      name: "Simply Print",
-      icon: "🖨️",
-      description: "Print and review the company record connected to this workspace."
-    },
-    "simply_print_copy" => %{
-      path: "/tmp/simply_print_copy/addon.ex",
-      name: "Copy of Simply Print",
-      icon: "🖨️",
-      description: "A separate Simply Print workspace connection for testing and operations."
-    },
-    "sales_report_evofit" => %{
-      path: Path.expand("../../../../../addons-pos-app/sales_report_evofit/addon.ex", __DIR__),
-      name: "Sales Report Evofit",
-      icon: "📈",
-      description: "Analyze sales by representative, product, customer, and store."
-    },
-    "sales_summary_report" => %{
-      path: Path.expand("../../../../../addons-pos-app/sales_summary_report/addon.ex", __DIR__),
-      name: "Sales Summary Report",
-      icon: "📊",
-      description: "Review sales totals and payment-card fees by representative."
-    }
-  }
+  @addons_root Path.expand("../../../../../addons-pos-app", __DIR__)
 
-  def available, do: Map.keys(@catalog)
+  def available do
+    @addons_root
+    |> discovered_sources()
+    |> Enum.map(fn {identifier, _path} -> identifier end)
+  end
 
   def catalog do
-    @catalog
-    |> Enum.map(fn {identifier, addon} -> Map.put(addon, :identifier, identifier) end)
+    @addons_root
+    |> discovered_sources()
+    |> Enum.flat_map(fn {identifier, path} ->
+      case catalog_entry(identifier, path) do
+        {:ok, addon} -> [addon]
+        {:error, _reason} -> []
+      end
+    end)
     |> Enum.sort_by(& &1.name)
   end
 
@@ -212,9 +197,52 @@ defmodule PosServer.Addons.Installer do
   end
 
   defp source_path(identifier) do
-    case Map.fetch(@catalog, identifier) do
-      {:ok, %{path: path}} -> {:ok, path}
-      :error -> {:error, :unknown_addon}
+    if valid_identifier?(identifier) do
+      path = Path.join([@addons_root, identifier, "addon.ex"])
+
+      if File.regular?(path) do
+        {:ok, path}
+      else
+        {:error, :unknown_addon}
+      end
+    else
+      {:error, :unknown_addon}
+    end
+  end
+
+  defp discovered_sources(root) do
+    root
+    |> Path.join("*/addon.ex")
+    |> Path.wildcard()
+    |> Enum.map(fn path -> {path |> Path.dirname() |> Path.basename(), path} end)
+    |> Enum.filter(fn {identifier, _path} -> valid_identifier?(identifier) end)
+  end
+
+  defp valid_identifier?(identifier) when is_binary(identifier),
+    do: Regex.match?(~r/\A[a-zA-Z0-9_]+\z/, identifier)
+
+  defp valid_identifier?(_identifier), do: false
+
+  defp catalog_entry(identifier, path) do
+    with {:ok, source} <- File.read(path),
+         revision <- revision_for(source),
+         handler <- revision_module(identifier, "__catalog__", revision),
+         modules when is_list(modules) <- compile_source(source, path, handler),
+         {:ok, module} <- addon_module(modules),
+         manifest when is_map(manifest) <- module.manifest(),
+         :ok <- validate_manifest(manifest, identifier, handler) do
+      {:ok,
+       %{
+         identifier: manifest.identifier,
+         path: path,
+         name: manifest.name,
+         icon: manifest.icon,
+         route: "/pos/addons/" <> manifest.identifier,
+         description: Map.get(manifest, :description, "Add-on for this workspace.")
+       }}
+    else
+      {:error, reason} -> {:error, reason}
+      other -> {:error, {:invalid_addon, other}}
     end
   end
 
@@ -226,12 +254,18 @@ defmodule PosServer.Addons.Installer do
   end
 
   defp validate_manifest(
-         %{identifier: identifier, route: "/addons/" <> identifier, handler: handler},
+         %{identifier: manifest_identifier, route: route, handler: manifest_handler},
          identifier,
          handler
        )
-       when is_atom(handler),
-       do: :ok
+       when is_atom(manifest_handler) do
+    if manifest_identifier == identifier and manifest_handler == handler and
+         route in ["/pos/addons/" <> identifier, "/addons/" <> identifier] do
+      :ok
+    else
+      {:error, :invalid_manifest}
+    end
+  end
 
   defp validate_manifest(_, _, _), do: {:error, :invalid_manifest}
 
@@ -239,7 +273,7 @@ defmodule PosServer.Addons.Installer do
     %{
       identifier: manifest.identifier,
       name: manifest.name,
-      route: manifest.route,
+      route: "/pos/addons/" <> manifest.identifier,
       icon: manifest.icon,
       handler: Atom.to_string(handler),
       tenant: tenant,

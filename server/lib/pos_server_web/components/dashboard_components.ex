@@ -10,7 +10,7 @@ defmodule PosServerWeb.DashboardComponents do
     ~H"""
     <aside class="dashboard-sidebar" aria-label="Primary navigation" data-i18n-aria-label="layout.nav.primary">
       <div class="dashboard-sidebar-brand">
-        <a class="brand" href={~p"/dash"} aria-label="tigoo dashboard">
+        <a class="brand" href={~p"/pos/dashboard"} aria-label="tigoo dashboard">
           <img src={~p"/images/tigoo.svg"} alt="tigoo" />
         </a>
         <button
@@ -37,7 +37,7 @@ defmodule PosServerWeb.DashboardComponents do
       <nav class="dashboard-nav" aria-label="Dashboard navigation" data-i18n-aria-label="dashboard.dashboard">
         <a
           class={[@active == :dash && "is-active"]}
-          href={~p"/dash"}
+          href={~p"/pos/dashboard"}
           aria-current={if @active == :dash, do: "page"}
         >
           <svg
@@ -64,7 +64,7 @@ defmodule PosServerWeb.DashboardComponents do
         </a>
         <a
           class={[@active == :addons && "is-active"]}
-          href={~p"/addons/install"}
+          href={~p"/pos/addons/install"}
           aria-current={if @active == :addons, do: "page"}
         >
           <span aria-hidden="true">＋</span><span class="dashboard-sidebar-label" data-i18n="dashboard.installAddon">Install Addon</span>
@@ -72,7 +72,7 @@ defmodule PosServerWeb.DashboardComponents do
         <a
           :for={addon <- @addons}
           class={[@active == addon.identifier && "is-active"]}
-          href={addon.route}
+          href={"/pos/addons/#{addon.identifier}"}
           aria-current={if @active == addon.identifier, do: "page"}
         >
           <span aria-hidden="true">{addon.icon}</span><span class="dashboard-sidebar-label"><%= addon.name %></span>

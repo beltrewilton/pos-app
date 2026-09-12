@@ -185,7 +185,7 @@ defmodule PosServerWeb.GoogleAuthController do
           |> configure_session(renew: true)
           |> put_session(:user_token, session_token)
           |> put_flash(:info, "Sesión iniciada con Google.")
-          |> redirect(to: ~p"/dash")
+          |> redirect(to: ~p"/pos/dashboard")
         end
     end
   end
