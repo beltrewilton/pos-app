@@ -32,9 +32,7 @@ defmodule PosServerWeb.CustomerController do
     tenant = TenantContext.tenant!()
 
     attrs =
-      params
-      |> Map.put_new("wholesaler", wholesaler_value(params["is_wholesaler"]))
-      |> Map.delete("is_wholesaler")
+      customer_attrs(params, default_wholesaler?: true)
 
     case %Client{} |> Client.changeset(attrs) |> Repo.insert(prefix: tenant) do
       {:ok, client} ->
@@ -44,6 +42,31 @@ defmodule PosServerWeb.CustomerController do
         conn
         |> put_status(:unprocessable_entity)
         |> json(%{errors: Changeset.traverse_errors(changeset, fn {message, _} -> message end)})
+    end
+  end
+
+  def update(conn, %{"id" => id} = params) do
+    tenant = TenantContext.tenant!()
+
+    with {:ok, customer_id} <- parse_id(id),
+         %Client{} = client <- Repo.get(Client, customer_id, prefix: tenant) do
+      case client |> Client.changeset(customer_attrs(params)) |> Repo.update(prefix: tenant) do
+        {:ok, client} ->
+          json(conn, customer_response(client))
+
+        {:error, %Changeset{} = changeset} ->
+          conn
+          |> put_status(:unprocessable_entity)
+          |> json(%{errors: Changeset.traverse_errors(changeset, fn {message, _} -> message end)})
+      end
+    else
+      :error ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: "customer id must be a positive integer"})
+
+      nil ->
+        conn |> put_status(:not_found) |> json(%{error: "customer not found"})
     end
   end
 
@@ -122,6 +145,22 @@ defmodule PosServerWeb.CustomerController do
       is_wholesaler: client.wholesaler == 1
     }
   end
+
+  defp customer_attrs(params, opts \\ []) do
+    params
+    |> put_wholesaler_attr(Keyword.get(opts, :default_wholesaler?, false))
+    |> Map.take(["name", "document_id", "address", "celphone", "email", "wholesaler"])
+  end
+
+  defp put_wholesaler_attr(params, _default?) when is_map_key(params, "is_wholesaler") do
+    Map.put(params, "wholesaler", wholesaler_value(params["is_wholesaler"]))
+  end
+
+  defp put_wholesaler_attr(params, true) when not is_map_key(params, "wholesaler") do
+    Map.put(params, "wholesaler", 0)
+  end
+
+  defp put_wholesaler_attr(params, _default?), do: params
 
   defp wholesaler_value(value) when value in [true, 1, "1", "true", "on"], do: 1
   defp wholesaler_value(_value), do: 0

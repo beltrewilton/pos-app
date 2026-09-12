@@ -175,6 +175,17 @@ defmodule PosServerWeb.CustomerComponents do
           {dash(customer.document_id, "No document ID")} · {dash(customer.celphone, "No phone")}
         </p>
       </div>
+      <button
+        class="btn"
+        type="button"
+        data-variant="outline"
+        data-size="sm"
+        phx-click="open_customer_edit"
+        phx-value-id={customer.id}
+        aria-haspopup="dialog"
+      >
+        <span data-i18n="common.edit">Edit</span>
+      </button>
     </div>
     <div class="card-content">
       <p class="card-description">
@@ -274,9 +285,11 @@ defmodule PosServerWeb.CustomerComponents do
 
   attr :status, :string, default: ""
   attr :saving, :boolean, default: false
+  attr :customer, :map, default: nil
 
   def customer_dialog(assigns) do
     ~H"""
+    <% editing? = !is_nil(@customer) %>
     <dialog
       id="customer-dialog"
       class="dialog"
@@ -287,13 +300,14 @@ defmodule PosServerWeb.CustomerComponents do
     >
       <div class="dialog-content">
         <div class="dialog-header">
-          <h2 id="customer-dialog-title" class="dialog-title" data-i18n="pos.customers.createCustomer">Create customer</h2>
-          <p class="dialog-description" data-i18n="pos.customers.addDialogCopy">Add a customer, then use them on this sale.</p>
+          <h2 id="customer-dialog-title" class="dialog-title" data-i18n={if editing?, do: "pos.customers.editCustomer", else: "pos.customers.createCustomer"}>{if editing?, do: "Edit customer", else: "Create customer"}</h2>
+          <p class="dialog-description" data-i18n={if editing?, do: "pos.customers.editDialogCopy", else: "pos.customers.addDialogCopy"}>{if editing?, do: "Update this customer's account and contact details.", else: "Add a customer, then use them on this sale."}</p>
         </div>
-        <form id="customer-form" class="form" phx-submit="create_customer">
+        <form id="customer-form" class="form" phx-submit={if editing?, do: "update_customer", else: "create_customer"}>
+          <input :if={editing?} type="hidden" name="customer_id" value={value(@customer, :id)} />
           <div class="form-field">
             <label class="label" for="customer-name" data-i18n="common.name">Name</label>
-            <input id="customer-name" class="input" name="name" required autocomplete="name" />
+            <input id="customer-name" class="input" name="name" value={value(@customer, :name)} required autocomplete="name" />
           </div>
           <div class="form-field">
             <label class="label" for="customer-document-id" data-i18n="common.documentId">Document ID</label>
@@ -301,24 +315,26 @@ defmodule PosServerWeb.CustomerComponents do
               id="customer-document-id"
               class="input"
               name="document_id"
+              value={value(@customer, :document_id)}
               maxlength="30"
               autocomplete="off"
             />
           </div>
           <div class="form-field">
             <label class="label" for="customer-address" data-i18n="pos.customers.address">Address</label>
-            <input id="customer-address" class="input" name="address" autocomplete="street-address" />
+            <input id="customer-address" class="input" name="address" value={value(@customer, :address)} autocomplete="street-address" />
           </div>
           <div class="form-field">
             <label class="label" for="customer-phone" data-i18n="common.phone">Phone</label>
-            <input id="customer-phone" class="input" name="celphone" type="tel" autocomplete="tel" />
+            <input id="customer-phone" class="input" name="celphone" value={value(@customer, :celphone)} type="tel" autocomplete="tel" />
           </div>
           <div class="form-field">
             <label class="label" for="customer-email" data-i18n="common.email">Email</label>
-            <input id="customer-email" class="input" name="email" type="email" autocomplete="email" />
+            <input id="customer-email" class="input" name="email" value={value(@customer, :email)} type="email" autocomplete="email" />
           </div>
           <div class="form-field-inline">
-            <input id="customer-is-wholesaler" class="checkbox" name="is_wholesaler" type="checkbox" /><label
+            <input type="hidden" name="is_wholesaler" value="false" />
+            <input id="customer-is-wholesaler" class="checkbox" name="is_wholesaler" type="checkbox" checked={wholesale?(@customer)} /><label
               class="label"
               for="customer-is-wholesaler"
             >
@@ -389,5 +405,6 @@ defmodule PosServerWeb.CustomerComponents do
   end
 
   defp float(_), do: 0.0
+  defp value(nil, _key), do: nil
   defp value(map, key), do: Map.get(map, key) || Map.get(map, Atom.to_string(key))
 end

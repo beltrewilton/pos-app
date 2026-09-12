@@ -154,6 +154,7 @@ defmodule PosServerWeb.Router do
     get "/customers/:id", CustomerController, :show
     get "/customers/:id/purchases", CustomerController, :purchases
     post "/customers", CustomerController, :create
+    patch "/customers/:id", CustomerController, :update
     get "/sales/report", SaleController, :report
     get "/sales", SaleController, :index
     get "/sales/:id", SaleController, :show

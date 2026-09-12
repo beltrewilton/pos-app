@@ -113,7 +113,7 @@ defmodule PosServerWeb.PosUserComponents do
       <div class="card user-form-card">
         <div class="card-content">
           <form class="form" novalidate phx-submit="save_user">
-            <input :if={@user} type="hidden" name="id" value={@user.id} />
+            <input :if={@user} type="hidden" name="user_id" value={@user.id} />
             <.text_field name="first_name" label="First name" label_key="users.firstName" value={field_value(@user, :first_name)} required disabled={@mode == :view} />
             <.text_field name="last_name" label="Last name" label_key="users.lastName" value={field_value(@user, :last_name)} required disabled={@mode == :view} />
             <.text_field name="username" label="Username" label_key="users.username" value={field_value(@user, :username)} required disabled={@mode == :view} />

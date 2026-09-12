@@ -34,6 +34,7 @@ defmodule PosServerWeb.CustomerLive do
        |> assign(:detail, nil)
        |> assign(:detail_loading?, false)
        |> assign(:customer_dialog?, false)
+       |> assign(:editing_customer, nil)
        |> assign(:customer_form_status, "")
        |> assign(:saving_customer?, false)
        |> load_customers()}
@@ -74,6 +75,7 @@ defmodule PosServerWeb.CustomerLive do
       </section>
       <.customer_dialog
         :if={@customer_dialog?}
+        customer={@editing_customer}
         status={@customer_form_status}
         saving={@saving_customer?}
       />
@@ -109,13 +111,37 @@ defmodule PosServerWeb.CustomerLive do
   end
 
   def handle_event("open_customer_dialog", _, socket),
-    do: {:noreply, socket |> assign(:customer_dialog?, true) |> assign(:customer_form_status, "")}
+    do:
+      {:noreply,
+       socket
+       |> assign(:customer_dialog?, true)
+       |> assign(:editing_customer, nil)
+       |> assign(:customer_form_status, "")}
+
+  def handle_event("open_customer_edit", %{"id" => id}, socket) do
+    customer_id = integer(id)
+
+    customer =
+      socket.assigns.detail
+      |> value(:customer)
+      |> case do
+        %{id: ^customer_id} = customer -> customer
+        _ -> Enum.find(socket.assigns.customers, &(&1.id == customer_id))
+      end
+
+    {:noreply,
+     socket
+     |> assign(:customer_dialog?, true)
+     |> assign(:editing_customer, customer)
+     |> assign(:customer_form_status, "")}
+  end
 
   def handle_event("close_customer_dialog", _, socket),
     do:
       {:noreply,
        socket
        |> assign(:customer_dialog?, false)
+       |> assign(:editing_customer, nil)
        |> assign(:customer_form_status, "")
        |> assign(:saving_customer?, false)}
 
@@ -123,15 +149,14 @@ defmodule PosServerWeb.CustomerLive do
     tenant = TenantContext.tenant!()
 
     attrs =
-      params
-      |> Map.put("wholesaler", wholesaler_value(params["is_wholesaler"]))
-      |> Map.delete("is_wholesaler")
+      customer_attrs(params, default_wholesaler?: true)
 
     case %Client{} |> Client.changeset(attrs) |> Repo.insert(prefix: tenant) do
       {:ok, customer} ->
         {:noreply,
          socket
          |> assign(:customer_dialog?, false)
+         |> assign(:editing_customer, nil)
          |> assign(:customer_form_status, "")
          |> assign(:saving_customer?, false)
          |> load_customers()
@@ -144,6 +169,48 @@ defmodule PosServerWeb.CustomerLive do
            :customer_form_status,
            "Could not create customer. Check the data and try again."
          )
+         |> assign(:saving_customer?, false)}
+    end
+  end
+
+  def handle_event("update_customer", %{"customer_id" => id} = params, socket) do
+    tenant = TenantContext.tenant!()
+    customer_id = integer(id)
+
+    with %Client{} = customer <- Repo.get(Client, customer_id, prefix: tenant) do
+      case customer |> Client.changeset(customer_attrs(params)) |> Repo.update(prefix: tenant) do
+        {:ok, customer} ->
+          socket =
+            socket
+            |> assign(:customer_dialog?, false)
+            |> assign(:editing_customer, nil)
+            |> assign(:customer_form_status, "")
+            |> assign(:saving_customer?, false)
+            |> load_customers()
+
+          socket =
+            if socket.assigns.mode == :detail do
+              open_detail(socket, customer.id)
+            else
+              socket
+            end
+
+          {:noreply, socket}
+
+        {:error, %Changeset{}} ->
+          {:noreply,
+           socket
+           |> assign(
+             :customer_form_status,
+             "Could not update customer. Check the data and try again."
+           )
+           |> assign(:saving_customer?, false)}
+      end
+    else
+      nil ->
+        {:noreply,
+         socket
+         |> assign(:customer_form_status, "Customer could not be found.")
          |> assign(:saving_customer?, false)}
     end
   end
@@ -249,6 +316,22 @@ defmodule PosServerWeb.CustomerLive do
 
   defp value(nil, _key), do: nil
   defp value(map, key), do: Map.get(map, key) || Map.get(map, Atom.to_string(key))
+  defp customer_attrs(params, opts \\ []) do
+    params
+    |> put_wholesaler_attr(Keyword.get(opts, :default_wholesaler?, false))
+    |> Map.take(["name", "document_id", "address", "celphone", "email", "wholesaler"])
+  end
+
+  defp put_wholesaler_attr(params, _default?) when is_map_key(params, "is_wholesaler") do
+    Map.put(params, "wholesaler", wholesaler_value(params["is_wholesaler"]))
+  end
+
+  defp put_wholesaler_attr(params, true) when not is_map_key(params, "wholesaler") do
+    Map.put(params, "wholesaler", 0)
+  end
+
+  defp put_wholesaler_attr(params, _default?), do: params
+
   defp wholesaler_value(value) when value in [true, 1, "1", "true", "on"], do: 1
   defp wholesaler_value(_), do: 0
 

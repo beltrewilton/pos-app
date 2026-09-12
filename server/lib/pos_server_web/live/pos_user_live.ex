@@ -124,7 +124,7 @@ defmodule PosServerWeb.PosUserLive do
 
       result =
         case params do
-          %{"id" => id} -> Users.update(socket.assigns.scope, id, attrs)
+          %{"user_id" => id} -> Users.update(socket.assigns.scope, id, attrs)
           _ -> Users.create(socket.assigns.scope, attrs)
         end
 

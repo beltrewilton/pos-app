@@ -64,6 +64,28 @@ defmodule PosServerWeb.CustomerControllerTest do
     assert customer["is_wholesaler"]
   end
 
+  test "updates a customer with identity, contact, and wholesale details", %{walex_conn: conn} do
+    customer =
+      conn
+      |> patch(~p"/api/customers/30218", %{
+        "name" => "UPDATED CUSTOMER",
+        "document_id" => "402-12345-6",
+        "address" => "456 Main Street",
+        "celphone" => "809-555-0145",
+        "email" => "updated@example.test",
+        "is_wholesaler" => true
+      })
+      |> json_response(:ok)
+
+    assert customer["name"] == "UPDATED CUSTOMER"
+    assert customer["document_id"] == "402-12345-6"
+    assert customer["address"] == "456 Main Street"
+    assert customer["celphone"] == "809-555-0145"
+    assert customer["email"] == "updated@example.test"
+    assert customer["wholesaler"] == 1
+    assert customer["is_wholesaler"]
+  end
+
   defp token_for(name) do
     {:ok, user} =
       Accounts.create_user(%{

@@ -408,7 +408,7 @@ defmodule PosServerWeb.PosLayoutComponents do
               <span><strong>{user_name(@scope)}</strong><small>{@scope.login}</small></span>
             </div>
             <hr class="separator" />
-            <.form action={~p"/pos/logout"} method="delete">
+            <.form for={%{}} action={~p"/pos/logout"} method="delete">
               <button class="user-menu-action" type="submit">
                 <svg
                   aria-hidden="true"
