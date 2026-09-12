@@ -15,6 +15,16 @@ defmodule PosServerWeb.ErrorJSON do
   # By default, Phoenix returns the status message from
   # the template name. For example, "404.json" becomes
   # "Not Found".
+  def render("tenant_required.html", assigns) do
+    %{
+      errors: %{
+        detail:
+          assigns[:message] ||
+            "This page requires your organization's unique web address. Please contact your administrator for the correct link."
+      }
+    }
+  end
+
   def render(template, _assigns) do
     %{errors: %{detail: Phoenix.Controller.status_message_from_template(template)}}
   end

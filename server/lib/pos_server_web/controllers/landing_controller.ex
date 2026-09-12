@@ -37,6 +37,12 @@ defmodule PosServerWeb.LandingController do
     )
   end
 
+  def not_found(conn, _params) do
+    conn
+    |> put_resp_content_type("text/html")
+    |> send_resp(:not_found, PosServerWeb.ErrorHTML.not_found_page())
+  end
+
   defp render_legal_page(conn, template, assigns) do
     conn
     |> put_root_layout(html: {PosServerWeb.LandingLayouts, :root})

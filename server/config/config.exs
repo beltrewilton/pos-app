@@ -11,7 +11,9 @@ config :pos_server,
   ecto_repos: [PosServer.Repo],
   generators: [timestamp_type: :utc_datetime, binary_id: true]
 
-config :triplex, repo: PosServer.Repo
+config :triplex,
+  repo: PosServer.Repo,
+  reserved_tenants: ~w(www api admin app mail support status assets static docs auth login signup billing)
 
 # Configures the endpoint
 config :pos_server, PosServerWeb.Endpoint,

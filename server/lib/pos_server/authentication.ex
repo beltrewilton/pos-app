@@ -4,7 +4,7 @@ defmodule PosServer.Authentication do
   import Ecto.Query
 
   alias PosServer.Accounts.{OAuthHandoff, OAuthLoginAttempt, Scope, User}
-  alias PosServer.{Accounts, Password, Repo}
+  alias PosServer.{Accounts, Password, Repo, Tenants}
   alias PosServer.Retaily.Scope, as: EmployeeScope
   alias PosServer.Retaily.User, as: Employee
   alias PosServer.Retaily.UserStore
@@ -13,24 +13,31 @@ defmodule PosServer.Authentication do
 
   def login(%{"identifier" => identifier, "password" => password})
       when is_binary(identifier) and is_binary(password) do
+    login(%{"identifier" => identifier, "password" => password}, nil)
+  end
+
+  def login(_), do: {:error, :invalid_credentials}
+
+  def login(%{"identifier" => identifier, "password" => password}, tenant)
+      when is_binary(identifier) and is_binary(password) and is_binary(tenant) do
     IO.inspect(identifier, label: "login submitted identifier")
 
     result =
-      case Accounts.get_user_by_email(identifier) do
-        %User{} = admin ->
+      case Accounts.get_user_by_email_and_tenant(identifier, tenant) do
+        %User{tenant: ^tenant} = admin ->
           IO.inspect(admin_lookup_summary(admin), label: "login user lookup")
           authenticate_admin(admin, password)
 
-        nil ->
+        _ ->
           IO.inspect(%{actor: :employee, found?: false}, label: "login user lookup")
-          authenticate_employee(identifier, password)
+          authenticate_employee_in_tenant(tenant, identifier, password)
       end
 
     IO.inspect(login_result_summary(result), label: "login authentication result")
     result
   end
 
-  def login(_), do: {:error, :invalid_credentials}
+  def login(_params, _tenant), do: {:error, :invalid_credentials}
 
   @doc "Issues the application's normal API token for an already authenticated admin."
   def log_in_user(%User{} = user) do
@@ -218,19 +225,6 @@ defmodule PosServer.Authentication do
     end
   end
 
-  defp authenticate_employee(username, password) do
-    tenants = Triplex.all(Repo) |> Enum.filter(&valid_tenant?/1)
-    IO.inspect(tenants, label: "login tenant discovery")
-
-    tenants
-    |> Enum.reduce_while({:error, :invalid_credentials}, fn tenant, _result ->
-      case authenticate_employee_in_tenant(tenant, username, password) do
-        {:ok, _, _} = authenticated -> {:halt, authenticated}
-        {:error, :invalid_credentials} -> {:cont, {:error, :invalid_credentials}}
-      end
-    end)
-  end
-
   defp authenticate_employee_in_tenant(tenant, username, password) do
     employee = Repo.one(from(user in Employee, where: user.username == ^username), prefix: tenant)
 
@@ -295,7 +289,7 @@ defmodule PosServer.Authentication do
 
   defp scope_from_payload(%{"actor" => "employee", "id" => id, "tenant" => tenant})
        when is_integer(id) do
-    if valid_tenant?(tenant) do
+    if Tenants.exists?(tenant) do
       case Repo.get(Employee, id, prefix: tenant) do
         %Employee{is_active: 1} = employee -> {:ok, employee_scope(employee, tenant)}
         _ -> {:error, :unauthorized}
@@ -343,9 +337,5 @@ defmodule PosServer.Authentication do
 
   defp handoff_digest(code), do: :crypto.hash(:sha256, code)
 
-  defp valid_tenant?(tenant) when is_binary(tenant),
-    do: String.match?(tenant, ~r/^[a-z][a-z0-9_]{2,62}$/)
-
-  defp valid_tenant?(_), do: false
   defp now, do: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
 end

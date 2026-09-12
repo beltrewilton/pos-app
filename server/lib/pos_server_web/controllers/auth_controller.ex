@@ -4,7 +4,7 @@ defmodule PosServerWeb.AuthController do
   alias PosServer.Authentication
 
   def login(conn, params) do
-    case Authentication.login(params) do
+    case Authentication.login(params, conn.assigns[:tenant]) do
       {:ok, token, scope} ->
         json(conn, %{
           token: token,

@@ -8,12 +8,23 @@ defmodule PosServerWeb.Router do
     plug :put_root_layout, html: {PosServerWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug PosServerWeb.Plugs.ResolveTenant, required: false
     plug PosServerWeb.Plugs.FetchCurrentScope
+  end
+
+  pipeline :tenant_browser do
+    plug PosServerWeb.Plugs.ResolveTenant
   end
 
   pipeline :api do
     plug :accepts, ["json"]
     plug :put_desktop_cors_headers
+  end
+
+  pipeline :tenant_login_api do
+    plug :accepts, ["json"]
+    plug :put_desktop_cors_headers
+    plug PosServerWeb.Plugs.ResolveTenant, base: :not_found
   end
 
   # The LiveView ESM client is a public, read-only asset. It must not pass
@@ -30,6 +41,7 @@ defmodule PosServerWeb.Router do
   pipeline :tenant_api do
     plug :accepts, ["json"]
     plug :put_desktop_cors_headers
+    plug PosServerWeb.Plugs.ResolveTenant, base: :not_found
     plug PosServerWeb.Plugs.FetchCurrentScope
     plug PosServerWeb.Plugs.PutTenantFromScope
     plug PosServerWeb.Plugs.RequireTenant
@@ -47,8 +59,13 @@ defmodule PosServerWeb.Router do
     get "/auth/google/callback", GoogleAuthController, :callback
     get "/google_helper", GoogleAuthController, :helper
     post "/logout", GoogleAuthController, :logout
-    get "/pos/dashboard", DashboardController, :index
     post "/pos/dashboard/tenant", DashboardController, :create
+  end
+
+  scope "/", PosServerWeb do
+    pipe_through [:browser, :tenant_browser]
+
+    get "/pos/dashboard", DashboardController, :index
     live "/pos/login", LoginLive, :index
     post "/pos/login/session", BrowserLoginController, :create
     delete "/pos/logout", BrowserLoginController, :delete
@@ -72,7 +89,7 @@ defmodule PosServerWeb.Router do
   end
 
   scope "/pos/addons", PosServerWeb do
-    pipe_through :browser
+    pipe_through [:browser, :tenant_browser]
 
     get "/install", AddonController, :install_index
     post "/install", AddonController, :install
@@ -80,7 +97,7 @@ defmodule PosServerWeb.Router do
   end
 
   scope "/addons", PosServerWeb do
-    pipe_through :browser
+    pipe_through [:browser, :tenant_browser]
 
     post "/:identifier/uninstall", AddonController, :uninstall
     get "/:identifier", AddonController, :legacy_show
@@ -103,10 +120,15 @@ defmodule PosServerWeb.Router do
   end
 
   scope "/api", PosServerWeb do
+    pipe_through :tenant_login_api
+
+    post "/login", AuthController, :login
+  end
+
+  scope "/api", PosServerWeb do
     pipe_through :api
 
     get "/health", HealthController, :show
-    post "/login", AuthController, :login
     post "/auth/tauri/attempts", TauriAuthController, :create_attempt
     post "/auth/tauri/exchange", TauriAuthController, :exchange
     options "/*path", HealthController, :show
@@ -191,5 +213,11 @@ defmodule PosServerWeb.Router do
       live_dashboard "/dashboard", metrics: PosServerWeb.Telemetry
       forward "/mailbox", Plug.Swoosh.MailboxPreview
     end
+  end
+
+  scope "/", PosServerWeb do
+    pipe_through :browser
+
+    match :*, "/*path", LandingController, :not_found
   end
 end

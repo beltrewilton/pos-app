@@ -2,7 +2,7 @@ defmodule PosServer.Accounts do
   import Ecto.Query, only: [from: 2]
 
   alias PosServer.Accounts.{Company, User, UserCompany, UserToken}
-  alias PosServer.Repo
+  alias PosServer.{Repo, Tenants}
   alias PosServer.Retaily.Store
 
   def list_users do
@@ -11,6 +11,9 @@ defmodule PosServer.Accounts do
   end
 
   def get_user_by_email(email) when is_binary(email), do: Repo.get_by(User, email: email)
+
+  def get_user_by_email_and_tenant(email, tenant) when is_binary(email) and is_binary(tenant),
+    do: Repo.get_by(User, email: email, tenant: tenant)
 
   def get_user(id), do: Repo.get(User, id)
 
@@ -171,6 +174,7 @@ defmodule PosServer.Accounts do
           {:ok, updated_user} ->
             case create_tenant_company(updated_user.tenant, updated_user.id, company_changeset) do
               :ok ->
+                Tenants.put(updated_user.tenant)
                 {:ok, updated_user}
 
               {:error, :tenant, reason} ->
@@ -236,6 +240,7 @@ defmodule PosServer.Accounts do
       {:ok, user} ->
         case create_tenant_company(user.tenant, user.id, company_changeset) do
           :ok ->
+            Tenants.put(user.tenant)
             {:ok, user}
 
           {:error, :tenant, reason} ->

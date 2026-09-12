@@ -117,6 +117,33 @@
 .login-card .card-content { padding-top: 0; }
 .login-card .form { gap: 1rem; }
 .login-card .form-actions { flex-direction: column; align-items: stretch; }
+.login-tenant-identifier {
+  display: flex;
+  align-items: center;
+}
+
+.login-tenant-identifier .input {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.login-tenant-suffix {
+  display: inline-flex;
+  min-height: var(--input-height, 2.5rem);
+  max-width: 45%;
+  align-items: center;
+  overflow: hidden;
+  padding: 0 0.75rem;
+  border: 1px solid var(--input-border, var(--border));
+  border-left: 0;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: color-mix(in oklch, var(--muted) 55%, transparent);
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .login-submit { width: 100%; }
 .login-error { padding: 0.625rem 0.75rem; }
 .login-error .alert-description { font-size: 0.8125rem; }

@@ -1,7 +1,7 @@
 defmodule PosServerWeb.AuthenticationControllerTest do
   use PosServerWeb.ConnCase, async: false
 
-  alias PosServer.{Accounts, Authentication, Password, Repo}
+  alias PosServer.{Accounts, Authentication, Password, Repo, Tenants}
   alias PosServer.Accounts.Scope
   alias PosServer.Retaily.Scope, as: EmployeeScope
   alias PosServer.Retaily.{Store, User, UserStore, Users}
@@ -10,6 +10,7 @@ defmodule PosServerWeb.AuthenticationControllerTest do
 
   setup do
     unique = System.unique_integer([:positive])
+    Tenants.put(@tenant)
 
     {:ok, admin} =
       Accounts.create_user(%{
@@ -41,6 +42,7 @@ defmodule PosServerWeb.AuthenticationControllerTest do
   test "logs in a tenant admin through the unified endpoint", %{admin: admin} do
     response =
       build_conn()
+      |> Map.put(:host, "#{@tenant}.localhost")
       |> post(~p"/api/login", %{identifier: admin.email, password: "a-long-test-password"})
       |> json_response(:ok)
 
@@ -56,12 +58,26 @@ defmodule PosServerWeb.AuthenticationControllerTest do
            )
   end
 
+  test "rejects reserved tenant identifiers" do
+    changeset =
+      Accounts.change_user(%PosServer.Accounts.User{}, %{
+        "name" => "Reserved Tenant",
+        "email" => "reserved@example.test",
+        "tenant" => "admin",
+        "password" => "a-long-test-password"
+      })
+
+    refute changeset.valid?
+    assert {"is reserved", _} = Keyword.fetch!(changeset.errors, :tenant)
+  end
+
   test "logs in an employee and returns only assigned stores and scopes", %{
     employee: employee,
     store: store
   } do
     response =
       build_conn()
+      |> Map.put(:host, "#{@tenant}.localhost")
       |> post(~p"/api/login", %{identifier: employee.username, password: "employee-test-password"})
       |> json_response(:ok)
 
@@ -73,6 +89,7 @@ defmodule PosServerWeb.AuthenticationControllerTest do
   test "does not use a tenant supplied by the client", %{employee: employee} do
     response =
       build_conn()
+      |> Map.put(:host, "#{@tenant}.localhost")
       |> post(~p"/api/login", %{
         identifier: employee.username,
         password: "employee-test-password",
@@ -88,7 +105,7 @@ defmodule PosServerWeb.AuthenticationControllerTest do
       Authentication.login(%{
         "identifier" => employee.username,
         "password" => "employee-test-password"
-      })
+      }, @tenant)
 
     employee |> Ecto.Changeset.change(is_active: 0) |> Repo.update!(prefix: @tenant)
 
@@ -100,7 +117,7 @@ defmodule PosServerWeb.AuthenticationControllerTest do
       Authentication.login(%{
         "identifier" => employee.username,
         "password" => "employee-test-password"
-      })
+      }, @tenant)
 
     assert {:ok, authenticated_scope} = Authentication.authenticate(token)
     assert authenticated_scope.actor == :employee

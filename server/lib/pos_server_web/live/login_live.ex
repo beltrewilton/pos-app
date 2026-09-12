@@ -8,14 +8,17 @@ defmodule PosServerWeb.LoginLive do
 
   @impl true
   def mount(_params, session, socket) do
+    tenant = session["tenant"]
+
     case session["user_token"] && Authentication.authenticate(session["user_token"]) do
-      {:ok, scope} ->
+      {:ok, %{tenant: ^tenant} = scope} ->
         case landing_path(scope) do
           nil ->
             {:ok,
              socket
              |> assign(:page_title, "Tigoo Sign in")
              |> assign(:phase, :credentials)
+             |> assign(:tenant, tenant)
              |> assign(:pending_token, nil)
              |> assign(:stores, [])
              |> assign(:error, "Your account does not have access to Dashboard or POS.")
@@ -30,6 +33,7 @@ defmodule PosServerWeb.LoginLive do
          socket
          |> assign(:page_title, "Tigoo Sign in")
          |> assign(:phase, :credentials)
+         |> assign(:tenant, tenant)
          |> assign(:pending_token, nil)
          |> assign(:stores, [])
          |> assign(:error, "")
@@ -49,7 +53,10 @@ defmodule PosServerWeb.LoginLive do
   def handle_event("login", %{"identifier" => identifier, "password" => password}, socket) do
     socket = assign(socket, :error, "")
 
-    case Authentication.login(%{"identifier" => String.trim(identifier), "password" => password}) do
+    case Authentication.login(
+           %{"identifier" => String.trim(identifier), "password" => password},
+           socket.assigns.tenant
+         ) do
       {:ok, token, scope} ->
         TenantContext.put_tenant(scope.tenant)
 
@@ -125,15 +132,18 @@ defmodule PosServerWeb.LoginLive do
               <.login_error error={@error} />
               <div class="form-field">
                 <label class="label" for="login-identifier" data-i18n="pos.login.usernameOrEmail">Username or email</label>
-                <input
-                  id="login-identifier"
-                  class="input"
-                  name="identifier"
-                  autocomplete="username"
-                  required
-                  autofocus
-                  disabled={@phase == :store_selection}
-                />
+                <div class="login-tenant-identifier">
+                  <input
+                    id="login-identifier"
+                    class="input"
+                    name="identifier"
+                    autocomplete="username"
+                    required
+                    autofocus
+                    disabled={@phase == :store_selection}
+                  />
+                  <span class="login-tenant-suffix">{"@" <> @tenant}</span>
+                </div>
               </div>
               <div class="form-field">
                 <label class="label" for="login-password" data-i18n="pos.login.password">Password</label>

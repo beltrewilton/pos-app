@@ -4,6 +4,7 @@ defmodule PosServer.Accounts.User do
   import Ecto.Changeset
 
   alias PosServer.Password
+  alias PosServer.Tenants
 
   @primary_key {:id, :binary_id, autogenerate: true}
 
@@ -25,9 +26,10 @@ defmodule PosServer.Accounts.User do
     |> cast(attrs, [:email, :name, :tenant, :password])
     |> validate_required([:email, :name, :tenant, :password])
     |> validate_format(:email, ~r/^[^\s]+@[^\s]+$/)
-    |> validate_format(:tenant, ~r/^[a-z][a-z0-9_]{2,62}$/,
-      message: "must be a lowercase tenant identifier (letters, numbers, and underscores)"
+    |> validate_format(:tenant, ~r/^[a-z][a-z0-9_-]{2,62}$/,
+      message: "must be a lowercase tenant identifier (letters, numbers, hyphens, and underscores)"
     )
+    |> validate_allowed_tenant()
     |> validate_length(:password, min: 6, max: 72)
     |> unique_constraint(:email)
     |> hash_password()
@@ -37,9 +39,10 @@ defmodule PosServer.Accounts.User do
     user
     |> cast(attrs, [:tenant])
     |> validate_required([:tenant])
-    |> validate_format(:tenant, ~r/^[a-z][a-z0-9_]{2,62}$/,
-      message: "must be a lowercase tenant identifier (letters, numbers, and underscores)"
+    |> validate_format(:tenant, ~r/^[a-z][a-z0-9_-]{2,62}$/,
+      message: "must be a lowercase tenant identifier (letters, numbers, hyphens, and underscores)"
     )
+    |> validate_allowed_tenant()
   end
 
   @doc "Creates or updates a user authenticated by Google OAuth."
@@ -73,5 +76,20 @@ defmodule PosServer.Accounts.User do
     else
       changeset
     end
+  end
+
+  defp validate_allowed_tenant(changeset) do
+    validate_change(changeset, :tenant, fn :tenant, tenant ->
+      cond do
+        Tenants.reserved?(tenant) ->
+          [tenant: "is reserved"]
+
+        Tenants.valid_identifier?(tenant) ->
+          []
+
+        true ->
+          [tenant: "must be a lowercase tenant identifier (letters, numbers, hyphens, and underscores)"]
+      end
+    end)
   end
 end
