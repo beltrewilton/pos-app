@@ -2,13 +2,17 @@ defmodule PosServerWeb.LoginLive do
   @moduledoc false
   use PosServerWeb, :live_view
 
-  alias PosServer.{Authentication, TenantContext}
+  import Ecto.Query, only: [from: 2]
+
+  alias PosServer.{Authentication, Repo, TenantContext}
+  alias PosServer.Accounts.Company
   alias PosServer.Accounts.Scope
   alias PosServer.Retaily.InventoryContext
 
   @impl true
   def mount(_params, session, socket) do
     tenant = session["tenant"]
+    brand_logo = company_brand_logo(tenant)
 
     case session["user_token"] && Authentication.authenticate(session["user_token"]) do
       {:ok, %{tenant: ^tenant} = scope} ->
@@ -19,6 +23,7 @@ defmodule PosServerWeb.LoginLive do
              |> assign(:page_title, "Tigoo Sign in")
              |> assign(:phase, :credentials)
              |> assign(:tenant, tenant)
+             |> assign(:brand_logo, brand_logo)
              |> assign(:pending_token, nil)
              |> assign(:stores, [])
              |> assign(:error, "Your account does not have access to Dashboard or POS.")
@@ -34,6 +39,7 @@ defmodule PosServerWeb.LoginLive do
          |> assign(:page_title, "Tigoo Sign in")
          |> assign(:phase, :credentials)
          |> assign(:tenant, tenant)
+         |> assign(:brand_logo, brand_logo)
          |> assign(:pending_token, nil)
          |> assign(:stores, [])
          |> assign(:error, "")
@@ -116,6 +122,7 @@ defmodule PosServerWeb.LoginLive do
       data-phase={@phase}
     >
       <.login_effects />
+      <img :if={@brand_logo} class="login-brand-logo" src={@brand_logo} alt="" />
       <div class="login-panel">
         <div class="card login-card">
           <div class="card-header">
@@ -201,6 +208,21 @@ defmodule PosServerWeb.LoginLive do
     </div>
     """
   end
+
+  defp company_brand_logo(tenant) when is_binary(tenant) and tenant != "" do
+    Repo.one(
+      from(company in Company,
+        where: not is_nil(company.brand_logo) and company.brand_logo != "",
+        limit: 1,
+        select: company.brand_logo
+      ),
+      prefix: Triplex.to_prefix(tenant)
+    )
+  rescue
+    _ -> nil
+  end
+
+  defp company_brand_logo(_tenant), do: nil
 
   attr :error, :string, required: true
 

@@ -561,6 +561,10 @@
   padding: 1.5rem;
 }
 .dashboard-intro {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
   margin-bottom: 1.25rem;
 }
 .dashboard-intro h2 {
@@ -572,6 +576,20 @@
   color: var(--muted-foreground);
   font-size: 0.8125rem;
   margin: 0.35rem 0 0;
+}
+.dashboard-brand-logo {
+  flex: 0 0 auto;
+  max-height: 4.5rem;
+  max-width: min(18rem, 38vw);
+  object-fit: contain;
+}
+.company-logo-dropzone {
+  min-height: 9rem;
+}
+.company-logo-preview {
+  max-height: 5rem;
+  max-width: min(18rem, 100%);
+  object-fit: contain;
 }
 .dashboard-summary-grid {
   display: grid;
@@ -878,6 +896,13 @@
   }
   .dashboard-content {
     padding: 1rem;
+  }
+  .dashboard-intro {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .dashboard-brand-logo {
+    max-width: 100%;
   }
   .dashboard-summary-grid {
     gap: 0.5rem;

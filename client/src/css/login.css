@@ -106,6 +106,18 @@
   padding: max(2rem, env(safe-area-inset-top)) 2rem max(2rem, env(safe-area-inset-bottom));
 }
 
+.login-brand-logo {
+  position: absolute;
+  top: calc(50% - 15.25rem);
+  left: 50%;
+  display: block;
+  max-width: min(13rem, 58vw);
+  max-height: 4.25rem;
+  object-fit: contain;
+  transform: translate(-50%, -100%);
+  z-index: 1;
+}
+
 .login-card {
   width: min(100%, 23rem);
   border-color: color-mix(in oklch, var(--foreground) 8%, transparent);
@@ -156,6 +168,10 @@
 @media (max-width: 640px) {
   .login-panel { min-height: 100dvh; padding: max(1.25rem, env(safe-area-inset-top)) 1rem max(1.25rem, env(safe-area-inset-bottom)); }
   .login-card { width: 100%; }
+  .login-brand-logo {
+    top: calc(50% - 17.25rem);
+    max-height: 3.75rem;
+  }
   .login-card .card-header,
   .login-card .card-content { padding-inline: 1.125rem; }
   .login-card .input,

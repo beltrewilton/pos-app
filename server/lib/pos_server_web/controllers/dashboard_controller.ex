@@ -1,9 +1,11 @@
 defmodule PosServerWeb.DashboardController do
   use PosServerWeb, :controller
 
-  alias PosServer.{Accounts, Authentication}
+  import Ecto.Query, only: [from: 2]
+
+  alias PosServer.{Accounts, Authentication, Repo}
   alias PosServer.Accounts.{Company, Scope}
-  alias PosServer.Retaily.InventoryContext
+  alias PosServer.Retaily.{CompanySettings, InventoryContext}
 
   def index(%{assigns: %{current_scope: scope}} = conn, _params) do
     if Scope.allowed?(scope, "dashboard.view"),
@@ -61,6 +63,26 @@ defmodule PosServerWeb.DashboardController do
 
   def create(conn, _params), do: redirect(conn, to: ~p"/")
 
+  def update_logo(%{assigns: %{current_scope: scope}} = conn, %{"company" => params}) do
+    if Scope.allowed?(scope, "dashboard.view") do
+      case CompanySettings.update_brand_logo(scope, params) do
+        {:ok, _company} ->
+          conn
+          |> put_flash(:info, "Company logo updated.")
+          |> redirect(to: ~p"/pos/dashboard")
+
+        {:error, _reason} ->
+          conn
+          |> put_flash(:error, "Company logo could not be updated.")
+          |> redirect(to: ~p"/pos/dashboard")
+      end
+    else
+      redirect(conn, to: landing_path(scope))
+    end
+  end
+
+  def update_logo(conn, _params), do: redirect(conn, to: ~p"/pos/dashboard")
+
   defp render_dashboard(conn, user, opts \\ []) do
     tenant_changeset = tenant_changeset(conn, user, opts)
     company_changeset = company_changeset(conn, opts)
@@ -92,8 +114,14 @@ defmodule PosServerWeb.DashboardController do
   end
 
   defp dashboard_company(%{actor: :admin}, user), do: Accounts.get_company_for_user(user)
-  defp dashboard_company(%{tenant: tenant}, _user) when is_binary(tenant),
-    do: %{company_name: tenant, rnc: nil}
+
+  defp dashboard_company(%{tenant: tenant}, _user) when is_binary(tenant) do
+    Repo.one(from(company in Company, limit: 1), prefix: Triplex.to_prefix(tenant)) ||
+      %{company_name: tenant, rnc: nil, brand_logo: nil}
+  rescue
+    _ -> %{company_name: tenant, rnc: nil, brand_logo: nil}
+  end
+
   defp dashboard_company(_, _), do: nil
 
   defp tenant_changeset(%{assigns: %{current_scope: %{actor: :admin}}}, user, opts) do

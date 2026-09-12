@@ -22,6 +22,31 @@ defmodule PosServer.Retaily.CompanySettings do
 
   def create_price_list(scope, attrs), do: save_price_list(scope, %Pricing{}, attrs)
 
+  def update_brand_logo(scope, attrs) do
+    tenant = TenantContext.tenant!()
+
+    with %Company{} = company <- editable_company(scope, tenant) do
+      company
+      |> Ecto.Changeset.cast(attrs, [:brand_logo])
+      |> Ecto.Changeset.validate_format(:brand_logo, ~r/^data:image\/[a-zA-Z0-9.+-]+;base64,/,
+        message: "must be an image encoded as Base64"
+      )
+      |> Repo.update(prefix: tenant)
+      |> write_result()
+    else
+      nil -> {:error, :not_found}
+    end
+  end
+
+  defp editable_company(%{actor: :admin} = scope, tenant) do
+    %{id: company_id} = company(scope)
+    Repo.get(Company, company_id, prefix: tenant)
+  end
+
+  defp editable_company(_scope, tenant) do
+    Repo.one(from(company in Company, limit: 1), prefix: tenant)
+  end
+
   def update_price_list(scope, id, attrs) do
     with %Pricing{} = pricing <- Repo.get(Pricing, id, prefix: TenantContext.tenant!()) do
       save_price_list(scope, pricing, attrs)
@@ -263,13 +288,18 @@ defmodule PosServer.Retaily.CompanySettings do
         on: membership.company_id == company.id,
         where: membership.user_id == ^user_id,
         limit: 1,
-        select: %{id: company.id, name: company.company_name, rnc: company.rnc}
+        select: %{
+          id: company.id,
+          name: company.company_name,
+          rnc: company.rnc,
+          brand_logo: company.brand_logo
+        }
       ),
       prefix: TenantContext.tenant!()
     )
   end
 
-  defp company(scope), do: %{id: scope.tenant, name: scope.tenant, rnc: nil}
+  defp company(scope), do: %{id: scope.tenant, name: scope.tenant, rnc: nil, brand_logo: nil}
 
   defp price_key(label) when is_binary(label) do
     key =

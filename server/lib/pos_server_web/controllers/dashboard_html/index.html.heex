@@ -10,8 +10,16 @@
   <section class="catalog-panel">
     <div class="dashboard-content">
       <section class="dashboard-intro" aria-labelledby="welcome-title">
-        <h2 id="welcome-title">Welcome back, {@user.name}</h2>
-        <p data-i18n="dashboard.manageAccount">Manage your account confirmation and workspace setup.</p>
+        <div>
+          <h2 id="welcome-title">Welcome back, {@user.name}</h2>
+          <p data-i18n="dashboard.manageAccount">Manage your account confirmation and workspace setup.</p>
+        </div>
+        <img
+          :if={@company && is_binary(@company.brand_logo) && @company.brand_logo != ""}
+          class="dashboard-brand-logo"
+          src={@company.brand_logo}
+          alt=""
+        />
       </section>
 
       <section class="dashboard-summary-grid" aria-label="Account summary" data-i18n-aria-label="dashboard.accountSummary">
@@ -178,6 +186,47 @@
             <p class="dashboard-detail-value"><span data-i18n={if @company.rnc, do: nil, else: "dashboard.notProvided"}>{@company.rnc || "Not provided"}</span></p>
           </div>
         </div>
+      </section>
+
+      <section
+        :if={@company}
+        class="card dashboard-panel"
+        aria-labelledby="company-logo-title"
+      >
+        <div class="card-header">
+          <h2 class="card-title" id="company-logo-title">Company logo</h2>
+          <p class="card-description">Upload the logo shown on the dashboard and login screen.</p>
+        </div>
+        <form id="company-logo-form" class="card-content" action={~p"/pos/dashboard/logo"} method="post">
+          <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+          <div
+            id="company-logo-dropzone"
+            class="product-image-dropzone company-logo-dropzone"
+            tabindex="0"
+            role="button"
+            aria-describedby="company-logo-help"
+          >
+            <img
+              id="company-logo-preview"
+              class="product-image-preview company-logo-preview"
+              src={@company.brand_logo}
+              alt="Company logo preview"
+              hidden={!is_binary(@company.brand_logo) || @company.brand_logo == ""}
+            /><label class="label" for="company-logo">Logo upload</label>
+            <p id="company-logo-help" class="field-description">
+              Drop an image here or choose a file (max 10 MB). It will be resized and stored as Base64.
+            </p>
+            <input id="company-logo" class="input" type="file" accept="image/*" /><input
+              id="company-brand-logo"
+              name="company[brand_logo]"
+              type="hidden"
+              value={@company.brand_logo}
+            />
+          </div>
+          <div class="form-actions dashboard-form-actions">
+            <button class="btn" data-variant="default" type="submit">Save logo</button>
+          </div>
+        </form>
       </section>
     </div>
   </section>

@@ -66,6 +66,7 @@ defmodule PosServerWeb.Router do
     pipe_through [:browser, :tenant_browser]
 
     get "/pos/dashboard", DashboardController, :index
+    post "/pos/dashboard/logo", DashboardController, :update_logo
     live "/pos/login", LoginLive, :index
     post "/pos/login/session", BrowserLoginController, :create
     delete "/pos/logout", BrowserLoginController, :delete
