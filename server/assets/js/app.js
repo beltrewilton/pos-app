@@ -549,6 +549,10 @@ function installPrinterEvents(hook) {
     console.log("[printer] LiveView event printer:reprint-invoice", {requestId: payload.request_id, sequence: sale?.sequence})
     return hook.printWithResult(payload.request_id, () => receiptPrinter.reprintInvoice(sale))
   })
+  hook.handleEvent("printer:print-reconciliation", payload => {
+    const reconciliation = payload.reconciliation || payload.receipt
+    return hook.printWithResult(payload.request_id, () => receiptPrinter.printReconciliation(reconciliation))
+  })
   hook.printWithResult = async (requestId, operation) => {
     try {
       await operation()

@@ -22,6 +22,43 @@ export class ReceiptFormatter {
     return this.document(t("receipts.copy"), sale)
   }
 
+  reconciliation(report) {
+    const columns = this.config.columns
+    const store = report.store || {}
+    const lines = [
+      {align: "center", text: str(report.company_name || store.name || "TIGOO").toUpperCase()},
+      store.address ? {align: "center", text: wrap(str(store.address).toUpperCase(), columns)} : null,
+      {text: rule(columns)},
+      {align: "center", text: "CASH RECONCILIATION"},
+      {text: rule(columns)},
+      {text: twoCol("Cashier", str(report.cashier || ""), columns)},
+      {text: twoCol("Printed at", str(report.generated_at || report.date || ""), columns)},
+      {text: reconciliationAmountLine("Opening cash", report.opening_cash, columns)},
+      {text: rule(columns)},
+      {text: "SALES"},
+      {text: rule(columns)}
+    ].filter(Boolean)
+
+    for (const sale of report.sales || []) {
+      lines.push({text: reconciliationAmountLine(str(sale.customer_name || ""), sale.amount, columns)})
+      if (sale.date) lines.push({text: str(sale.date).slice(0, columns)})
+    }
+
+    lines.push(
+      {text: rule(columns)},
+      {text: twoCol("Sales count", str(report.sales_count || 0), columns)},
+      {text: reconciliationAmountLine("Total sales", report.total_sales, columns)},
+      {text: rule(columns)}
+    )
+
+    for (const item of report.payment_totals || []) lines.push({text: reconciliationAmountLine(item.label || paymentLabel(item.type), item.amount, columns)})
+    lines.push({text: rule(columns)})
+    lines.push({bold: true, text: reconciliationAmountLine("Expected drawer", report.expected_cash, columns)})
+    lines.push({text: rule(columns)})
+    lines.push({align: "center", text: "END OF REPORT"})
+    return lines
+  }
+
   document(copyLabel, sale, payment = null) {
     const columns = this.config.columns
     const store = sale.store || {}
@@ -113,6 +150,14 @@ function itemTax(item, total) {
 
 function amountLine(label, value, columns) {
   return twoCol(label, money(value), columns)
+}
+
+function reconciliationAmountLine(label, value, columns) {
+  return twoCol(label, plainMoney(value), columns)
+}
+
+function plainMoney(value) {
+  return `$ ${number(value).toFixed(2)}`
 }
 
 function twoCol(left, right, columns) {

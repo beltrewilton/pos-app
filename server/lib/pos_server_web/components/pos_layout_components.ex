@@ -81,6 +81,27 @@ defmodule PosServerWeb.PosLayoutComponents do
         </a>
         <a
           class="sidebar-link"
+          href={~p"/pos/reconciliation"}
+          aria-current={current_page(@active_page, :reconciliation)}
+          aria-label="Cash reconciliation"
+          data-i18n-aria-label="layout.nav.reconciliation"
+        >
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="3" y="6" width="18" height="13" rx="2" />
+            <path d="M16 6V4H8v2" />
+            <path d="M7 11h.01M11 11h6M7 15h.01M11 15h6" />
+          </svg>
+        </a>
+        <a
+          class="sidebar-link"
           href={~p"/pos/customers"}
           aria-current={current_page(@active_page, :customers)}
           aria-label="Customers"

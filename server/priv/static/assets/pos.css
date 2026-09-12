@@ -697,6 +697,45 @@
 .pos-customer-row small {
   color: var(--muted-foreground);
 }
+.reconciliation-panel {
+  display: grid;
+  align-content: start;
+  gap: 24px;
+}
+.reconciliation-controls {
+  display: grid;
+  gap: 18px;
+  max-width: 760px;
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+}
+.reconciliation-receipt-panel {
+  gap: 18px;
+  overflow: hidden;
+}
+.reconciliation-totals {
+  margin-bottom: 0;
+}
+.receipt-preview {
+  width: 100%;
+  flex: 1;
+  max-height: calc(100vh - 150px);
+  min-height: 0;
+  margin: 0;
+  padding: 18px 0 0;
+  border: 1px solid var(--border);
+  border-width: 1px 0 0;
+  background: transparent;
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
 .inventory-checkbox-label {
   display: inline-flex;
   align-items: center;
@@ -855,6 +894,17 @@
   .order-panel.is-mobile-open {
     display: flex;
     transform: translateX(0);
+  }
+  .reconciliation-receipt-panel {
+    position: static;
+    display: flex;
+    grid-column: 1;
+    grid-row: auto;
+    width: auto;
+    height: auto;
+    min-height: 420px;
+    padding-top: 22px;
+    transform: none;
   }
   .mobile-cart-close {
     margin-left: auto;

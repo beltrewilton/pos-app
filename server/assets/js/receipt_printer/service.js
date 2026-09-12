@@ -104,11 +104,15 @@ export class ReceiptPrinterService extends EventTarget {
     return this.print("invoice", sale)
   }
 
+  async printReconciliation(reconciliation) {
+    return this.print("reconciliation", reconciliation)
+  }
+
   async print(kind, sale, payment = null) {
     if (this.state !== "connected") throw new Error(t("js.noReceiptPrinter"))
     console.log("[printer] ReceiptPrinterService.print", {kind, sequence: sale?.sequence, paymentId: payment?.id})
     const formatter = new ReceiptFormatter(this.config)
-    const document = kind === "payment" ? formatter.payment(sale, payment) : kind === "invoice" ? formatter.invoice(sale) : formatter.receipt(sale)
+    const document = kind === "payment" ? formatter.payment(sale, payment) : kind === "invoice" ? formatter.invoice(sale) : kind === "reconciliation" ? formatter.reconciliation(sale) : formatter.receipt(sale)
     const encoder = new ReceiptEncoder(encoderConfig(this.config, this.device)).initialize()
     for (const line of document) {
       encoder.align(line.align || "left")
