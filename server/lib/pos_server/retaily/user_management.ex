@@ -94,7 +94,7 @@ defmodule PosServer.Retaily.Users do
 
   defp users(tenant),
     do:
-      Repo.all(from(user in User, order_by: [asc: user.username]), prefix: tenant)
+      Repo.all(from(user in User, order_by: [desc: user.is_active, asc: user.username]), prefix: tenant)
       |> Enum.map(&serialize(&1, tenant))
 
   defp serialize(user, tenant),

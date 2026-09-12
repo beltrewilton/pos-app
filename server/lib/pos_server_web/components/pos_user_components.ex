@@ -46,7 +46,7 @@ defmodule PosServerWeb.PosUserComponents do
       </header>
       <p class="users-status" role="status">{@status}</p>
       <div class="user-list">
-        <article :for={user <- @users} class="card user-card">
+        <article :for={user <- @users} class={["card user-card", !active?(user) && "is-inactive"]}>
           <div class="card-content">
             <div class="user-card-heading">
               <h3 class="card-title">{user_name(user)}</h3>

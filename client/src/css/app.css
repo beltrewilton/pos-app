@@ -75,6 +75,14 @@ body {
   justify-content: space-between;
   min-width: 0;
 }
+.user-card.is-inactive {
+  color: #e6e6e6;
+}
+.user-card.is-inactive .card-title,
+.user-card.is-inactive .user-meta dd {
+  color: #e6e6e6;
+  font-weight: 500;
+}
 .user-card .card-content {
   padding-bottom: 12px;
 }
