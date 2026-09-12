@@ -409,8 +409,10 @@ defmodule PosServerWeb.PosLive do
       when sequence in ["CF", "VF", "DV"],
       do: {:noreply, socket |> assign(:sequence, sequence) |> sync()}
 
-  def handle_event("change_memo", %{"value" => value}, socket),
-    do: {:noreply, socket |> assign(:memo, String.slice(value, 0, 1000)) |> sync()}
+  def handle_event("change_memo", params, socket) do
+    value = Map.get(params, "additional_info", Map.get(params, "value", ""))
+    {:noreply, socket |> assign(:memo, String.slice(value, 0, 1000)) |> sync()}
+  end
 
   def handle_event("restore_pos_draft", draft, socket) do
     {:noreply, restore_pos_draft(socket, draft)}
@@ -1139,9 +1141,11 @@ defmodule PosServerWeb.PosLive do
                 <label class="label" for="sale-additional-info" data-i18n="pos.checkout.memoOptional">Memo (optional)</label><textarea
                   id="sale-additional-info"
                   class="input"
+                  name="additional_info"
                   rows="3"
                   maxlength="1000"
                   phx-change="change_memo"
+                  phx-keyup="change_memo"
                 >{@memo}</textarea>
                 <p class="field-description" data-i18n="pos.checkout.memoHelp">Up to 1000 characters.</p>
               </div>

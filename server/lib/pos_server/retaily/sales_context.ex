@@ -162,7 +162,7 @@ defmodule PosServer.Retaily.Sales do
         |> with_payment_totals()
         |> Repo.all(prefix: tenant)
         |> then(&Repo.preload(&1, [sale_lines: :product], prefix: tenant))
-        |> Enum.map(&serialize_purchase/1)
+        |> Enum.map(&serialize_purchase(&1, tenant))
 
       {:ok, purchases}
     end
@@ -671,7 +671,7 @@ defmodule PosServer.Retaily.Sales do
     }
   end
 
-  defp serialize_purchase(sale) do
+  defp serialize_purchase(sale, tenant) do
     %{
       id: sale.id,
       sequence: sale.sequence,
@@ -684,6 +684,8 @@ defmodule PosServer.Retaily.Sales do
       status: sale.status,
       invoice_status: sale.invoice_status,
       salesperson: sale.login,
+      memo_author: serialize_salesperson(sale.login, tenant),
+      additional_info: sale.additional_info,
       items: Enum.map(sale.sale_lines, &serialize_purchase_item/1)
     }
   end

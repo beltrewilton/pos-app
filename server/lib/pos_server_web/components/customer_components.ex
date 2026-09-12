@@ -238,27 +238,44 @@ defmodule PosServerWeb.CustomerComponents do
             <tr :if={@detail.purchases == []} class="table-row">
               <td class="table-cell muted" colspan="9" data-i18n="pos.customers.noPurchases">No purchases found for this customer.</td>
             </tr>
-            <tr :for={purchase <- @detail.purchases} class="table-row">
-              <td class="table-cell">{value(purchase, :sequence) || "##{value(purchase, :id)}"}</td>
-              <td class="table-cell">{customer_date(value(purchase, :date_create))}</td>
-              <td class="table-cell numeric">{money(float(value(purchase, :amount)))}</td>
-              <td class="table-cell numeric">{money(float(value(purchase, :total_paid)))}</td>
-              <td class="table-cell numeric">
-                {money(max(float(value(purchase, :due_balance)), 0.0))}
-              </td>
-              <td class="table-cell">{dash(value(purchase, :invoice_status))}</td>
-              <td class="table-cell">{dash(value(purchase, :salesperson))}</td>
-              <td class="table-cell">{dash(value(purchase, :store_id))}</td>
-              <td class="table-cell">
-                <.link
-                  class="btn"
-                  data-variant="ghost"
-                  navigate={~p"/pos/invoices?search=#{customer.name || ""}"}
-                >
-                  <span data-i18n="common.view">View</span>
-                </.link>
-              </td>
-            </tr>
+            <%= for purchase <- @detail.purchases do %>
+              <tr class="table-row">
+                <td class="table-cell">{value(purchase, :sequence) || "##{value(purchase, :id)}"}</td>
+                <td class="table-cell">{customer_date(value(purchase, :date_create))}</td>
+                <td class="table-cell numeric">{money(float(value(purchase, :amount)))}</td>
+                <td class="table-cell numeric">{money(float(value(purchase, :total_paid)))}</td>
+                <td class="table-cell numeric">
+                  {money(max(float(value(purchase, :due_balance)), 0.0))}
+                </td>
+                <td class="table-cell">{dash(value(purchase, :invoice_status))}</td>
+                <td class="table-cell">{dash(value(purchase, :salesperson))}</td>
+                <td class="table-cell">{dash(value(purchase, :store_id))}</td>
+                <td class="table-cell">
+                  <.link
+                    class="btn"
+                    data-variant="ghost"
+                    navigate={~p"/pos/invoices?search=#{customer.name || ""}"}
+                  >
+                    <span data-i18n="common.view">View</span>
+                  </.link>
+                </td>
+              </tr>
+              <tr :if={memo?(purchase)} class="table-row invoice-details-row">
+                <td class="table-cell" colspan="9">
+                  <section class="card invoice-details-card">
+                    <div class="card-content">
+                      <section class="invoice-memo" aria-label="Sale memo">
+                        <p class="invoice-memo-text">{String.trim(value(purchase, :additional_info))}</p>
+                        <div class="invoice-memo-salesperson">
+                          <.memo_avatar author={memo_author(purchase)} />
+                          {memo_author_name(purchase)}
+                        </div>
+                      </section>
+                    </div>
+                  </section>
+                </td>
+              </tr>
+            <% end %>
           </tbody>
         </table>
       </div>
@@ -280,6 +297,17 @@ defmodule PosServerWeb.CustomerComponents do
         <p class={["invoice-kpi-value", @numeric && "numeric"]}>{@value}</p>
       </div>
     </article>
+    """
+  end
+
+  attr :author, :map, default: nil
+
+  def memo_avatar(assigns) do
+    ~H"""
+    <span class="avatar invoice-memo-avatar">
+      <img :if={avatar_image?(@author)} class="avatar-image" src={value(@author, :pic)} alt="" />
+      <span :if={!avatar_image?(@author)}>{memo_author_initial(@author)}</span>
+    </span>
     """
   end
 
@@ -394,6 +422,23 @@ defmodule PosServerWeb.CustomerComponents do
 
   defp customer_date(_), do: "—"
   defp money(value), do: "$" <> :erlang.float_to_binary(float(value), decimals: 2)
+  defp memo?(purchase), do: String.trim(to_string(value(purchase, :additional_info) || "")) != ""
+
+  defp memo_author(purchase),
+    do: value(purchase, :memo_author) || %{name: value(purchase, :salesperson)}
+
+  defp memo_author_name(purchase) do
+    author = memo_author(purchase)
+    dash(value(author, :name) || value(author, :username) || value(purchase, :salesperson))
+  end
+
+  defp memo_author_initial(author) do
+    author
+    |> then(&(value(&1, :name) || value(&1, :username) || "?"))
+    |> String.first()
+  end
+
+  defp avatar_image?(author), do: value(author, :pic) not in [nil, ""]
   defp float(value) when is_number(value), do: value * 1.0
   defp float(%Decimal{} = value), do: Decimal.to_float(value)
 
