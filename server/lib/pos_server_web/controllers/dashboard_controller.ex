@@ -31,9 +31,8 @@ defmodule PosServerWeb.DashboardController do
             conn
             |> configure_session(renew: true)
             |> put_session(:user_token, session_token)
-            |> put_session(:tenant, updated_user.tenant)
             |> put_flash(:info, "Your workspace has been created.")
-            |> redirect(external: tenant_dashboard_url(conn, updated_user.tenant))
+            |> redirect(external: tenant_dashboard_url(updated_user.tenant))
 
           {:error, :tenant, changeset} ->
             render_dashboard(conn, user,
@@ -170,23 +169,13 @@ defmodule PosServerWeb.DashboardController do
     end
   end
 
-  defp tenant_dashboard_url(conn, tenant) do
-    %URI{
-      scheme: Atom.to_string(conn.scheme),
-      host: tenant_host(conn.host, tenant),
-      port: tenant_port(conn),
-      path: ~p"/pos/dashboard"
-    }
-    |> URI.to_string()
+  defp tenant_dashboard_url(tenant) do
+    url = PosServerWeb.Endpoint.config(:url)
+    host = url |> Keyword.get(:host, "localhost") |> to_string()
+    scheme = url |> Keyword.get(:scheme, "https") |> to_string()
+
+    URI.to_string(%URI{scheme: scheme, host: "#{tenant}.#{host}", path: ~p"/pos/dashboard"})
   end
-
-  defp tenant_host("localhost", tenant), do: "#{tenant}.localhost"
-  defp tenant_host("127.0.0.1", tenant), do: "#{tenant}.localhost"
-  defp tenant_host(host, tenant), do: "#{tenant}.#{host}"
-
-  defp tenant_port(%{scheme: :http, port: 80}), do: nil
-  defp tenant_port(%{scheme: :https, port: 443}), do: nil
-  defp tenant_port(%{port: port}), do: port
 
   defp pos_layout_store_assigns(%{tenant: tenant} = scope, selected_id) when is_binary(tenant) do
     with {:ok, stores} <- InventoryContext.stores(scope) do
