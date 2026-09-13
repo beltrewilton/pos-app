@@ -10,6 +10,7 @@ defmodule PosServer.Retaily.Product do
     field :img_path, :string
     field :date_create, :naive_datetime
     field :image_raw, :string
+    field :image_updated_at, :naive_datetime
     field :active, :integer
     field :user_modified, :string
     field :archived, :string, default: "0"
@@ -28,6 +29,7 @@ defmodule PosServer.Retaily.Product do
       :code,
       :img_path,
       :image_raw,
+      :image_updated_at,
       :active,
       :user_modified,
       :date_create,

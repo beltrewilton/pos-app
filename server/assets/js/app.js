@@ -31,6 +31,9 @@ const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute
 const POS_STORE_KEY = "pos-selected-store-id"
 const POS_DRAFT_KEY_PREFIX = "pos-sale-draft"
 const POS_CATALOG_VIEW_KEY = "pos-catalog-view"
+const PRODUCT_IMAGE_DB = "pos-product-images"
+const PRODUCT_IMAGE_STORE = "images"
+const PRODUCT_IMAGE_VERSION_PREFIX = "pos:product-image-versions"
 const PRINT_RELAY_SESSION_KEY = "pos.printRelay.sessionId"
 let activePrintRelay = null
 
@@ -116,6 +119,24 @@ const hooks = {
       this.observer.observe(this.el)
     },
     destroyed() { this.observer?.disconnect() }
+  },
+  ProductImageCache: {
+    mounted() {
+      this.tenant = this.el.dataset.tenant || tenantId()
+      this.missing = new Map()
+      this.pushKnownVersions = () => this.pushEvent("product_image_versions", {versions: readProductImageVersions(this.tenant)})
+      this.pushKnownVersions()
+      this.sync = () => syncProductImageCache(this)
+      this.handleEvent("product-images:sync", this.sync)
+      requestAnimationFrame(this.sync)
+    },
+    updated() {
+      this.tenant = this.el.dataset.tenant || tenantId()
+      requestAnimationFrame(this.sync)
+    },
+    destroyed() {
+      clearTimeout(this.missingTimer)
+    }
   },
   PurchaseOrderLines: purchaseOrderLinesHook(),
   PurchaseOrders: purchaseOrdersHook(),
@@ -1061,6 +1082,145 @@ function writeStoredJson(key, value) {
     localStorage.setItem(key, JSON.stringify(value))
   } catch {
   }
+}
+
+function productImageVersionKey(tenant) {
+  return `${PRODUCT_IMAGE_VERSION_PREFIX}:${tenant || "default"}`
+}
+
+function productImageCacheKey(tenant, productId, version) {
+  return `${tenant || "default"}:${productId}:${version}`
+}
+
+function readProductImageVersions(tenant) {
+  try {
+    const value = JSON.parse(localStorage.getItem(productImageVersionKey(tenant)) || "{}")
+    return value && typeof value === "object" && !Array.isArray(value) ? value : {}
+  } catch {
+    return {}
+  }
+}
+
+function writeProductImageVersion(tenant, productId, version) {
+  if (!tenant || !productId || !version) return
+  const versions = readProductImageVersions(tenant)
+  versions[String(productId)] = String(version)
+  try {
+    localStorage.setItem(productImageVersionKey(tenant), JSON.stringify(versions))
+  } catch {
+  }
+}
+
+function removeProductImageVersion(tenant, productId, version) {
+  const versions = readProductImageVersions(tenant)
+  if (versions[String(productId)] !== String(version)) return
+  delete versions[String(productId)]
+  try {
+    localStorage.setItem(productImageVersionKey(tenant), JSON.stringify(versions))
+  } catch {
+  }
+}
+
+function productImageDb() {
+  if (!("indexedDB" in window)) return Promise.reject(new Error("IndexedDB is unavailable."))
+  if (window.productImageDbPromise) return window.productImageDbPromise
+  window.productImageDbPromise = new Promise((resolve, reject) => {
+    const request = indexedDB.open(PRODUCT_IMAGE_DB, 1)
+    request.onupgradeneeded = () => {
+      request.result.createObjectStore(PRODUCT_IMAGE_STORE, {keyPath: "key"})
+    }
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error)
+  })
+  return window.productImageDbPromise
+}
+
+async function readCachedProductImage(tenant, productId, version) {
+  const db = await productImageDb()
+  const key = productImageCacheKey(tenant, productId, version)
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PRODUCT_IMAGE_STORE, "readonly")
+    const request = tx.objectStore(PRODUCT_IMAGE_STORE).get(key)
+    request.onsuccess = () => resolve(request.result?.src || null)
+    request.onerror = () => reject(request.error)
+  })
+}
+
+async function writeCachedProductImage(tenant, productId, version, src) {
+  if (!src || !src.startsWith("data:image/")) return false
+  const db = await productImageDb()
+  const key = productImageCacheKey(tenant, productId, version)
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(PRODUCT_IMAGE_STORE, "readwrite")
+    tx.objectStore(PRODUCT_IMAGE_STORE).put({key, tenant, product_id: String(productId), version: String(version), src})
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
+  writeProductImageVersion(tenant, productId, version)
+  return true
+}
+
+function productImageSelectorValue(value) {
+  if (window.CSS?.escape) return CSS.escape(String(value))
+  return String(value).replace(/["\\]/g, "\\$&")
+}
+
+function setProductImageElement(image, src) {
+  image.src = src
+  image.hidden = false
+  document
+    .querySelectorAll(`[data-product-image-placeholder="${productImageSelectorValue(image.dataset.productImageId)}"]`)
+    .forEach(element => { element.hidden = true })
+}
+
+function queueProductImageMiss(hook, productId, version) {
+  if (!productId || !version) return
+  const key = `${productId}:${version}`
+  hook.missing.set(key, {id: Number(productId), version})
+  clearTimeout(hook.missingTimer)
+  hook.missingTimer = setTimeout(() => {
+    const products = [...hook.missing.values()]
+    hook.missing.clear()
+    products.forEach(product => removeProductImageVersion(hook.tenant, product.id, product.version))
+    if (products.length) hook.pushEvent("product_image_cache_miss", {products})
+  }, 50)
+}
+
+async function syncProductImageCache(hook) {
+  const tenant = hook.tenant || tenantId()
+  const images = [...document.querySelectorAll("[data-product-image-id][data-product-image-version]")]
+  let stored = false
+
+  await Promise.all(images.map(async image => {
+    const productId = image.dataset.productImageId
+    const version = image.dataset.productImageVersion
+    if (!tenant || !productId || !version) return
+
+    const current = image.currentSrc || image.getAttribute("src") || ""
+    if (current.startsWith("data:image/")) {
+      try {
+        await writeCachedProductImage(tenant, productId, version, current)
+        stored = true
+        setProductImageElement(image, current)
+      } catch {
+      }
+      return
+    }
+
+    try {
+      const cached = await readCachedProductImage(tenant, productId, version)
+      if (cached && cached.startsWith("data:image/")) {
+        setProductImageElement(image, cached)
+        writeProductImageVersion(tenant, productId, version)
+      } else {
+        queueProductImageMiss(hook, productId, version)
+      }
+    } catch {
+      queueProductImageMiss(hook, productId, version)
+    }
+  }))
+
+  if (stored) hook.pushKnownVersions?.()
 }
 
 function posDraftKey(element) {

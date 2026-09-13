@@ -20,6 +20,7 @@ defmodule PosServerWeb.ProductCreateController do
           "active" => status_flag(Map.get(attrs, "active", true)),
           "user_modified" => username,
           "date_create" => now,
+          "image_updated_at" => image_timestamp(attrs["image_raw"], now),
           "archived" => archived_flag(attrs["archived"])
         })
 
@@ -105,6 +106,17 @@ defmodule PosServerWeb.ProductCreateController do
       product_attrs =
         Map.take(attrs, ["name", "cost", "margin", "code", "img_path", "image_raw", "active", "archived"])
         |> Map.put("user_modified", conn.assigns.current_scope.user.name)
+
+      product_attrs =
+        if Map.has_key?(product_attrs, "image_raw") and product_attrs["image_raw"] != product.image_raw do
+          Map.put(
+            product_attrs,
+            "image_updated_at",
+            image_timestamp(product_attrs["image_raw"], NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second))
+          )
+        else
+          product_attrs
+        end
 
       product_attrs =
         product_attrs
@@ -276,6 +288,7 @@ defmodule PosServerWeb.ProductCreateController do
       code: product.code,
       img_path: product.img_path,
       image_raw: product.image_raw,
+      image_updated_at: product.image_updated_at,
       active: product.active,
       archived: product.archived
     }
@@ -291,6 +304,9 @@ defmodule PosServerWeb.ProductCreateController do
 
   defp status_flag(value) when value in [1, "1", true, "true", "on"], do: 1
   defp status_flag(_), do: 0
+
+  defp image_timestamp(image_raw, now) when is_binary(image_raw) and image_raw != "", do: now
+  defp image_timestamp(_image_raw, _now), do: nil
 
   defp maybe_put_flag(product_attrs, key, attrs, formatter) do
     if Map.has_key?(attrs, key),

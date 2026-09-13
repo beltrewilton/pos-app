@@ -9,6 +9,7 @@ WITH catalog AS (
     product.img_path,
     product.date_create,
     product.image_raw,
+    product.image_updated_at,
     product.active,
     product.user_modified,
     product.archived,

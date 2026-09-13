@@ -27,6 +27,7 @@ defmodule PosServerWeb.PosLive do
         |> assign(:cursor, nil)
         |> assign(:has_more, true)
         |> assign(:loading_products, false)
+        |> assign(:product_image_versions, %{})
         |> assign(:product_search, "")
         |> assign(:catalog_view, "cards")
         |> assign(:cart, [])
@@ -118,6 +119,8 @@ defmodule PosServerWeb.PosLive do
         {:noreply, socket}
 
       product ->
+        product = product_with_image(product, socket.assigns.store_id)
+
         {:noreply,
          socket |> add_product(product) |> sync() |> push_event("pos:cart-bump", %{id: id})}
     end
@@ -569,6 +572,39 @@ defmodule PosServerWeb.PosLive do
   def handle_event("client_info", params, socket),
     do: {:noreply, assign(socket, :client_info, normalize_client_info(params))}
 
+  def handle_event("product_image_versions", %{"versions" => versions}, socket)
+      when is_map(versions) do
+    versions = normalize_product_image_versions(versions)
+
+    {:noreply,
+     socket
+     |> assign(:product_image_versions, versions)
+     |> update(:products, &Enum.map(&1, fn product -> cache_product_image(product, versions) end))}
+  end
+
+  def handle_event("product_image_versions", _params, socket), do: {:noreply, socket}
+
+  def handle_event("product_image_cache_miss", %{"products" => products}, socket)
+      when is_list(products) do
+    missing =
+      products
+      |> Enum.flat_map(fn
+        %{"id" => id, "version" => version} ->
+          case integer(id) do
+            value when value > 0 -> [{value, product_image_version(version)}]
+            _ -> []
+          end
+
+        _ ->
+          []
+      end)
+      |> MapSet.new()
+
+    {:noreply, refresh_product_images(socket, missing)}
+  end
+
+  def handle_event("product_image_cache_miss", _params, socket), do: {:noreply, socket}
+
   def handle_event("printer_result", %{"status" => "success"}, socket),
     do: {:noreply, assign(socket, :print_prompt, nil)}
 
@@ -803,7 +839,13 @@ defmodule PosServerWeb.PosLive do
           <button class="btn mobile-cart-trigger" type="button" phx-click="open_mobile_cart">
             <span data-i18n="pos.catalog.viewSale">View sale</span>
           </button>
-          <div id="product-grid" class="product-grid" aria-live="polite">
+          <div
+            id="product-grid"
+            class="product-grid"
+            aria-live="polite"
+            phx-hook="ProductImageCache"
+            data-tenant={@scope.tenant}
+          >
             <article
               :for={product <- visible_products(assigns)}
               class="card product"
@@ -819,16 +861,20 @@ defmodule PosServerWeb.PosLive do
               data-i18n-params={Jason.encode!(%{name: product.name})}
             >
               <img
-                :if={product.image_raw}
+                :if={product_has_image?(product)}
                 class="product-image"
-                src={image_source(product.image_raw)}
+                src={product_image_src(product)}
                 alt=""
                 loading="lazy"
+                hidden={is_nil(product.image_raw)}
+                data-product-image-id={product.id}
+                data-product-image-version={product_image_version(product.image_updated_at)}
               />
               <div
-                :if={!product.image_raw}
+                :if={not product_has_image?(product) or is_nil(product.image_raw)}
                 class="product-image product-image-placeholder"
                 aria-hidden="true"
+                data-product-image-placeholder={product.id}
               >
                 {String.first(product.name || "?")}
               </div>
@@ -879,16 +925,20 @@ defmodule PosServerWeb.PosLive do
                 >
                   <td class="table-cell product-table-product" data-label="Product">
                     <img
-                      :if={product.image_raw}
+                      :if={product_has_image?(product)}
                       class="product-table-image"
-                      src={image_source(product.image_raw)}
+                      src={product_image_src(product)}
                       alt=""
                       loading="lazy"
+                      hidden={is_nil(product.image_raw)}
+                      data-product-image-id={product.id}
+                      data-product-image-version={product_image_version(product.image_updated_at)}
                     />
                     <span
-                      :if={!product.image_raw}
+                      :if={not product_has_image?(product) or is_nil(product.image_raw)}
                       class="product-table-image product-table-image-placeholder"
                       aria-hidden="true"
+                      data-product-image-placeholder={product.id}
                     >
                       {String.first(product.name || "?")}
                     </span>
@@ -1825,7 +1875,8 @@ defmodule PosServerWeb.PosLive do
         socket
         |> assign(
           :products,
-          socket.assigns.products ++ Enum.map(page.entries, &normalize_product/1)
+          socket.assigns.products ++
+            Enum.map(page.entries, &normalize_product(&1, socket.assigns.product_image_versions))
         )
         |> assign(:cursor, page.next_cursor)
         |> assign(:has_more, page.has_more?)
@@ -1849,7 +1900,7 @@ defmodule PosServerWeb.PosLive do
         if MapSet.member?(changed, product.id) do
           case Sql.active_product(product.id, socket.assigns.store_id) do
             {:ok, nil} -> []
-            {:ok, fresh} -> [normalize_product(fresh)]
+            {:ok, fresh} -> [normalize_product(fresh, socket.assigns.product_image_versions)]
             {:error, _} -> [product]
           end
         else
@@ -1864,7 +1915,8 @@ defmodule PosServerWeb.PosLive do
       |> MapSet.difference(loaded_ids)
       |> Enum.flat_map(fn product_id ->
         case Sql.active_product(product_id, socket.assigns.store_id) do
-          {:ok, fresh} when is_map(fresh) -> [normalize_product(fresh)]
+          {:ok, fresh} when is_map(fresh) ->
+            [normalize_product(fresh, socket.assigns.product_image_versions)]
           _ -> []
         end
       end)
@@ -1916,7 +1968,7 @@ defmodule PosServerWeb.PosLive do
     Enum.flat_map(lines, fn line ->
       with product_id when product_id > 0 <- integer(value(line, :id) || value(line, :product_id)),
            {:ok, product} when is_map(product) <- Sql.active_product(product_id, store_id) do
-        product = normalize_product(product)
+        product = normalize_product(product, %{})
 
         [
           %{
@@ -2011,6 +2063,7 @@ defmodule PosServerWeb.PosLive do
                 sub: float(p.sub),
                 tax: float(p.tax),
                 image_raw: p.image_raw,
+                image_updated_at: p.image_updated_at,
                 qty: 1,
                 discount: 0.0,
                 discount_type: "amount"
@@ -2408,6 +2461,73 @@ defmodule PosServerWeb.PosLive do
   defp image_source("data:image/" <> _ = source), do: source
   defp image_source(source), do: "data:image/jpeg;base64,#{source}"
 
+  defp product_image_src(%{image_raw: image}) when is_binary(image) and image != "",
+    do: image_source(image)
+
+  defp product_image_src(_product), do: nil
+
+  defp product_has_image?(product),
+    do: nonempty_string?(value(product, :image_raw)) or not is_nil(value(product, :image_updated_at))
+
+  defp product_image_version(%NaiveDateTime{} = value), do: NaiveDateTime.to_iso8601(value)
+  defp product_image_version(value) when is_binary(value), do: value
+  defp product_image_version(_value), do: nil
+
+  defp normalize_product_image_versions(versions) do
+    versions
+    |> Enum.flat_map(fn {id, version} ->
+      case integer(id) do
+        value when value > 0 ->
+          case product_image_version(version) do
+            version when is_binary(version) and version != "" -> [{value, version}]
+            _ -> []
+          end
+
+        _ ->
+          []
+      end
+    end)
+    |> Map.new()
+  end
+
+  defp cache_product_image(%{id: id, image_updated_at: version} = product, known_versions)
+       when is_map(known_versions) do
+    if is_binary(version) and Map.get(known_versions, id) == version,
+      do: %{product | image_raw: nil},
+      else: product
+  end
+
+  defp cache_product_image(product, _known_versions), do: product
+
+  defp refresh_product_images(socket, missing) do
+    if MapSet.size(missing) == 0 do
+      socket
+    else
+      update(socket, :products, fn products ->
+        Enum.map(products, fn product ->
+          if MapSet.member?(missing, {product.id, product.image_updated_at}) do
+            product_with_image(product, socket.assigns.store_id)
+          else
+            product
+          end
+        end)
+      end)
+    end
+  end
+
+  defp product_with_image(%{image_raw: image} = product, _store_id)
+       when is_binary(image) and image != "",
+    do: product
+
+  defp nonempty_string?(value), do: is_binary(value) and value != ""
+
+  defp product_with_image(product, store_id) do
+    case Sql.active_product(product.id, store_id) do
+      {:ok, fresh} when is_map(fresh) -> normalize_product(fresh, %{})
+      _ -> product
+    end
+  end
+
   defp active_store_name(assigns),
     do:
       Enum.find_value(assigns.stores, "", fn store ->
@@ -2451,17 +2571,21 @@ defmodule PosServerWeb.PosLive do
       else: min(entered, base)
   end
 
-  defp normalize_product(product) do
+  defp normalize_product(product), do: normalize_product(product, %{})
+
+  defp normalize_product(product, known_versions) do
     %{
       id: value(product, :id),
       name: value(product, :name),
       code: value(product, :code),
       image_raw: value(product, :image_raw),
+      image_updated_at: product_image_version(value(product, :image_updated_at)),
       inventory_quantity: value(product, :inventory_quantity),
       price: value(product, :price),
       sub: value(product, :sub),
       tax: value(product, :tax)
     }
+    |> cache_product_image(known_versions)
   end
 
   defp normalize_customer(customer) do

@@ -33,6 +33,7 @@ defmodule PosServer.Retaily.ProductCatalog do
             code: attrs.code,
             cost: attrs.cost,
             image_raw: attrs.image_raw,
+            image_updated_at: image_timestamp(attrs.image_raw, now),
             active: status_flag(Map.get(attrs, :active, true)),
             user_modified: username,
             date_create: now,
@@ -84,6 +85,7 @@ defmodule PosServer.Retaily.ProductCatalog do
          code: product.code,
          cost: permitted_cost(scope, product.cost),
          image_raw: product.image_raw,
+         image_updated_at: product.image_updated_at,
          active: product.active,
          archived: product.archived,
          prices: prices
@@ -109,9 +111,13 @@ defmodule PosServer.Retaily.ProductCatalog do
       }
 
       product_attrs =
-        if is_binary(attrs.image_raw),
-          do: Map.put(product_attrs, :image_raw, attrs.image_raw),
-          else: product_attrs
+        if is_binary(attrs.image_raw) and attrs.image_raw != product.image_raw do
+          product_attrs
+          |> Map.put(:image_raw, attrs.image_raw)
+          |> Map.put(:image_updated_at, image_timestamp(attrs.image_raw, now))
+        else
+          product_attrs
+        end
 
       product_attrs =
         attrs
@@ -188,6 +194,9 @@ defmodule PosServer.Retaily.ProductCatalog do
 
   defp archived_flag(value) when value in [1, "1", true, "true", "on"], do: "1"
   defp archived_flag(_), do: "0"
+
+  defp image_timestamp(image_raw, now) when is_binary(image_raw) and image_raw != "", do: now
+  defp image_timestamp(_image_raw, _now), do: nil
 
   defp store_ids(tenant), do: Repo.all(from(store in Store, select: store.id), prefix: tenant)
 
