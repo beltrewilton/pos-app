@@ -193,7 +193,6 @@ const hooks = {
     mounted() {
       installPrinterEvents(this)
       installPrintRelay(this)
-      installPrinterStatus(this.el.querySelector("[data-printer-status]"))
       installNetworkStatus(this.el.querySelector("[data-network-status]"))
       this.draftKey = posDraftKey(this.el)
       const draft = readStoredJson(this.draftKey)
@@ -236,7 +235,6 @@ const hooks = {
     },
     destroyed() {
       uninstallPrintRelay(this)
-      uninstallPrinterStatus(this.el.querySelector("[data-printer-status]"))
       uninstallNetworkStatus(this.el.querySelector("[data-network-status]"))
       document.removeEventListener("keydown", this.onKeydown)
       this.el.removeEventListener("click", this.onClick)
@@ -602,6 +600,7 @@ function createLiveViewPrintRelay({token, storeId, onRequest}) {
   const socket = new Socket("/socket", {params: {token}})
   let presence = {}
   const pending = new Map()
+  let lastPrinterMeta = null
   const channel = socket.channel(`print-relay:${storeId}`, {
     device: relayDevice(),
     session_id: printRelaySessionId(),
@@ -614,7 +613,10 @@ function createLiveViewPrintRelay({token, storeId, onRequest}) {
   const updatePrinter = async () => {
     if (relayDevice() !== "desktop" || channel.state !== "joined") return
     await receiptPrinter.refreshStatus().catch(() => false)
-    channel.push("printer_status", desktopPrinterMeta()).receive("ok", response => syncTargets(response.targets))
+    const meta = desktopPrinterMeta()
+    if (samePrinterMeta(lastPrinterMeta, meta)) return
+    lastPrinterMeta = meta
+    channel.push("printer_status", meta).receive("ok", response => syncTargets(response.targets))
   }
 
   channel.on("presence_state", state => {
@@ -650,6 +652,7 @@ function createLiveViewPrintRelay({token, storeId, onRequest}) {
       receiptPrinter.removeEventListener("status", updatePrinter)
       window.removeEventListener("focus", updatePrinter)
       document.removeEventListener("visibilitychange", updatePrinter)
+      pending.clear()
       channel.leave()
       socket.disconnect()
     },
@@ -683,6 +686,13 @@ function createLiveViewPrintRelay({token, storeId, onRequest}) {
   }
 }
 
+function samePrinterMeta(left, right) {
+  if (!left || !right) return false
+  return left.label === right.label &&
+    left.printer === right.printer &&
+    left.printer_online === right.printer_online
+}
+
 function shouldRelayPrint() {
   const mobileSize = window.matchMedia?.("(max-width: 767px)")?.matches
   return mobileSize || !navigator.usb || receiptPrinter.state !== "connected"
@@ -702,10 +712,10 @@ function desktopPrinterMeta() {
 }
 
 function printRelaySessionId() {
-  const existing = getStoredValue(PRINT_RELAY_SESSION_KEY)
+  const existing = getSessionValue(PRINT_RELAY_SESSION_KEY)
   if (existing) return existing
   const id = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`
-  setStoredValue(PRINT_RELAY_SESSION_KEY, id)
+  setSessionValue(PRINT_RELAY_SESSION_KEY, id)
   return id
 }
 
@@ -743,6 +753,22 @@ function setStoredValue(key, value) {
   try {
     if (value === null || value === undefined || value === "") localStorage.removeItem(key)
     else localStorage.setItem(key, String(value))
+  } catch {
+  }
+}
+
+function getSessionValue(key) {
+  try {
+    return sessionStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
+function setSessionValue(key, value) {
+  try {
+    if (value === null || value === undefined || value === "") sessionStorage.removeItem(key)
+    else sessionStorage.setItem(key, String(value))
   } catch {
   }
 }

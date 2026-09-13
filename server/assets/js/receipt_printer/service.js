@@ -74,7 +74,7 @@ export class ReceiptPrinterService extends EventTarget {
       await this.transport.open(device)
       this.connected(this.transport.deviceInfo())
     }
-    else this.setState("connected", this.device)
+    else if (!sameDeviceInfo(this.device, this.transport.deviceInfo())) this.connected(this.transport.deviceInfo())
     return this.state === "connected"
   }
 
@@ -148,9 +148,21 @@ export class ReceiptPrinterService extends EventTarget {
   }
 
   setState(state, detail = {}) {
+    if (this.state === state && sameDeviceInfo(this.device, detail)) return
     this.state = state
     this.dispatchEvent(new CustomEvent("status", {detail: {state, device: this.device, ...detail}}))
   }
 }
 
 export const receiptPrinter = new ReceiptPrinterService()
+
+function sameDeviceInfo(left, right) {
+  if (!left && !right) return true
+  if (!left || !right) return false
+  return left.type === right.type &&
+    left.vendorId === right.vendorId &&
+    left.productId === right.productId &&
+    left.serialNumber === right.serialNumber &&
+    left.productName === right.productName &&
+    left.manufacturerName === right.manufacturerName
+}

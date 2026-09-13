@@ -73,7 +73,9 @@ defmodule PosServerWeb.SystemChannel do
           user: relay.user
         }
 
-        {:ok, _} = Presence.update(self(), relay.topic, relay.session_id, fn _ -> meta end)
+        unless same_presence_meta?(relay.topic, relay.session_id, meta) do
+          {:ok, _} = Presence.update(self(), relay.topic, relay.session_id, fn _ -> meta end)
+        end
 
         {:reply,
          {:ok, %{targets: PrintRelay.available_desktops(socket.assigns.tenant, relay.store_id)}},
@@ -196,4 +198,16 @@ defmodule PosServerWeb.SystemChannel do
   defp allowed_store?(scope, store_id), do: Scope.admin?(scope) or store_id in scope.store_ids
   defp device_label("desktop"), do: "Desktop Tauri"
   defp device_label(_), do: "Mobile POS"
+
+  defp same_presence_meta?(topic, session_id, meta) do
+    case Presence.get_by_key(topic, session_id) do
+      %{metas: metas} ->
+        Enum.any?(metas, fn current ->
+          Enum.all?(meta, fn {key, value} -> Map.get(current, key) == value end)
+        end)
+
+      _ ->
+        false
+    end
+  end
 end
