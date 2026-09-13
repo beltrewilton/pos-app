@@ -856,6 +856,10 @@ function pushClientInfo(hook) {
 }
 
 function printRelayPush(channel, event, payload) {
+  if (!channel) {
+    printDebug("channel.push:missing-channel", {event, payload})
+    return null
+  }
   printDebug("channel.push", {topic: channel.topic, event, payload})
   return channel.push(event, payload)
 }
@@ -882,9 +886,22 @@ function printRelayTargets(presence) {
 
 function handleRemotePrintRequest(hook, payload) {
   const job = payload.job || {request_id: payload.request_id, receipt: payload.receipt}
+  printDebug("remotePrint:job", {requestId: payload.request_id, job})
   return printJob(job)
-    .then(() => hook.printRelay?.channel.push("print_result", {request_id: payload.request_id, status: "success"}))
-    .catch(error => hook.printRelay?.channel.push("print_result", {request_id: payload.request_id, status: "failed", message: error.message}))
+    .then(() => {
+      printDebug("remotePrint:success", {requestId: payload.request_id})
+      return printRelayPush(hook.printRelay?.channel, "print_result", {request_id: payload.request_id, status: "success"})
+        ?.receive("ok", response => printDebug("remotePrint:resultAck", response))
+        ?.receive("error", response => printDebug("remotePrint:resultError", response))
+        ?.receive("timeout", () => printDebug("remotePrint:resultTimeout", {requestId: payload.request_id}))
+    })
+    .catch(error => {
+      printDebug("remotePrint:failed", {requestId: payload.request_id, message: error.message})
+      return printRelayPush(hook.printRelay?.channel, "print_result", {request_id: payload.request_id, status: "failed", message: error.message})
+        ?.receive("ok", response => printDebug("remotePrint:failedAck", response))
+        ?.receive("error", response => printDebug("remotePrint:failedError", response))
+        ?.receive("timeout", () => printDebug("remotePrint:failedTimeout", {requestId: payload.request_id}))
+    })
 }
 
 function printJob(payload) {

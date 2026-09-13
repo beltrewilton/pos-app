@@ -42,11 +42,13 @@ defmodule PosServerWeb.SystemChannel do
   end
 
   def handle_info({:print_request, payload}, socket) do
+    IO.warn("print relay request pushed to desktop session=#{inspect(socket.assigns[:print_relay] && socket.assigns.print_relay.session_id)} request_id=#{inspect(payload[:request_id] || payload[\"request_id\"])}")
     push(socket, "print_request", payload)
     {:noreply, socket}
   end
 
   def handle_info({:print_result, payload}, socket) do
+    IO.warn("print relay result pushed to requester request_id=#{inspect(payload[\"request_id\"] || payload[:request_id])} status=#{inspect(payload[\"status\"] || payload[:status])}")
     push(socket, "print_result", payload)
     {:noreply, socket}
   end
@@ -115,6 +117,8 @@ defmodule PosServerWeb.SystemChannel do
       when is_binary(request_id) and status in ["success", "failed"] do
     case socket.assigns[:print_relay] do
       %{device: "desktop"} = relay ->
+        IO.warn("print relay result received from desktop session=#{inspect(relay.session_id)} request_id=#{inspect(request_id)} status=#{inspect(status)}")
+
         Phoenix.PubSub.broadcast(
           PosServer.PubSub,
           PrintRelay.result_topic(socket.assigns.tenant, relay.store_id, request_id),
@@ -137,6 +141,8 @@ defmodule PosServerWeb.SystemChannel do
     relay = socket.assigns[:print_relay]
 
     if relay && PrintRelay.available_desktop?(socket.assigns.tenant, relay.store_id, target) do
+      IO.warn("print relay queue request_id=#{inspect(request_id)} requester=#{inspect(relay.session_id)} target=#{inspect(target)}")
+
       Phoenix.PubSub.subscribe(
         PosServer.PubSub,
         PrintRelay.result_topic(socket.assigns.tenant, relay.store_id, request_id)
