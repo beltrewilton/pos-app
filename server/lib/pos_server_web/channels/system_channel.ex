@@ -127,7 +127,10 @@ defmodule PosServerWeb.SystemChannel do
     end
   end
 
-  def handle_in(_, _, socket), do: {:reply, {:error, %{reason: "unsupported_event"}}, socket}
+  def handle_in(event, payload, socket) do
+    IO.warn("unsupported print relay event=#{inspect(event)} payload=#{inspect(payload)}")
+    {:reply, {:error, %{reason: "unsupported_event", event: event}}, socket}
+  end
 
   defp relay_print_request(socket, request_id, target, payload) do
     relay = socket.assigns[:print_relay]

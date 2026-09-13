@@ -626,6 +626,7 @@ function syncMobileCartState(root, mobileViewport) {
 function installPrintRelay(hook) {
   const token = hook.el.dataset.printRelayToken
   const storeId = hook.el.dataset.storeId
+  printDebug("installPrintRelay", {hasToken: Boolean(token), storeId, client: clientDeviceInfo(), printer: receiptPrinter.statusDetail()})
   if (!token || !storeId) return
 
   hook.printRelayToken = token
@@ -642,12 +643,14 @@ function installPrintRelay(hook) {
 function updatePrintRelay(hook) {
   const token = hook.el.dataset.printRelayToken
   const storeId = hook.el.dataset.storeId
+  printDebug("updatePrintRelay", {storeId, previousStoreId: hook.printRelayStoreId, tokenChanged: token !== hook.printRelayToken})
   if (token === hook.printRelayToken && storeId === hook.printRelayStoreId) return
   uninstallPrintRelay(hook)
   installPrintRelay(hook)
 }
 
 function uninstallPrintRelay(hook) {
+  printDebug("uninstallPrintRelay", {storeId: hook.printRelayStoreId, hasRelay: Boolean(hook.printRelay)})
   if (activePrintRelay === hook.printRelay) activePrintRelay = null
   hook.printRelay?.close()
   hook.printRelay = null
@@ -656,29 +659,43 @@ function uninstallPrintRelay(hook) {
 }
 
 function createLiveViewPrintRelay({token, storeId, onRequest}) {
-  const socket = new Socket("/socket", {params: {token}})
+  const socket = new Socket("/socket", {
+    params: {token},
+    logger: (kind, message, data) => printDebug("phoenix-socket", {kind, message, data})
+  })
   let presence = {}
   const pending = new Map()
   let lastPrinterMeta = null
-  const channel = socket.channel(`print-relay:${storeId}`, {
+  const joinPayload = {
     device: relayDevice(),
     session_id: printRelaySessionId(),
     ...clientDeviceInfo(),
     ...desktopPrinterMeta()
-  })
+  }
+  printDebug("createLiveViewPrintRelay", {storeId, joinPayload, printer: receiptPrinter.statusDetail()})
+  const channel = socket.channel(`print-relay:${storeId}`, joinPayload)
   const relay = {socket, channel, targets: []}
   const syncTargets = targets => {
     relay.targets = [...(targets || [])].sort((a, b) => String(a.session_id).localeCompare(String(b.session_id)))
+    printDebug("syncTargets", {count: relay.targets.length, targets: relay.targets})
   }
   const publishPrinter = () => {
+    printDebug("publishPrinter:attempt", {channelState: channel.state, localCapability: hasLocalPrinterCapability(), canPrintLocally: canPrintLocally(), status: receiptPrinter.statusDetail()})
     if (!hasLocalPrinterCapability() || channel.state !== "joined") return
     const meta = desktopPrinterMeta()
     if (samePrinterMeta(lastPrinterMeta, meta)) return
     lastPrinterMeta = meta
-    channel.push("printer_status", meta).receive("ok", response => syncTargets(response.targets))
+    printRelayPush(channel, "printer_status", meta)
+      .receive("ok", response => {
+        printDebug("printer_status:ok", response)
+        syncTargets(response.targets)
+      })
+      .receive("error", response => printDebug("printer_status:error", response))
+      .receive("timeout", () => printDebug("printer_status:timeout"))
   }
   const refreshPrinter = async () => {
     if (document.hidden) return
+    printDebug("refreshPrinter:attempt", {channelState: channel.state, localCapability: hasLocalPrinterCapability(), connected: receiptPrinter.isConnected()})
     if (!hasLocalPrinterCapability() || channel.state !== "joined") return
     if (receiptPrinter.isConnected()) {
       publishPrinter()
@@ -689,15 +706,21 @@ function createLiveViewPrintRelay({token, storeId, onRequest}) {
   }
 
   channel.on("presence_state", state => {
+    printDebug("presence_state", state)
     presence = Presence.syncState(presence, state)
     syncTargets(printRelayTargets(presence))
   })
   channel.on("presence_diff", diff => {
+    printDebug("presence_diff", diff)
     presence = Presence.syncDiff(presence, diff)
     syncTargets(printRelayTargets(presence))
   })
-  channel.on("print_request", onRequest)
+  channel.on("print_request", payload => {
+    printDebug("print_request:received", payload)
+    onRequest(payload)
+  })
   channel.on("print_result", payload => {
+    printDebug("print_result:received", payload)
     const callback = pending.get(payload.request_id)
     if (!callback) return
     pending.delete(payload.request_id)
@@ -709,15 +732,22 @@ function createLiveViewPrintRelay({token, storeId, onRequest}) {
 
   return {
     connect() {
+      printDebug("relay.connect", {storeId, joinPayload})
       socket.connect()
       channel.join()
         .receive("ok", response => {
+          printDebug("relay.join:ok", response)
           syncTargets(response.targets)
           refreshPrinter()
         })
-        .receive("error", error => console.warn("[printer] print relay unavailable", error))
+        .receive("error", error => {
+          printDebug("relay.join:error", error)
+          console.warn("[printer] print relay unavailable", error)
+        })
+        .receive("timeout", () => printDebug("relay.join:timeout"))
     },
     close() {
+      printDebug("relay.close", {storeId, channelState: channel.state})
       receiptPrinter.removeEventListener("status", publishPrinter)
       window.removeEventListener("focus", refreshPrinter)
       document.removeEventListener("visibilitychange", refreshPrinter)
@@ -726,6 +756,7 @@ function createLiveViewPrintRelay({token, storeId, onRequest}) {
       socket.disconnect()
     },
     async print(payload) {
+      printDebug("relay.print:attempt", {payload, targets: relay.targets, local: {capability: hasLocalPrinterCapability(), connected: receiptPrinter.isConnected()}})
       if (relay.targets.length === 0) throw new Error("No desktop receipt printer is available for this store.")
       const target = relay.targets[0]
       const requestId = payload.request_id || `print-${Date.now()}`
@@ -739,15 +770,18 @@ function createLiveViewPrintRelay({token, storeId, onRequest}) {
           if (result.status === "success") resolve(result)
           else reject(new Error(result.message || "Remote print failed."))
         })
-        channel.push("print", {request_id: requestId, target_session_id: target.session_id, job: payload})
+        printRelayPush(channel, "print", {request_id: requestId, target_session_id: target.session_id, job: payload})
+          .receive("ok", response => printDebug("relay.print:queued", response))
           .receive("error", response => {
             clearTimeout(timeout)
             pending.delete(requestId)
+            printDebug("relay.print:error", response)
             reject(new Error(response.reason || "Remote print request failed."))
           })
           .receive("timeout", () => {
             clearTimeout(timeout)
             pending.delete(requestId)
+            printDebug("relay.print:timeout", {requestId})
             reject(new Error("Remote print request timed out."))
           })
       })
@@ -763,7 +797,9 @@ function samePrinterMeta(left, right) {
 }
 
 function shouldRelayPrint() {
-  return !canPrintLocally()
+  const relay = !canPrintLocally()
+  printDebug("shouldRelayPrint", {relay, localCapability: hasLocalPrinterCapability(), connected: receiptPrinter.isConnected(), client: clientDeviceInfo()})
+  return relay
 }
 
 function relayDevice() {
@@ -814,7 +850,18 @@ function clientDeviceInfo() {
 function pushClientInfo(hook) {
   if (hook.clientInfoPushed) return
   hook.clientInfoPushed = true
-  hook.pushEvent("client_info", clientDeviceInfo())
+  const info = clientDeviceInfo()
+  printDebug("pushClientInfo", info)
+  hook.pushEvent("client_info", info)
+}
+
+function printRelayPush(channel, event, payload) {
+  printDebug("channel.push", {topic: channel.topic, event, payload})
+  return channel.push(event, payload)
+}
+
+function printDebug(message, detail = {}) {
+  console.log(`[print-relay] ${message}`, detail)
 }
 
 function printRelaySessionId() {
