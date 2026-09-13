@@ -151,7 +151,9 @@ defmodule PosServerWeb.CashReconciliationLive do
             <h2 id="reconciliation-preview-title" class="h3">Receipt</h2>
           </div>
         </header>
-        <pre class="receipt-preview">{receipt_text(@receipt)}</pre>
+        <div class="receipt-preview-scroll">
+          <pre class="receipt-preview">{receipt_text(@receipt)}</pre>
+        </div>
       </aside>
 
       <.print_dialog :if={@print_prompt} prompt={@print_prompt} />

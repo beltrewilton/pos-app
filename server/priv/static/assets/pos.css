@@ -721,11 +721,16 @@
 .reconciliation-totals {
   margin-bottom: 0;
 }
+.receipt-preview-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: calc(100dvh - 150px);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
 .receipt-preview {
   width: 100%;
-  flex: 1;
-  max-height: calc(100vh - 150px);
-  min-height: 0;
+  min-height: 100%;
   margin: 0;
   padding: 18px 0 0;
   border: 1px solid var(--border);
@@ -736,8 +741,7 @@
   font-size: 0.78rem;
   line-height: 1.45;
   white-space: pre-wrap;
-  overflow: auto;
-  overscroll-behavior: contain;
+  overflow: hidden;
 }
 .inventory-checkbox-label {
   display: inline-flex;

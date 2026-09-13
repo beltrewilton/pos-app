@@ -663,6 +663,49 @@ button {
 .mobile-cart-count {
   display: none;
 }
+.reconciliation-panel {
+  display: grid;
+  align-content: start;
+  gap: 24px;
+}
+.reconciliation-controls {
+  display: grid;
+  gap: 18px;
+  max-width: 760px;
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+}
+.reconciliation-receipt-panel {
+  gap: 18px;
+  overflow: hidden;
+}
+.reconciliation-totals {
+  margin-bottom: 0;
+}
+.receipt-preview-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: calc(100dvh - 150px);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.receipt-preview {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  padding: 18px 0 0;
+  border: 1px solid var(--border);
+  border-width: 1px 0 0;
+  background: transparent;
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow: hidden;
+}
 .products-status {
   margin: 0;
   min-height: 19px;
@@ -2923,6 +2966,19 @@ dialog#customer-purchases-dialog .dialog-content {
 
   .order-panel.is-mobile-open {
     transform: translateY(0);
+    visibility: visible;
+  }
+
+  .reconciliation-receipt-panel {
+    position: static;
+    display: flex;
+    grid-column: 1;
+    grid-row: auto;
+    width: auto;
+    height: min(70dvh, 720px);
+    min-height: 420px;
+    padding-top: 22px;
+    transform: none;
     visibility: visible;
   }
 
