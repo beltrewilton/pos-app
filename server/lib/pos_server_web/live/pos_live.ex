@@ -756,8 +756,9 @@ defmodule PosServerWeb.PosLive do
         </div>
       </:before_layout>
       <section
-        class="catalog-panel"
+        class={["catalog-panel", if(pos_content_loading?(assigns), do: "is-content-loading")]}
         data-view={pos_mobile_view(assigns)}
+        data-loading={if(pos_content_loading?(assigns), do: "true", else: "false")}
         aria-labelledby="pos-title"
       >
         <div :if={is_nil(@checkout_stage) and @dialog != :customer_picker} class="catalog-content">
@@ -1378,11 +1379,16 @@ defmodule PosServerWeb.PosLive do
       </section>
       <aside
         id="order-panel"
-        class={["order-panel", if(@mobile_cart_open, do: "is-mobile-open")]}
+        class={[
+          "order-panel",
+          if(@mobile_cart_open, do: "is-mobile-open"),
+          if(pos_content_loading?(assigns), do: "is-content-loading")
+        ]}
         phx-hook="CartAmounts"
         data-order-discount={@order_discount}
         data-order-discount-type={@order_discount_type}
         data-delivery={@delivery}
+        data-loading={if(pos_content_loading?(assigns), do: "true", else: "false")}
         aria-labelledby="order-title"
       >
         <header class="order-header">
@@ -2538,6 +2544,8 @@ defmodule PosServerWeb.PosLive do
       true -> "#{length(assigns.products)} products loaded"
     end
   end
+
+  defp pos_content_loading?(assigns), do: assigns.loading_products and assigns.products == []
 
   defp image_source("data:image/" <> _ = source), do: source
   defp image_source(source), do: "data:image/jpeg;base64,#{source}"
