@@ -32,6 +32,7 @@ const POS_STORE_KEY = "pos-selected-store-id"
 const POS_DRAFT_KEY_PREFIX = "pos-sale-draft"
 const POS_CATALOG_VIEW_KEY = "pos-catalog-view"
 const PRINT_RELAY_SESSION_KEY = "pos.printRelay.sessionId"
+let activePrintRelay = null
 
 const hooks = {
   LoginScreen: window.LoginScreenHook,
@@ -86,7 +87,6 @@ const hooks = {
   InvoiceReport: {
     mounted() {
       installPrinterEvents(this)
-      installPrintRelay(this)
       this.fixed = this.el.querySelector(".invoice-report-fixed")
       this.syncStickyOffset = () => this.el.querySelector("#invoice-report")?.style.setProperty("--invoice-fixed-height", `${this.fixed?.offsetHeight || 0}px`)
       this.resizeObserver = new ResizeObserver(this.syncStickyOffset)
@@ -103,7 +103,6 @@ const hooks = {
       translatePage(this.el)
     },
     destroyed() {
-      uninstallPrintRelay(this)
       this.resizeObserver?.disconnect()
       document.removeEventListener("pointerdown", this.onPointerDown)
     }
@@ -158,12 +157,31 @@ const hooks = {
       uninstallPrinterStatus(this.el)
     }
   },
+  PrinterSession: {
+    mounted() {
+      installPrinterSession(this.el)
+    },
+    destroyed() {
+      uninstallPrinterSession(this.el)
+    }
+  },
   NetworkStatus: {
     mounted() {
       installNetworkStatus(this.el)
     },
     destroyed() {
       uninstallNetworkStatus(this.el)
+    }
+  },
+  PrintRelay: {
+    mounted() {
+      installPrintRelay(this)
+    },
+    updated() {
+      updatePrintRelay(this)
+    },
+    destroyed() {
+      uninstallPrintRelay(this)
     }
   },
   CreditDueDateForm: {
@@ -192,8 +210,6 @@ const hooks = {
   PosShell: {
     mounted() {
       installPrinterEvents(this)
-      installPrintRelay(this)
-      installNetworkStatus(this.el.querySelector("[data-network-status]"))
       this.draftKey = posDraftKey(this.el)
       const draft = readStoredJson(this.draftKey)
       if (draft) this.pushEvent("restore_pos_draft", draft)
@@ -228,8 +244,6 @@ const hooks = {
       translatePage(this.el)
     },
     destroyed() {
-      uninstallPrintRelay(this)
-      uninstallNetworkStatus(this.el.querySelector("[data-network-status]"))
       document.removeEventListener("keydown", this.onKeydown)
       this.el.removeEventListener("click", this.onClick)
       this.mobileCartMedia?.removeEventListener?.("change", this.syncMobileCartState)
@@ -453,19 +467,9 @@ function installPrinterStatus(element) {
     } catch (error) {
     }
   }
-  element.printerStatusRefreshHandler = () => {
-    if (document.hidden) return
-    receiptPrinter.refreshStatus().catch(() => {})
-  }
   receiptPrinter.addEventListener("status", element.printerStatusHandler)
   element.addEventListener("click", element.printerStatusClickHandler)
-  window.addEventListener("focus", element.printerStatusRefreshHandler)
-  document.addEventListener("visibilitychange", element.printerStatusRefreshHandler)
-  navigator.usb?.addEventListener("connect", element.printerStatusRefreshHandler)
-  navigator.usb?.addEventListener("disconnect", element.printerStatusRefreshHandler)
   element.printerStatusHandler({detail: {state: receiptPrinter.state, device: receiptPrinter.device}})
-  element.printerStatusRefreshHandler()
-  element.printerStatusInterval = setInterval(element.printerStatusRefreshHandler, 5_000)
 }
 
 function uninstallPrinterStatus(element) {
@@ -474,16 +478,38 @@ function uninstallPrinterStatus(element) {
   if (element.printerStatusInstallCount > 0) return
   receiptPrinter.removeEventListener("status", element.printerStatusHandler)
   element.removeEventListener("click", element.printerStatusClickHandler)
-  window.removeEventListener("focus", element.printerStatusRefreshHandler)
-  document.removeEventListener("visibilitychange", element.printerStatusRefreshHandler)
-  navigator.usb?.removeEventListener("connect", element.printerStatusRefreshHandler)
-  navigator.usb?.removeEventListener("disconnect", element.printerStatusRefreshHandler)
-  clearInterval(element.printerStatusInterval)
   delete element.printerStatusHandler
   delete element.printerStatusClickHandler
-  delete element.printerStatusRefreshHandler
-  delete element.printerStatusInterval
   delete element.printerStatusInstallCount
+}
+
+function installPrinterSession(element) {
+  if (!element || element.printerSessionInstalled) return
+  element.printerSessionInstalled = true
+  element.printerSessionRefreshHandler = () => {
+    if (document.hidden || receiptPrinter.state === "connected" || receiptPrinter.state === "connecting") return
+    receiptPrinter.reconnect().catch(() => {})
+  }
+  element.printerSessionUsbDisconnectHandler = () => {
+    if (receiptPrinter.state !== "connected") return
+    receiptPrinter.refreshStatus().catch(() => {})
+  }
+  window.addEventListener("focus", element.printerSessionRefreshHandler)
+  document.addEventListener("visibilitychange", element.printerSessionRefreshHandler)
+  navigator.usb?.addEventListener("connect", element.printerSessionRefreshHandler)
+  navigator.usb?.addEventListener("disconnect", element.printerSessionUsbDisconnectHandler)
+  element.printerSessionRefreshHandler()
+}
+
+function uninstallPrinterSession(element) {
+  if (!element?.printerSessionInstalled) return
+  window.removeEventListener("focus", element.printerSessionRefreshHandler)
+  document.removeEventListener("visibilitychange", element.printerSessionRefreshHandler)
+  navigator.usb?.removeEventListener("connect", element.printerSessionRefreshHandler)
+  navigator.usb?.removeEventListener("disconnect", element.printerSessionUsbDisconnectHandler)
+  delete element.printerSessionRefreshHandler
+  delete element.printerSessionUsbDisconnectHandler
+  delete element.printerSessionInstalled
 }
 
 function networkStatusLabel(state) {
@@ -564,7 +590,7 @@ function installPrinterEvents(hook) {
   })
   hook.printWithResult = async (requestId, payload, operation) => {
     try {
-      if (shouldRelayPrint() && hook.printRelay) await hook.printRelay.print(payload)
+      if (shouldRelayPrint() && activePrintRelay) await activePrintRelay.print(payload)
       else await operation()
       if (requestId) hook.pushEvent("printer_result", {request_id: requestId, status: "success"})
     } catch (error) {
@@ -594,17 +620,31 @@ function installPrintRelay(hook) {
   const storeId = hook.el.dataset.storeId
   if (!token || !storeId) return
 
+  hook.printRelayToken = token
+  hook.printRelayStoreId = storeId
   hook.printRelay = createLiveViewPrintRelay({
     token,
     storeId,
     onRequest: payload => handleRemotePrintRequest(hook, payload)
   })
   hook.printRelay.connect()
+  activePrintRelay = hook.printRelay
+}
+
+function updatePrintRelay(hook) {
+  const token = hook.el.dataset.printRelayToken
+  const storeId = hook.el.dataset.storeId
+  if (token === hook.printRelayToken && storeId === hook.printRelayStoreId) return
+  uninstallPrintRelay(hook)
+  installPrintRelay(hook)
 }
 
 function uninstallPrintRelay(hook) {
+  if (activePrintRelay === hook.printRelay) activePrintRelay = null
   hook.printRelay?.close()
   hook.printRelay = null
+  hook.printRelayToken = null
+  hook.printRelayStoreId = null
 }
 
 function createLiveViewPrintRelay({token, storeId, onRequest}) {
@@ -631,7 +671,11 @@ function createLiveViewPrintRelay({token, storeId, onRequest}) {
   const refreshPrinter = async () => {
     if (document.hidden) return
     if (relayDevice() !== "desktop" || channel.state !== "joined") return
-    await receiptPrinter.refreshStatus().catch(() => false)
+    if (receiptPrinter.state === "connected") {
+      publishPrinter()
+      return
+    }
+    await receiptPrinter.reconnect().catch(() => false)
     publishPrinter()
   }
 

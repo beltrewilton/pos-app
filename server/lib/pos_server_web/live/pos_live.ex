@@ -271,7 +271,6 @@ defmodule PosServerWeb.PosLive do
        )
        |> assign(:dialog, nil)
        |> assign(:checkout_stage, nil)
-       |> assign(:mobile_cart_open, true)
        |> sync()}
 
   def handle_event("clear_customer", _, %{assigns: %{checkout_stage: stage}} = socket)

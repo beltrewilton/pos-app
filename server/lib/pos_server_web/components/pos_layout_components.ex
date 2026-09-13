@@ -32,6 +32,22 @@ defmodule PosServerWeb.PosLayoutComponents do
         hidden
       >
       </span>
+      <span
+        id={"#{@id}-print-relay"}
+        phx-hook="PrintRelay"
+        phx-update="ignore"
+        data-store-id={@store_id}
+        data-print-relay-token={@print_relay_token}
+        hidden
+      >
+      </span>
+      <span
+        id={"#{@id}-printer-session"}
+        phx-hook="PrinterSession"
+        phx-update="ignore"
+        hidden
+      >
+      </span>
       {render_slot(@before_layout)}
       <details class="mobile-nav-menu">
         <summary class="mobile-nav-trigger" aria-label="Open navigation">
