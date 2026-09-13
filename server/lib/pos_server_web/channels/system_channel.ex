@@ -106,28 +106,6 @@ defmodule PosServerWeb.SystemChannel do
     relay_print_request(socket, request_id, target, %{job: job})
   end
 
-  defp relay_print_request(socket, request_id, target, payload) do
-    relay = socket.assigns[:print_relay]
-
-    if relay && PrintRelay.available_desktop?(socket.assigns.tenant, relay.store_id, target) do
-      Phoenix.PubSub.subscribe(
-        PosServer.PubSub,
-        PrintRelay.result_topic(socket.assigns.tenant, relay.store_id, request_id)
-      )
-
-      Phoenix.PubSub.broadcast(
-        PosServer.PubSub,
-        PrintRelay.desktop_topic(socket.assigns.tenant, relay.store_id, target),
-        {:print_request, Map.put(payload, :request_id, request_id)}
-      )
-
-      {:reply, {:ok, %{request_id: request_id, status: "queued"}}, socket}
-    else
-      {:reply, {:error, %{request_id: request_id, reason: "selected_printer_unavailable"}},
-       socket}
-    end
-  end
-
   def handle_in(
         "print_result",
         %{"request_id" => request_id, "status" => status} = payload,
@@ -150,6 +128,28 @@ defmodule PosServerWeb.SystemChannel do
   end
 
   def handle_in(_, _, socket), do: {:reply, {:error, %{reason: "unsupported_event"}}, socket}
+
+  defp relay_print_request(socket, request_id, target, payload) do
+    relay = socket.assigns[:print_relay]
+
+    if relay && PrintRelay.available_desktop?(socket.assigns.tenant, relay.store_id, target) do
+      Phoenix.PubSub.subscribe(
+        PosServer.PubSub,
+        PrintRelay.result_topic(socket.assigns.tenant, relay.store_id, request_id)
+      )
+
+      Phoenix.PubSub.broadcast(
+        PosServer.PubSub,
+        PrintRelay.desktop_topic(socket.assigns.tenant, relay.store_id, target),
+        {:print_request, Map.put(payload, :request_id, request_id)}
+      )
+
+      {:reply, {:ok, %{request_id: request_id, status: "queued"}}, socket}
+    else
+      {:reply, {:error, %{request_id: request_id, reason: "selected_printer_unavailable"}},
+       socket}
+    end
+  end
 
   defp join_print_relay(payload, socket, store_id) do
     device = payload["device"]
