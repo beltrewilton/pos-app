@@ -71,6 +71,7 @@ if config_env() == :prod do
   # trusted desktop-client origins alongside the public web application.
   allowed_socket_origins = [
     "https://#{host}",
+    "https://*.#{host}",
     "tauri://localhost",
     "http://tauri.localhost",
     "http://138.197.112.92:1430",
