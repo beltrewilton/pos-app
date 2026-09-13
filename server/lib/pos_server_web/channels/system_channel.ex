@@ -5,6 +5,9 @@ defmodule PosServerWeb.SystemChannel do
   alias PosServer.Accounts.Scope
   alias PosServerWeb.Presence
 
+  defguardp valid_print_request_id(request_id)
+            when is_binary(request_id) and byte_size(request_id) in 1..128
+
   @impl true
   def join("system:health", _payload, socket), do: {:ok, socket}
 
@@ -91,8 +94,7 @@ defmodule PosServerWeb.SystemChannel do
         %{"request_id" => request_id, "target_session_id" => target, "receipt" => receipt},
         socket
       )
-      when is_binary(request_id) and byte_size(request_id) in 16..128 and is_binary(target) and
-             is_map(receipt) do
+      when valid_print_request_id(request_id) and is_binary(target) and is_map(receipt) do
     relay_print_request(socket, request_id, target, %{receipt: receipt})
   end
 
@@ -101,8 +103,7 @@ defmodule PosServerWeb.SystemChannel do
         %{"request_id" => request_id, "target_session_id" => target, "job" => job},
         socket
       )
-      when is_binary(request_id) and byte_size(request_id) in 16..128 and is_binary(target) and
-             is_map(job) do
+      when valid_print_request_id(request_id) and is_binary(target) and is_map(job) do
     relay_print_request(socket, request_id, target, %{job: job})
   end
 
