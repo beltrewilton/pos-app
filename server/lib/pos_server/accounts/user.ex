@@ -51,10 +51,8 @@ defmodule PosServer.Accounts.User do
     |> cast(attrs, [
       :email,
       :name,
-      :tenant,
       :google_uid,
-      :google_picture_url,
-      :confirmed_at
+      :google_picture_url
     ])
     |> validate_required([:email, :name, :google_uid])
     |> validate_format(:email, ~r/^[^\s]+@[^\s]+$/)

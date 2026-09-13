@@ -59,13 +59,13 @@ defmodule PosServerWeb.Router do
     get "/auth/google/callback", GoogleAuthController, :callback
     get "/google_helper", GoogleAuthController, :helper
     post "/logout", GoogleAuthController, :logout
+    get "/pos/dashboard", DashboardController, :index
     post "/pos/dashboard/tenant", DashboardController, :create
   end
 
   scope "/", PosServerWeb do
     pipe_through [:browser, :tenant_browser]
 
-    get "/pos/dashboard", DashboardController, :index
     post "/pos/dashboard/logo", DashboardController, :update_logo
     live "/pos/login", LoginLive, :index
     post "/pos/login/session", BrowserLoginController, :create

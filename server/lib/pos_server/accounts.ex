@@ -40,21 +40,21 @@ defmodule PosServer.Accounts do
     |> Repo.insert()
   end
 
-  @doc "Finds or provisions an admin account from verified Google user info."
+  @doc "Finds or creates an unconfirmed account from verified Google user info."
   def upsert_user_from_google(user_info)
       when is_map(user_info) do
-    upsert_tenant_google_user(user_info)
+    upsert_google_user(user_info)
   end
 
   @doc false
-  # The desktop/mobile OAuth handoff requires the same tenant-backed account as
-  # browser Google sign-in; only the callback delivery differs.
+  # The desktop/mobile OAuth handoff uses the same identity-only Google account
+  # flow as browser sign-in; only the callback delivery differs.
   def upsert_tauri_user_from_google(user_info)
       when is_map(user_info) do
-    upsert_tenant_google_user(user_info)
+    upsert_google_user(user_info)
   end
 
-  defp upsert_tenant_google_user(user_info) do
+  defp upsert_google_user(user_info) do
     google_uid = user_info["sub"] || user_info["id"]
     email = user_info["email"]
     name = user_info["name"] || email
@@ -66,29 +66,15 @@ defmodule PosServer.Accounts do
       attrs = %{
         email: email,
         name: name,
-        tenant: google_tenant(google_uid),
         google_uid: google_uid,
-        google_picture_url: user_info["picture"],
-        confirmed_at: DateTime.utc_now(:second)
+        google_picture_url: user_info["picture"]
       }
 
       case Repo.get_by(User, google_uid: google_uid) || Repo.get_by(User, email: email) do
-        %User{tenant: tenant} = user when is_binary(tenant) and tenant != "" ->
-          attrs = %{attrs | tenant: user.tenant || attrs.tenant}
-
-          with {:ok, user} <- user |> User.google_oauth_changeset(attrs) |> Repo.update(),
-               :ok <- ensure_tenant_company(user, attrs) do
-            {:ok, user}
-          end
-
         %User{} = user ->
-          user_attrs = Map.drop(attrs, [:tenant])
-          company_attrs = %{company_name: "#{attrs.name}'s business"}
-
-          with {:ok, user} <- user |> User.google_oauth_changeset(user_attrs) |> Repo.update(),
-               {:ok, user} <- create_tenant_for_user(user, %{tenant: attrs.tenant}, company_attrs) do
-            {:ok, user}
-          end
+          user
+          |> User.google_oauth_changeset(attrs)
+          |> Repo.update()
 
         nil ->
           create_google_user(attrs)
@@ -99,24 +85,9 @@ defmodule PosServer.Accounts do
   end
 
   defp create_google_user(attrs) do
-    user_changeset = User.google_oauth_changeset(%User{}, attrs)
-    company_changeset = Company.changeset(%Company{}, %{company_name: "#{attrs.name}'s business"})
-
-    cond do
-      not user_changeset.valid? ->
-        {:error, user_changeset}
-
-      not company_changeset.valid? ->
-        {:error, company_changeset}
-
-      true ->
-        create_valid_company_user(user_changeset, company_changeset)
-    end
-  end
-
-  defp google_tenant(google_uid) do
-    "google_" <>
-      (:crypto.hash(:sha256, google_uid) |> Base.encode16(case: :lower) |> binary_part(0, 24))
+    %User{}
+    |> User.google_oauth_changeset(attrs)
+    |> Repo.insert()
   end
 
   def confirm_user(%User{confirmed_at: nil} = user) do
@@ -256,36 +227,6 @@ defmodule PosServer.Accounts do
       {:ok, _tenant} -> :ok
       {:error, reason} -> {:error, :tenant, reason}
     end
-  end
-
-  defp ensure_tenant_company(%User{tenant: tenant} = user, attrs)
-       when is_binary(tenant) and tenant != "" do
-    cond do
-      Tenants.exists?(tenant) ->
-        :ok
-
-      tenant_schema_exists?(tenant) ->
-        Tenants.put(tenant)
-
-      true ->
-      company_changeset = Company.changeset(%Company{}, %{company_name: "#{attrs.name}'s business"})
-      create_tenant_company(tenant, user.id, company_changeset)
-    end
-  end
-
-  defp ensure_tenant_company(_user, _attrs), do: :ok
-
-  defp tenant_schema_exists?(tenant) do
-    Repo.one(
-      from(schema in "schemata",
-        where: schema.schema_name == ^Triplex.to_prefix(tenant),
-        select: true,
-        limit: 1
-      ),
-      prefix: "information_schema"
-    ) == true
-  rescue
-    _ -> false
   end
 
   defp create_user_company(repo, tenant, user_id, company_id) do
