@@ -317,6 +317,10 @@ const hooks = {
         }
         const button = event.target.closest("[data-discount-type]")
         if (!button) return
+        const input = this.el.querySelector("#discount-input")
+        const base = Number.parseFloat(this.el.dataset.discountBase) || 0
+        const currentType = this.el.dataset.discountType
+        const currentDeduction = discountDeduction(currentType, input?.value, base)
         const type = button.dataset.discountType
         this.el.dataset.discountType = type
         this.el.querySelector("#discount-type").value = type
@@ -325,10 +329,10 @@ const hooks = {
           entry.dataset.variant = active ? "default" : "secondary"
           entry.setAttribute("aria-pressed", String(active))
         })
-        const input = this.el.querySelector("#discount-input")
-        input.max = type === "percent" ? "100" : ""
-        this.el.querySelector("#discount-input-label").textContent = type === "percent" ? t("pos.discount.percentage") : t("pos.discount.amount")
-        this.el.querySelector("#discount-help").textContent = type === "percent" ? t("pos.discount.percentHelp") : t("pos.discount.amountHelp")
+        input.max = type === "percent" ? "100" : (type === "final_price" ? String(base.toFixed(2)) : "")
+        input.value = discountInputForType(type, currentDeduction, base)
+        this.el.querySelector("#discount-input-label").textContent = discountInputLabel(type)
+        this.el.querySelector("#discount-help").textContent = discountInputHelp(type, this.el.dataset.discountTarget === "line")
         this.updatePreview()
         input.focus()
       }
@@ -1245,14 +1249,37 @@ function posDraftKey(element) {
 function updateDiscountPreview(form) {
   const base = Number.parseFloat(form.dataset.discountBase) || 0
   const input = form.querySelector("#discount-input")
-  const entered = Number.parseFloat(input?.value) || 0
-  const deduction = form.dataset.discountType === "percent"
-    ? base * Math.min(Math.max(entered, 0), 100) / 100
-    : Math.min(Math.max(entered, 0), base)
+  const deduction = discountDeduction(form.dataset.discountType, input?.value, base)
   const values = form.querySelectorAll(".discount-preview dd")
   if (values[0]) values[0].textContent = money(base)
   if (values[1]) values[1].textContent = `−${money(deduction)}`
   if (values[2]) values[2].textContent = money(base - deduction)
+}
+
+function discountDeduction(type, entered, base) {
+  if (entered === null || entered === undefined || String(entered).trim() === "") return 0
+  const bounded = Math.max(Number.parseFloat(entered) || 0, 0)
+  if (type === "percent") return base * Math.min(bounded, 100) / 100
+  if (type === "final_price") return Math.max(base - Math.min(bounded, base), 0)
+  return Math.min(bounded, base)
+}
+
+function discountInputForType(type, deduction, base) {
+  if (type === "percent") return base > 0 ? String((deduction / base * 100).toFixed(2)) : ""
+  if (type === "final_price") return String(Math.max(base - deduction, 0).toFixed(2))
+  return String(Math.max(deduction, 0).toFixed(2))
+}
+
+function discountInputLabel(type) {
+  if (type === "percent") return t("pos.discount.percentage")
+  if (type === "final_price") return t("pos.discount.finalPrice")
+  return t("pos.discount.amount")
+}
+
+function discountInputHelp(type, lineLevel) {
+  if (type === "percent") return t("pos.discount.percentHelp")
+  if (type === "final_price") return lineLevel ? t("pos.discount.finalPriceLineHelp") : t("pos.discount.finalPriceOrderHelp")
+  return lineLevel ? t("pos.discount.amountHelp") : t("pos.discount.orderAmountHelp")
 }
 
 function calculateCart(panel) {

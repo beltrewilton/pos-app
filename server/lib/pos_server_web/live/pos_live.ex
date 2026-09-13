@@ -46,6 +46,7 @@ defmodule PosServerWeb.PosLive do
         |> assign(:discount_input, "0")
         |> assign(:order_discount, 0.0)
         |> assign(:order_discount_type, "amount")
+        |> assign(:order_discount_mode, "amount")
         |> assign(:delivery, 0.0)
         |> assign(:delivery_open, false)
         |> assign(:delivery_custom_input, "")
@@ -163,6 +164,7 @@ defmodule PosServerWeb.PosLive do
        socket
        |> assign(:cart, [])
        |> assign(:order_discount, 0.0)
+      |> assign(:order_discount_mode, "amount")
       |> assign(:delivery, 0.0)
       |> assign(:delivery_open, false)
       |> assign(:delivery_custom_input, "")
@@ -195,12 +197,14 @@ defmodule PosServerWeb.PosLive do
          )}
 
       line = Enum.find(socket.assigns.cart, &(to_string(&1.id) == id)) ->
+        discount_mode = Map.get(line, :discount_mode, line.discount_type)
+
         {:noreply,
          socket
          |> assign(:dialog, :discount)
          |> assign(:discount_target, id)
-         |> assign(:discount_type, line.discount_type)
-         |> assign(:discount_input, discount_input_value(line.discount))}
+         |> assign(:discount_type, discount_mode)
+         |> assign(:discount_input, discount_input_value(line.discount, discount_mode, line_gross(line)))}
 
       true ->
         {:noreply, socket}
@@ -214,12 +218,15 @@ defmodule PosServerWeb.PosLive do
     if socket.assigns.cart == [] do
       {:noreply, socket}
     else
+      discount_mode = Map.get(socket.assigns, :order_discount_mode, socket.assigns.order_discount_type)
+      base = before_order_discount(socket)
+
       {:noreply,
        socket
        |> assign(:dialog, :discount)
        |> assign(:discount_target, nil)
-       |> assign(:discount_type, socket.assigns.order_discount_type)
-       |> assign(:discount_input, discount_input_value(socket.assigns.order_discount))}
+       |> assign(:discount_type, discount_mode)
+       |> assign(:discount_input, discount_input_value(socket.assigns.order_discount, discount_mode, base))}
     end
   end
 
@@ -229,7 +236,7 @@ defmodule PosServerWeb.PosLive do
   def handle_event("open_order_discount_key", _, socket), do: {:noreply, socket}
 
   def handle_event("set_discount_type", %{"type" => type}, socket)
-      when type in ["amount", "percent"],
+      when type in ["amount", "percent", "final_price"],
       do: {:noreply, assign(socket, :discount_type, type)}
 
   def handle_event("change_discount", %{"value" => value}, socket),
@@ -243,15 +250,18 @@ defmodule PosServerWeb.PosLive do
   def handle_event("apply_discount", params, socket) do
     discount_type = Map.get(params, "discount_type", socket.assigns.discount_type)
     socket = assign(socket, :discount_type, discount_type)
-    discount = float(Map.get(params, "value", socket.assigns.discount_input))
+    raw_value = Map.get(params, "value", socket.assigns.discount_input)
+    value = float(raw_value)
+    base = discount_base(socket.assigns)
 
     valid? =
-      discount_type in ["amount", "percent"] and discount >= 0 and
-        (discount_type != "percent" or discount <= 100)
+      discount_type in ["amount", "percent", "final_price"] and value >= 0 and
+        (discount_type != "percent" or value <= 100) and
+        (discount_type != "final_price" or value <= base)
 
     if not valid?,
       do: {:noreply, put_flash(socket, :error, "Enter a valid discount.")},
-      else: {:noreply, apply_discount(socket, discount)}
+      else: {:noreply, apply_discount(socket, discount_value(discount_type, raw_value, value, base))}
   end
 
   def handle_event("open_customer_picker", _, socket),
@@ -545,6 +555,7 @@ defmodule PosServerWeb.PosLive do
            |> assign(:checkout_stage, nil)
            |> assign(:selected_customer, nil)
            |> assign(:order_discount, 0.0)
+           |> assign(:order_discount_mode, "amount")
            |> assign(:delivery, 0.0)
            |> assign(:delivery_open, false)
            |> assign(:delivery_custom_input, "")
@@ -1676,6 +1687,7 @@ defmodule PosServerWeb.PosLive do
             phx-submit="apply_discount"
             data-discount-base={discount_base(assigns)}
             data-discount-type={@discount_type}
+            data-discount-target={if @discount_target, do: "line", else: "order"}
           >
             <input id="discount-type" name="discount_type" type="hidden" value={@discount_type} />
             <div class="discount-switch" role="group" aria-label="Discount type" data-i18n-aria-label="pos.discount.type">
@@ -1693,11 +1705,18 @@ defmodule PosServerWeb.PosLive do
                 data-discount-type="amount"
                 data-variant={if @discount_type == "amount", do: "default", else: "secondary"}
                 aria-pressed={to_string(@discount_type == "amount")}
-              >$</button>
+              >$</button><button
+                class="btn"
+                type="button"
+                data-discount-type="final_price"
+                data-variant={if @discount_type == "final_price", do: "default", else: "secondary"}
+                aria-pressed={to_string(@discount_type == "final_price")}
+                title="Price after discount"
+              >=</button>
             </div>
             <div class="form-field">
               <label id="discount-input-label" class="label" for="discount-input">
-                {if @discount_type == "percent", do: "Discount percentage", else: "Discount amount"}
+                {discount_input_label(@discount_type)}
               </label>
               <div class="form-field-inline">
                 <input
@@ -1708,7 +1727,7 @@ defmodule PosServerWeb.PosLive do
                   type="number"
                   inputmode="decimal"
                   min="0"
-                  max={if @discount_type == "percent", do: "100"}
+                  max={discount_input_max(assigns)}
                   step="0.01"
                   value={@discount_input}
                 /><button class="btn" type="button" data-variant="outline" data-clear-discount>
@@ -1716,9 +1735,7 @@ defmodule PosServerWeb.PosLive do
                 </button>
               </div>
               <p id="discount-help" class="field-description">
-                {if @discount_type == "percent",
-                  do: "Enter 0 to remove this item discount.",
-                  else: "The amount applies to this entire order line."}
+                {discount_help(@discount_type, @discount_target)}
               </p>
             </div>
             <dl class="discount-preview">
@@ -1939,6 +1956,7 @@ defmodule PosServerWeb.PosLive do
       |> assign(:selected_customer, restore_customer(Map.get(draft, "selected_customer")))
       |> assign(:order_discount, float(Map.get(draft, "order_discount")))
       |> assign(:order_discount_type, discount_type(Map.get(draft, "order_discount_type")))
+      |> assign(:order_discount_mode, discount_mode(Map.get(draft, "order_discount_mode")))
       |> restore_delivery(draft)
       |> assign(:credit, truthy?(Map.get(draft, "credit")))
       |> assign(:credit_due_date, text(Map.get(draft, "credit_due_date")))
@@ -1981,7 +1999,8 @@ defmodule PosServerWeb.PosLive do
             image_raw: product.image_raw,
             qty: max(1, integer(value(line, :qty))),
             discount: max(0.0, float(value(line, :discount))),
-            discount_type: discount_type(value(line, :discount_type))
+            discount_type: discount_type(value(line, :discount_type)),
+            discount_mode: discount_mode(value(line, :discount_mode) || value(line, :discount_type))
           }
         ]
       else
@@ -2033,12 +2052,14 @@ defmodule PosServerWeb.PosLive do
             id: line.id,
             qty: line.qty,
             discount: line.discount,
-            discount_type: line.discount_type
+            discount_type: line.discount_type,
+            discount_mode: Map.get(line, :discount_mode, line.discount_type)
           }
         end),
       selected_customer: assigns.selected_customer,
       order_discount: assigns.order_discount,
       order_discount_type: assigns.order_discount_type,
+      order_discount_mode: Map.get(assigns, :order_discount_mode, assigns.order_discount_type),
       delivery: assigns.delivery,
       delivery_open: assigns.delivery_open,
       delivery_custom_input: assigns.delivery_custom_input,
@@ -2067,7 +2088,8 @@ defmodule PosServerWeb.PosLive do
                 image_updated_at: p.image_updated_at,
                 qty: 1,
                 discount: 0.0,
-                discount_type: "amount"
+                discount_type: "amount",
+                discount_mode: "amount"
               }
             ]
 
@@ -2109,6 +2131,11 @@ defmodule PosServerWeb.PosLive do
   defp apply_discount(socket, value) do
     discount_target = socket.assigns.discount_target
 
+    discount_type =
+      if socket.assigns.discount_type == "final_price",
+        do: "amount",
+        else: socket.assigns.discount_type
+
     socket =
       if socket.assigns.discount_target do
         assign(
@@ -2116,7 +2143,12 @@ defmodule PosServerWeb.PosLive do
           :cart,
           Enum.map(socket.assigns.cart, fn line ->
             if(to_string(line.id) == socket.assigns.discount_target,
-              do: %{line | discount: value, discount_type: socket.assigns.discount_type},
+              do:
+                Map.merge(line, %{
+                  discount: value,
+                  discount_type: discount_type,
+                  discount_mode: socket.assigns.discount_type
+                }),
               else: line
             )
           end)
@@ -2124,10 +2156,14 @@ defmodule PosServerWeb.PosLive do
       else
         socket
         |> assign(:order_discount, value)
-        |> assign(:order_discount_type, socket.assigns.discount_type)
+        |> assign(:order_discount_type, discount_type)
+        |> assign(:order_discount_mode, socket.assigns.discount_type)
         |> assign(
           :cart,
-          Enum.map(socket.assigns.cart, &%{&1 | discount: 0.0, discount_type: "amount"})
+          Enum.map(
+            socket.assigns.cart,
+            &Map.merge(&1, %{discount: 0.0, discount_type: "amount", discount_mode: "amount"})
+          )
         )
       end
 
@@ -2420,14 +2456,38 @@ defmodule PosServerWeb.PosLive do
   defp discount_type("percent"), do: "percent"
   defp discount_type(_), do: "amount"
 
+  defp discount_mode("percent"), do: "percent"
+  defp discount_mode("final_price"), do: "final_price"
+  defp discount_mode(_), do: "amount"
+
+  defp discount_value("final_price", raw_value, final_price, base) when is_binary(raw_value),
+    do:
+      if(String.trim(raw_value) == "",
+        do: 0.0,
+        else: discount_value("final_price", :entered, final_price, base)
+      )
+
+  defp discount_value("final_price", nil, _final_price, _base),
+    do: 0.0
+
+  defp discount_value("final_price", _raw_value, final_price, base),
+    do: Float.round(max(0.0, base - final_price), 2)
+
+  defp discount_value(_, _raw_value, discount, _base), do: discount
+
   defp payment_type("CC"), do: "CC"
   defp payment_type(_), do: "CASH"
 
   defp sequence(sequence) when sequence in ["CF", "VF", "DV"], do: sequence
   defp sequence(_), do: "CF"
 
-  defp discount_input_value(value) when value == 0 or value == 0.0, do: ""
-  defp discount_input_value(value), do: :erlang.float_to_binary(value, decimals: 2)
+  defp discount_input_value(value, mode \\ "amount", base \\ 0)
+  defp discount_input_value(value, _mode, _base) when value == 0 or value == 0.0, do: ""
+
+  defp discount_input_value(value, "final_price", base),
+    do: :erlang.float_to_binary(max(0.0, base - value), decimals: 2)
+
+  defp discount_input_value(value, _mode, _base), do: :erlang.float_to_binary(value, decimals: 2)
 
   defp money(value) do
     value = Float.round(value * 1.0, 2)
@@ -2587,10 +2647,30 @@ defmodule PosServerWeb.PosLive do
     entered = float(assigns.discount_input)
     base = discount_base(assigns)
 
-    if assigns.discount_type == "percent",
-      do: base * min(entered, 100) / 100,
-      else: min(entered, base)
+    case assigns.discount_type do
+      "percent" -> base * min(entered, 100) / 100
+      "final_price" -> discount_value("final_price", assigns.discount_input, min(entered, base), base)
+      _ -> min(entered, base)
+    end
   end
+
+  defp discount_input_label("percent"), do: "Discount percentage"
+  defp discount_input_label("final_price"), do: "Price after discount"
+  defp discount_input_label(_), do: "Discount amount"
+
+  defp discount_input_max(assigns) do
+    cond do
+      assigns.discount_type == "percent" -> "100"
+      assigns.discount_type == "final_price" -> :erlang.float_to_binary(discount_base(assigns), decimals: 2)
+      true -> nil
+    end
+  end
+
+  defp discount_help("percent", _target), do: "Enter 0 to remove this discount."
+  defp discount_help("final_price", target) when is_binary(target), do: "Enter the final price for this entire order line."
+  defp discount_help("final_price", _target), do: "Enter the final price for this order before delivery."
+  defp discount_help(_, target) when is_binary(target), do: "The amount applies to this entire order line."
+  defp discount_help(_, _target), do: "The amount applies to this order before delivery."
 
   defp normalize_product(product), do: normalize_product(product, %{})
 

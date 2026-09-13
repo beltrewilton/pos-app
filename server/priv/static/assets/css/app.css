@@ -2421,7 +2421,7 @@ dialog#customer-purchases-dialog .dialog-content {
 }
 .discount-switch {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 6px;
 }
 .discount-switch .btn {
