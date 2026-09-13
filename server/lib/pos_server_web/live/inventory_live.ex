@@ -980,6 +980,7 @@ defmodule PosServerWeb.InventoryLive do
                             class="input"
                             name="quantity"
                             type="number"
+                            inputmode="numeric"
                             value={entry.quantity || 0}
                           /><button class="btn" type="submit" data-variant="default" data-size="sm">
                             <span data-i18n="inventory.update">Update</span>
@@ -1038,6 +1039,7 @@ defmodule PosServerWeb.InventoryLive do
                           class="input"
                           name="quantity"
                           type="number"
+                          inputmode="numeric"
                           value={store.quantity || 0}
                         /><button class="btn" type="submit" data-variant="default" data-size="sm">
                           <span data-i18n="inventory.update">Update</span>
@@ -1147,6 +1149,7 @@ defmodule PosServerWeb.InventoryLive do
                     name="cost"
                     class="input"
                     type="number"
+                    inputmode="decimal"
                     min="0"
                     step="0.01"
                     value={number_input(if @editing_product, do: @editing_product.cost || 0, else: 0)}
@@ -1168,6 +1171,7 @@ defmodule PosServerWeb.InventoryLive do
                         name={"prices[#{list.id}]"}
                         class="input"
                         type="number"
+                        inputmode="decimal"
                         min="0"
                         step="0.01"
                         placeholder="Price"

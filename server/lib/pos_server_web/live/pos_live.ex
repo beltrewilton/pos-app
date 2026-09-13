@@ -244,7 +244,12 @@ defmodule PosServerWeb.PosLive do
   end
 
   def handle_event("open_customer_picker", _, socket),
-    do: {:noreply, socket |> assign(:dialog, :customer_picker) |> load_customers()}
+    do:
+      {:noreply,
+       socket
+       |> assign(:dialog, :customer_picker)
+       |> assign(:mobile_cart_open, false)
+       |> load_customers()}
 
   def handle_event("search_customers", %{"value" => value}, socket),
     do: {:noreply, socket |> assign(:customer_search, value) |> load_customers()}
@@ -252,13 +257,15 @@ defmodule PosServerWeb.PosLive do
   def handle_event("select_customer", %{"id" => id}, socket),
     do:
       {:noreply,
-      socket
-      |> assign(
-        :selected_customer,
-        Enum.find(socket.assigns.customers, &(to_string(&1.id) == id))
-      )
-      |> assign(:dialog, nil)
-      |> sync()}
+       socket
+       |> assign(
+         :selected_customer,
+         Enum.find(socket.assigns.customers, &(to_string(&1.id) == id))
+       )
+       |> assign(:dialog, nil)
+       |> assign(:checkout_stage, nil)
+       |> assign(:mobile_cart_open, true)
+       |> sync()}
 
   def handle_event("clear_customer", _, %{assigns: %{checkout_stage: stage}} = socket)
       when not is_nil(stage),
@@ -333,8 +340,9 @@ defmodule PosServerWeb.PosLive do
       {:noreply, put_flash(socket, :error, "Add a product before continuing.")}
     else
       {:noreply,
-       assign(
-         socket,
+       socket
+       |> assign(:mobile_cart_open, false)
+       |> assign(
          :checkout_stage,
          if(socket.assigns.selected_customer, do: :payment, else: :customer)
        )}
@@ -342,13 +350,13 @@ defmodule PosServerWeb.PosLive do
   end
 
   def handle_event("close_checkout", _, socket),
-    do: {:noreply, assign(socket, :checkout_stage, nil)}
+    do: {:noreply, socket |> assign(:checkout_stage, nil) |> assign(:mobile_cart_open, false)}
 
   def handle_event("checkout_customer_continue", _, socket),
-    do: {:noreply, assign(socket, :checkout_stage, :payment)}
+    do: {:noreply, socket |> assign(:checkout_stage, :payment) |> assign(:mobile_cart_open, false)}
 
   def handle_event("checkout_payment_back", _, socket),
-    do: {:noreply, assign(socket, :checkout_stage, :customer)}
+    do: {:noreply, socket |> assign(:checkout_stage, :customer) |> assign(:mobile_cart_open, false)}
 
   def handle_event("toggle_delivery", _, socket) do
     if !Scope.allowed?(socket.assigns.scope, "pos.delivery") do
@@ -661,6 +669,7 @@ defmodule PosServerWeb.PosLive do
       </:before_layout>
       <section
         class="catalog-panel"
+        data-view={pos_mobile_view(assigns)}
         aria-labelledby="pos-title"
         inert={if @mobile_cart_open, do: true}
       >
@@ -676,10 +685,23 @@ defmodule PosServerWeb.PosLive do
             <button
               class="btn mobile-topbar-cart"
               type="button"
+              data-variant="outline"
+              data-size="icon"
               phx-click="open_mobile_cart"
               aria-label="Open current sale"
             >
-              🛒<span :if={items(assigns) > 0} class="mobile-cart-count">{items(assigns)}</span>
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.25"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="9" cy="20" r="1.5" /><circle cx="18" cy="20" r="1.5" /><path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.9a2 2 0 0 0 1.9-1.4L21 8H7" />
+              </svg>
+              <span :if={items(assigns) > 0} class="mobile-cart-count">{items(assigns)}</span>
             </button>
             <div class="topbar-search">
               <div class="search-field">
@@ -2270,6 +2292,10 @@ defmodule PosServerWeb.PosLive do
       Enum.find_value(assigns.stores, "", fn store ->
         if store.id == assigns.store_id, do: store.name
       end)
+
+  defp pos_mobile_view(%{dialog: :customer_picker}), do: "customers"
+  defp pos_mobile_view(%{checkout_stage: stage}) when not is_nil(stage), do: "checkout"
+  defp pos_mobile_view(_assigns), do: "catalog"
 
   defp discount_line(assigns),
     do: Enum.find(assigns.cart, &(to_string(&1.id) == assigns.discount_target))

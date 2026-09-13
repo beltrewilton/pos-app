@@ -831,6 +831,7 @@ defmodule PosServerWeb.PurchaseOrdersLive do
                         <input
                           class="input numeric observed-input"
                           type="number"
+                          inputmode="numeric"
                           min="0"
                           name={"observed[#{line.id}]"}
                           value={line.quantity_observed || line.quantity}
@@ -983,6 +984,7 @@ defmodule PosServerWeb.PurchaseOrdersLive do
                   /><input
                     class="input"
                     type="number"
+                    inputmode="numeric"
                     min="1"
                     name={"quantity[#{line.id}]"}
                     value={line.quantity}
@@ -1059,6 +1061,7 @@ defmodule PosServerWeb.PurchaseOrdersLive do
                   name="cost"
                   class="input"
                   type="number"
+                  inputmode="decimal"
                   min="0"
                   step="0.01"
                   value={(@product_dialog.product && @product_dialog.product.cost) || 0}
@@ -1074,6 +1077,7 @@ defmodule PosServerWeb.PurchaseOrdersLive do
                       name={"prices[#{list.id}]"}
                       class="input"
                       type="number"
+                      inputmode="decimal"
                       min="0"
                       step="0.01"
                       placeholder="Price"

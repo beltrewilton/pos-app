@@ -25,6 +25,9 @@
   border-right: 1px solid var(--sidebar-border);
   background: var(--sidebar);
 }
+.mobile-nav-menu {
+  display: none;
+}
 .sidebar-link {
   display: grid;
   place-items: center;
@@ -845,25 +848,104 @@
   }
 }
 @media (max-width: 640px) {
+  html,
+  body {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
   .pos-shell {
     height: auto;
     min-height: 100dvh;
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: 20px auto;
+    grid-template-rows: 44px auto;
     overflow: visible;
   }
   .sidebar-rail {
     display: none;
   }
+  .mobile-nav-menu {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    grid-column: 1;
+    grid-row: 1;
+    display: block;
+    min-width: 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--card);
+  }
+  .mobile-nav-trigger {
+    display: inline-grid;
+    width: 44px;
+    height: 44px;
+    place-items: center;
+    cursor: pointer;
+    list-style: none;
+  }
+  .mobile-nav-trigger::-webkit-details-marker {
+    display: none;
+  }
+  .mobile-nav-trigger svg {
+    width: 21px;
+    height: 21px;
+  }
+  .mobile-nav-panel {
+    position: absolute;
+    top: 100%;
+    left: 8px;
+    right: 8px;
+    z-index: 31;
+    display: grid;
+    max-height: min(70dvh, 480px);
+    overflow: auto;
+    overscroll-behavior: contain;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--popover, var(--background));
+    color: var(--popover-foreground, var(--foreground));
+    box-shadow: var(--shadow-md);
+  }
+  .mobile-nav-link {
+    min-height: 42px;
+    padding: 11px 12px;
+    border-radius: calc(var(--radius-md) - 3px);
+    color: inherit;
+    font-size: 0.9rem;
+    font-weight: 650;
+    text-decoration: none;
+  }
+  .mobile-nav-link[aria-current="page"],
+  .mobile-nav-link:hover {
+    background: var(--accent);
+    color: var(--accent-foreground);
+  }
   .catalog-panel {
     grid-column: 1;
     grid-row: 2;
+    width: 100%;
+    max-width: 100vw;
+    padding: 10px 10px calc(20px + env(safe-area-inset-bottom));
+    overflow-x: hidden;
   }
   .status-strip {
     grid-column: 1;
+    grid-row: 1;
+    justify-content: flex-end;
+    min-width: 0;
+    padding-left: 52px;
   }
   .topbar {
     flex-wrap: wrap;
+    gap: 14px;
+    padding-bottom: 14px;
+  }
+  .brand-lockup {
+    min-width: 0;
+  }
+  .topbar h1,
+  .invoice-topbar h2 {
+    overflow-wrap: anywhere;
   }
   .topbar-search {
     order: 3;
@@ -881,19 +963,66 @@
   }
   .order-panel {
     position: fixed;
-    z-index: 20;
+    z-index: 24;
     right: 0;
     top: 0;
     display: none;
     width: min(100%, 420px);
     height: 100dvh;
-    padding-top: calc(20px + env(safe-area-inset-top));
+    max-width: 100vw;
+    padding: calc(16px + env(safe-area-inset-top)) 18px calc(16px + env(safe-area-inset-bottom));
     transform: translateX(100%);
     transition: transform 220ms ease;
+    overflow: hidden;
   }
   .order-panel.is-mobile-open {
     display: flex;
     transform: translateX(0);
+  }
+  .order-header {
+    flex: 0 0 auto;
+  }
+  .customer-picker-wrap,
+  .customer-picker {
+    min-width: 0;
+  }
+  .customer-picker {
+    max-width: 52vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .cart-lines {
+    flex: 1 1 auto;
+    min-height: 0;
+    margin-top: 14px;
+    overscroll-behavior: contain;
+  }
+  .cart-line-head,
+  .cart-line-footer {
+    align-items: flex-start;
+  }
+  .cart-line-name {
+    overflow-wrap: anywhere;
+  }
+  .cart-line-total {
+    flex: 0 0 auto;
+    margin-left: 8px;
+  }
+  .order-summary {
+    flex: 0 0 auto;
+    padding-top: 12px;
+    background: var(--card);
+  }
+  .totals {
+    margin: 12px 0;
+    gap: 7px;
+  }
+  .totals .grand-total {
+    padding-top: 12px;
+  }
+  .totals .grand-total dd {
+    font-size: clamp(1.15rem, 8vw, 1.75rem);
   }
   .reconciliation-receipt-panel {
     position: static;
@@ -911,7 +1040,7 @@
   }
   .mobile-cart-backdrop {
     position: fixed;
-    z-index: 19;
+    z-index: 23;
     inset: 0;
     display: block;
     border: 0;
@@ -925,13 +1054,121 @@
     height: 108px;
   }
   .checkout-flow {
-    padding: 16px;
+    padding: 14px 0;
+    overflow-x: hidden;
+  }
+  .checkout-header,
+  .checkout-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .checkout-steps {
+    gap: 12px;
+    overflow-x: auto;
+  }
+  .checkout-stage {
+    width: 100%;
+    max-width: 100%;
+    padding: 18px 14px;
+  }
+  .delivery-options,
+  .sequence-options {
+    width: 100%;
+  }
+  .sequence-option-description {
+    min-width: 0;
+    font-size: 1rem;
+    overflow-wrap: anywhere;
   }
   .payment-line {
     grid-template-columns: 1fr auto;
   }
   .payment-line .input {
     grid-column: 1/-1;
+  }
+  .customers-header,
+  .invoice-topbar {
+    align-items: stretch;
+  }
+  .customers-header-actions,
+  .invoice-filters {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    width: 100%;
+    gap: 8px;
+  }
+  .invoice-filters .search-field {
+    grid-column: 1 / -1;
+  }
+  .invoice-date-picker {
+    min-width: 0;
+  }
+  .invoice-date-range {
+    width: 100%;
+  }
+  .invoice-summary {
+    display: grid;
+    grid-auto-columns: minmax(66vw, 1fr);
+    grid-auto-flow: column;
+    gap: 10px;
+    margin-inline: -10px;
+    padding-inline: 10px;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+  }
+  .invoice-summary > .card {
+    min-width: 0;
+    scroll-snap-align: start;
+  }
+  .invoice-kpi-value {
+    font-size: clamp(1.4rem, 8vw, 2rem);
+    overflow-wrap: anywhere;
+  }
+  .table-container,
+  .invoice-table-container,
+  .customer-table-container {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+  .invoice-detail-actions,
+  .invoice-payment,
+  .invoice-payment-row {
+    min-width: 0;
+  }
+  .invoice-payment-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+  .invoice-payment-methods {
+    margin: 0;
+  }
+  .invoice-payment-methods .btn {
+    flex: 1 1 0;
+  }
+  .dialog {
+    z-index: 100;
+  }
+  dialog.dialog {
+    width: min(100vw - 16px, 40rem);
+    max-height: calc(100dvh - 16px);
+  }
+  .dialog-content {
+    max-height: calc(100dvh - 16px);
+    overflow: auto;
+    padding: 1.25rem;
+  }
+  .dialog-footer {
+    position: sticky;
+    bottom: 0;
+    margin-inline: -1.25rem;
+    margin-bottom: -1.25rem;
+    padding: 0.75rem 1.25rem calc(0.75rem + env(safe-area-inset-bottom));
+    background: var(--popover);
+  }
+  .form-field-inline {
+    align-items: stretch;
   }
 }
 .printer-status {

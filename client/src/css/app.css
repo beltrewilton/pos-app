@@ -2641,11 +2641,15 @@ dialog#customer-purchases-dialog .dialog-content {
     order: 2;
     margin-left: auto;
     overflow: visible;
+    border-color: var(--border);
+    background: var(--card);
+    color: var(--foreground);
+    box-shadow: var(--shadow-sm);
   }
 
   .mobile-topbar-cart svg {
-    width: 26px;
-    height: 26px;
+    width: 21px;
+    height: 21px;
     stroke-width: 2.35;
   }
 
@@ -3966,9 +3970,293 @@ dialog#customer-purchases-dialog .dialog-content {
   }
 }
 
+.mobile-nav-menu {
+  display: none;
+}
+
 @media (max-width: 640px) {
   body {
     min-width: 0;
+  }
+
+  html,
+  body {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .pos-shell {
+    grid-template-rows: 44px auto;
+  }
+
+  .mobile-nav-menu {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    grid-column: 1;
+    grid-row: 1;
+    display: block;
+    min-width: 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--card);
+  }
+
+  .mobile-nav-trigger {
+    display: inline-grid;
+    width: 44px;
+    height: 44px;
+    place-items: center;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .mobile-nav-trigger::-webkit-details-marker {
+    display: none;
+  }
+
+  .mobile-nav-trigger svg {
+    width: 21px;
+    height: 21px;
+  }
+
+  .mobile-nav-panel {
+    position: absolute;
+    top: 100%;
+    left: 8px;
+    right: 8px;
+    z-index: 31;
+    display: grid;
+    max-height: min(70dvh, 480px);
+    overflow: auto;
+    overscroll-behavior: contain;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--popover, var(--background));
+    color: var(--popover-foreground, var(--foreground));
+    box-shadow: var(--shadow-md);
+  }
+
+  .mobile-nav-link,
+  .mobile-nav-section-trigger,
+  .mobile-user-trigger {
+    display: flex;
+    min-height: 42px;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 12px;
+    border-radius: calc(var(--radius-md) - 3px);
+    color: inherit;
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .mobile-nav-link::before,
+  .mobile-nav-section-trigger::before,
+  .mobile-nav-action::before {
+    content: "";
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    flex: 0 0 1rem;
+    border: 2px solid currentColor;
+    border-radius: 5px;
+    opacity: 0.72;
+  }
+
+  .mobile-nav-section-trigger::before {
+    border-radius: 999px;
+  }
+
+  .mobile-user-trigger::before,
+  .mobile-nav-action[aria-current="true"]::before,
+  .mobile-nav-logout::before {
+    display: none;
+  }
+
+  .mobile-nav-section-trigger::-webkit-details-marker,
+  .mobile-user-trigger::-webkit-details-marker {
+    display: none;
+  }
+
+  .mobile-nav-link[aria-current="page"],
+  .mobile-nav-link:hover,
+  .mobile-nav-section[open] > .mobile-nav-section-trigger,
+  .mobile-user-menu[open] > .mobile-user-trigger {
+    background: var(--accent);
+    color: var(--accent-foreground);
+  }
+
+  .mobile-nav-panel > .separator {
+    width: 100%;
+    margin: 4px 0;
+  }
+
+  .mobile-nav-section.sidebar-theme-selector {
+    display: block;
+    width: auto;
+    height: auto;
+    margin-top: 0;
+    color: inherit;
+  }
+
+  .mobile-nav-section-content {
+    display: grid;
+    justify-items: stretch;
+    gap: 4px;
+    padding: 4px 0 8px 12px;
+    text-align: left;
+  }
+
+  .mobile-nav-action {
+    display: flex;
+    width: 100%;
+    min-height: 38px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: calc(var(--radius-md) - 3px);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 650;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .mobile-theme-selector .mobile-nav-action,
+  .mobile-store-selector .mobile-nav-action {
+    justify-content: flex-start;
+  }
+
+  .mobile-theme-selector .mobile-nav-action[aria-current="true"]::after {
+    content: "\2713";
+    margin-left: auto;
+    color: var(--primary);
+    font-weight: 800;
+  }
+
+  .mobile-nav-action:hover,
+  .mobile-nav-action:focus-visible,
+  .mobile-nav-action[aria-current="true"] {
+    background: var(--accent);
+    color: var(--accent-foreground);
+    outline: none;
+  }
+
+  .mobile-nav-action > span,
+  .mobile-user-trigger strong,
+  .mobile-user-trigger small {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-user-trigger > span:last-child {
+    display: grid;
+    min-width: 0;
+    gap: 1px;
+  }
+
+  .mobile-user-trigger strong {
+    font-size: 0.85rem;
+  }
+
+  .mobile-user-trigger small {
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .mobile-nav-logout {
+    justify-content: flex-start;
+    color: var(--destructive);
+  }
+
+  .mobile-nav-logout svg {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
+  }
+
+  .catalog-panel {
+    width: 100%;
+    max-width: 100vw;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+    overflow-x: hidden;
+  }
+
+  .status-strip {
+    grid-row: 1;
+    justify-content: flex-end;
+    min-width: 0;
+    padding-left: 52px;
+  }
+
+  .order-panel {
+    z-index: 24;
+    max-width: 100vw;
+    padding: calc(16px + env(safe-area-inset-top)) 18px calc(16px + env(safe-area-inset-bottom));
+    overflow: hidden;
+  }
+
+  .mobile-cart-backdrop {
+    z-index: 23;
+  }
+
+  .cart-lines {
+    flex: 1 1 auto;
+    min-height: 0;
+    overscroll-behavior: contain;
+  }
+
+  .cart-line-name {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .order-summary {
+    flex: 0 0 auto;
+    background: var(--card);
+  }
+
+  .totals .grand-total dd {
+    font-size: clamp(1.15rem, 8vw, 1.75rem);
+  }
+
+  .checkout-flow {
+    overflow-x: hidden;
+  }
+
+  .checkout-stage {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .table-container,
+  .invoice-table-container,
+  .customer-table-container {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  dialog.dialog {
+    z-index: 100;
+    width: min(100vw - 16px, 40rem);
+    max-height: calc(100dvh - 16px);
+  }
+
+  .dialog-content {
+    max-height: calc(100dvh - 16px);
+    overflow: auto;
   }
 
   /* Shown only by the scoped mobile touch gesture; desktop never receives it. */

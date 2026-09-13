@@ -1092,6 +1092,7 @@ defmodule PosServerWeb.InvoiceReportLive do
             name="amount"
             value={Map.get(@amounts, @detail.id, "0")}
             type="number"
+            inputmode="decimal"
             min="0.01"
             max={decimal(@detail.due_balance)}
             step="0.01"
@@ -1110,7 +1111,13 @@ defmodule PosServerWeb.InvoiceReportLive do
         </button>
       </div>
       <div class="invoice-payment-row invoice-payment-payoff">
-        <input class="input numeric" value={money(@detail.due_balance)} readonly /><.method_buttons
+        <input
+          class="input numeric"
+          value={money(@detail.due_balance)}
+          type="text"
+          inputmode="decimal"
+          readonly
+        /><.method_buttons
           id={@detail.id}
           row="payoff"
           methods={@methods}

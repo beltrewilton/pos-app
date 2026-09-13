@@ -48,7 +48,9 @@
     })
   }
 
-  document.querySelectorAll(".sidebar-theme-selector").forEach(initializeThemePicker)
+  document
+    .querySelectorAll(".sidebar-theme-selector, .mobile-theme-selector")
+    .forEach(initializeThemePicker)
 
   document.addEventListener("click", event => {
     if (!event.target.closest("[data-theme-toggle]")) return

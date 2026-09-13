@@ -26,6 +26,205 @@ defmodule PosServerWeb.PosLayoutComponents do
       >
       </span>
       {render_slot(@before_layout)}
+      <details class="mobile-nav-menu">
+        <summary class="mobile-nav-trigger" aria-label="Open navigation">
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.4"
+            stroke-linecap="round"
+          >
+            <path d="M4 7h16M4 12h16M4 17h16" />
+          </svg>
+        </summary>
+        <div
+          class="mobile-nav-panel"
+          role="navigation"
+          aria-label="Primary navigation"
+          data-i18n-aria-label="layout.nav.primary"
+        >
+          <a
+            :if={nav_allowed?(@scope, :dashboard)}
+            class="mobile-nav-link"
+            href={~p"/pos/dashboard"}
+            aria-current={current_page(@active_page, :dashboard)}
+          >
+            Dashboard
+          </a>
+          <a
+            :if={nav_allowed?(@scope, :pos)}
+            class="mobile-nav-link"
+            href={pos_href(@active_page)}
+            aria-current={current_page(@active_page, :pos)}
+          >
+            POS
+          </a>
+          <a
+            :if={nav_allowed?(@scope, :invoices)}
+            class="mobile-nav-link"
+            href={~p"/pos/invoices"}
+            aria-current={current_page(@active_page, :invoices)}
+          >
+            Invoice report
+          </a>
+          <a
+            :if={nav_allowed?(@scope, :reconciliation)}
+            class="mobile-nav-link"
+            href={~p"/pos/reconciliation"}
+            aria-current={current_page(@active_page, :reconciliation)}
+          >
+            Cash reconciliation
+          </a>
+          <a
+            :if={nav_allowed?(@scope, :customers)}
+            class="mobile-nav-link"
+            href={~p"/pos/customers"}
+            aria-current={current_page(@active_page, :customers)}
+          >
+            Customers
+          </a>
+          <a
+            :if={nav_allowed?(@scope, :inventory)}
+            class="mobile-nav-link"
+            href={~p"/pos/inventory"}
+            aria-current={current_page(@active_page, :inventory)}
+          >
+            Inventory
+          </a>
+          <a
+            :if={nav_allowed?(@scope, :orders)}
+            class="mobile-nav-link"
+            href={~p"/pos/orders"}
+            aria-current={current_page(@active_page, :orders)}
+          >
+            Purchase orders
+          </a>
+          <a
+            :if={nav_allowed?(@scope, :installed_addons)}
+            class="mobile-nav-link"
+            href={~p"/pos/addons"}
+            aria-current={current_page(@active_page, :installed_addons)}
+          >
+            Installed Add-ons
+          </a>
+          <a
+            :if={nav_allowed?(@scope, :company_settings)}
+            class="mobile-nav-link"
+            href={~p"/pos/company-settings"}
+            aria-current={current_page(@active_page, :company_settings)}
+          >
+            Company settings
+          </a>
+          <a
+            :if={nav_allowed?(@scope, :users)}
+            class="mobile-nav-link"
+            href={~p"/pos/users"}
+            aria-current={current_page(@active_page, :users)}
+          >
+            Users
+          </a>
+          <a
+            :if={nav_allowed?(@scope, :addons)}
+            class="mobile-nav-link"
+            href={~p"/pos/addons/install"}
+            aria-current={current_page(@active_page, :addons)}
+          >
+            Install Addons
+          </a>
+          <hr class="separator" />
+          <details class="mobile-nav-section mobile-store-selector">
+            <summary class="mobile-nav-section-trigger">Store</summary>
+            <div class="mobile-nav-section-content" role="group" aria-label="Active store">
+              <button
+                :for={store <- @stores}
+                class="mobile-nav-action"
+                type="button"
+                phx-click="change_store"
+                phx-value-store_id={store.id}
+                aria-current={selected_store?(store.id, @store_id)}
+              >
+                <span>{store.name}</span>
+                <svg
+                  :if={selected_store?(store.id, @store_id)}
+                  class="sidebar-menu-check"
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
+              </button>
+            </div>
+          </details>
+          <details class="mobile-nav-section mobile-theme-selector sidebar-theme-selector">
+            <summary class="mobile-nav-section-trigger">Theme</summary>
+            <div class="mobile-nav-section-content" role="group" aria-label="Theme">
+              <button class="mobile-nav-action" type="button" data-theme="default-light">
+                Default Light
+              </button>
+              <button class="mobile-nav-action" type="button" data-theme="nature-light">
+                Nature Light
+              </button>
+              <button class="mobile-nav-action" type="button" data-theme="nature-dark">
+                Nature Dark
+              </button>
+              <button class="mobile-nav-action" type="button" data-theme="caffeine-light">
+                Caffeine Light
+              </button>
+              <button class="mobile-nav-action" type="button" data-theme="caffeine-dark">
+                Caffeine Dark
+              </button>
+              <button class="mobile-nav-action" type="button" data-theme="bold-tech-light">
+                Bold Tech Light
+              </button>
+              <button class="mobile-nav-action" type="button" data-theme="bold-tech-dark">
+                Bold Tech Dark
+              </button>
+              <button class="mobile-nav-action" type="button" data-theme="doom-64-light">
+                Doom 64 Light
+              </button>
+              <button class="mobile-nav-action" type="button" data-theme="doom-64-dark">
+                Doom 64 Dark
+              </button>
+            </div>
+          </details>
+          <details class="mobile-nav-section mobile-user-menu">
+            <summary class="mobile-user-trigger">
+              <span class="avatar avatar-sm" aria-hidden="true">
+                <img :if={avatar_image?(@scope)} class="avatar-image" src={@scope.pic} alt="" />
+                <span :if={!avatar_image?(@scope)} class="avatar-fallback">
+                  {user_initials(@scope)}
+                </span>
+              </span>
+              <span><strong>{user_name(@scope)}</strong><small>{@scope.login}</small></span>
+            </summary>
+            <div class="mobile-nav-section-content" role="group" aria-label="User menu">
+              <.form for={%{}} action={~p"/pos/logout"} method="delete">
+                <button class="mobile-nav-action mobile-nav-logout" type="submit">
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M10 17l5-5-5-5" /><path d="M15 12H3" /><path d="M21 19V5a2 2 0 0 0-2-2h-6" />
+                  </svg>
+                  <span data-i18n="layout.user.logout">Logout</span>
+                </button>
+              </.form>
+            </div>
+          </details>
+        </div>
+      </details>
       <nav
         class="sidebar-rail"
         aria-label="Primary navigation"

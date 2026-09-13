@@ -389,6 +389,7 @@ defmodule PosServerWeb.CompanySettingsLive do
         class="input"
         name={@name}
         type={@type}
+        inputmode={if @type == "number", do: "numeric"}
         value={@value}
         required={@required}
       />
