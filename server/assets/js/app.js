@@ -673,7 +673,6 @@ function createLiveViewPrintRelay({token, storeId, onRequest}) {
     logger: (kind, message, data) => printDebug("phoenix-socket", {kind, message, data})
   })
   let presence = {}
-  const pending = new Map()
   let lastPrinterMeta = null
   const joinPayload = {
     device: relayDevice(),
@@ -732,10 +731,6 @@ function createLiveViewPrintRelay({token, storeId, onRequest}) {
   })
   channel.on("print_result", payload => {
     printDebug("print_result:received", payload)
-    const callback = pending.get(payload.request_id)
-    if (!callback) return
-    pending.delete(payload.request_id)
-    callback(payload)
   })
   receiptPrinter.addEventListener("status", publishPrinter)
   window.addEventListener("focus", refreshPrinter)
@@ -762,7 +757,6 @@ function createLiveViewPrintRelay({token, storeId, onRequest}) {
       receiptPrinter.removeEventListener("status", publishPrinter)
       window.removeEventListener("focus", refreshPrinter)
       document.removeEventListener("visibilitychange", refreshPrinter)
-      pending.clear()
       channel.leave()
       socket.disconnect()
     },
@@ -773,25 +767,21 @@ function createLiveViewPrintRelay({token, storeId, onRequest}) {
       const requestId = payload.request_id || `print-${Date.now()}`
       return new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
-          pending.delete(requestId)
           reject(new Error("Remote print request timed out."))
         }, 20_000)
-        pending.set(requestId, result => {
-          clearTimeout(timeout)
-          if (result.status === "success") resolve(result)
-          else reject(new Error(result.message || "Remote print failed."))
-        })
         printRelayPush(channel, "print", {request_id: requestId, target_session_id: target.session_id, job: stripPrintLogos({...payload, tenant: tenantId(), logo_version: cachedPrintLogoVersion(tenantId())})})
-          .receive("ok", response => printDebug("relay.print:queued", response))
+          .receive("ok", response => {
+            clearTimeout(timeout)
+            printDebug("relay.print:queued", response)
+            resolve(response)
+          })
           .receive("error", response => {
             clearTimeout(timeout)
-            pending.delete(requestId)
             printDebug("relay.print:error", response)
             reject(new Error(response.reason || "Remote print request failed."))
           })
           .receive("timeout", () => {
             clearTimeout(timeout)
-            pending.delete(requestId)
             printDebug("relay.print:timeout", {requestId})
             reject(new Error("Remote print request timed out."))
           })

@@ -2699,7 +2699,7 @@ document.querySelector("#print-receipt").addEventListener("click", async () => {
   button.disabled = true; status.textContent = t("ui.printing");
   try {
     if (isDesktopTauri) { await printer.print(completedReceipt); status.textContent = t("ui.receiptPrinted"); setTimeout(() => document.querySelector("#receipt-dialog").close(), 500); completedReceipt = null; }
-    else { const target = document.querySelector("#print-target").value; if (!target) throw new Error(t("ui.noDesktopPrinter")); await printRelay.requestPrint(uuid(), target, completedReceipt); pendingPrintTimeout = setTimeout(() => { status.textContent = t("ui.noDesktopPrinter"); }, 20_000); }
+    else { const target = document.querySelector("#print-target").value; if (!target) throw new Error(t("ui.noDesktopPrinter")); await printRelay.requestPrint(uuid(), target, completedReceipt); clearTimeout(pendingPrintTimeout); pendingPrintTimeout = null; status.textContent = t("ui.receiptPrinted"); setTimeout(() => { document.querySelector("#receipt-dialog").close(); completedReceipt = null; }, 700); }
   } catch (error) { status.textContent = t("payment.printFailed", { error: errorMessage(error) }); }
   finally { button.disabled = false; }
 });
