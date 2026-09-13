@@ -210,6 +210,7 @@ const hooks = {
   PosShell: {
     mounted() {
       installPrinterEvents(this)
+      pushClientInfo(this)
       this.draftKey = posDraftKey(this.el)
       const draft = readStoredJson(this.draftKey)
       if (draft) this.pushEvent("restore_pos_draft", draft)
@@ -662,6 +663,7 @@ function createLiveViewPrintRelay({token, storeId, onRequest}) {
   const channel = socket.channel(`print-relay:${storeId}`, {
     device: relayDevice(),
     session_id: printRelaySessionId(),
+    ...clientDeviceInfo(),
     ...desktopPrinterMeta()
   })
   const relay = {socket, channel, targets: []}
@@ -669,7 +671,7 @@ function createLiveViewPrintRelay({token, storeId, onRequest}) {
     relay.targets = [...(targets || [])].sort((a, b) => String(a.session_id).localeCompare(String(b.session_id)))
   }
   const publishPrinter = () => {
-    if (relayDevice() !== "desktop" || channel.state !== "joined") return
+    if (!hasLocalPrinterCapability() || channel.state !== "joined") return
     const meta = desktopPrinterMeta()
     if (samePrinterMeta(lastPrinterMeta, meta)) return
     lastPrinterMeta = meta
@@ -677,7 +679,7 @@ function createLiveViewPrintRelay({token, storeId, onRequest}) {
   }
   const refreshPrinter = async () => {
     if (document.hidden) return
-    if (relayDevice() !== "desktop" || channel.state !== "joined") return
+    if (!hasLocalPrinterCapability() || channel.state !== "joined") return
     if (receiptPrinter.isConnected()) {
       publishPrinter()
       return
@@ -761,22 +763,58 @@ function samePrinterMeta(left, right) {
 }
 
 function shouldRelayPrint() {
-  const mobileSize = window.matchMedia?.("(max-width: 767px)")?.matches
-  return mobileSize || !navigator.usb || !receiptPrinter.isConnected()
+  return !canPrintLocally()
 }
 
 function relayDevice() {
-  return window.matchMedia?.("(max-width: 767px)")?.matches ? "mobile" : "desktop"
+  if (canPrintLocally()) return "desktop"
+  const info = clientDeviceInfo()
+  return info.mobile || info.tablet ? "mobile" : "desktop"
 }
 
 function desktopPrinterMeta() {
   const status = receiptPrinter.statusDetail()
   const device = status.device
+  const printerOnline = canPrintLocally()
   return {
-    label: "Desktop Web POS",
+    label: printerOnline ? "Desktop Web POS" : clientDeviceInfo().label,
     printer: device?.productName || device?.manufacturerName || "Receipt printer",
-    printer_online: relayDevice() === "desktop" && status.state === "connected"
+    printer_online: printerOnline
   }
+}
+
+function hasLocalPrinterCapability() {
+  return Boolean(navigator.usb)
+}
+
+function canPrintLocally() {
+  return hasLocalPrinterCapability() && receiptPrinter.isConnected()
+}
+
+function clientDeviceInfo() {
+  const userAgent = navigator.userAgent || ""
+  const uaData = navigator.userAgentData
+  const platform = navigator.platform || uaData?.platform || ""
+  const maxTouchPoints = navigator.maxTouchPoints || 0
+  const uaMobile = uaData?.mobile === true || /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent)
+  const tablet = /iPad|Tablet/i.test(userAgent) || (platform === "MacIntel" && maxTouchPoints > 1)
+  const mobile = uaMobile && !tablet
+
+  return {
+    user_agent: userAgent,
+    platform,
+    mobile,
+    tablet,
+    touch_points: maxTouchPoints,
+    webusb: hasLocalPrinterCapability(),
+    label: mobile || tablet ? "Mobile POS" : "Desktop Web POS"
+  }
+}
+
+function pushClientInfo(hook) {
+  if (hook.clientInfoPushed) return
+  hook.clientInfoPushed = true
+  hook.pushEvent("client_info", clientDeviceInfo())
 }
 
 function printRelaySessionId() {

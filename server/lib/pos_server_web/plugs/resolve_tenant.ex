@@ -1,7 +1,6 @@
 defmodule PosServerWeb.Plugs.ResolveTenant do
   @moduledoc "Resolves and validates the tenant subdomain for tenant-owned routes."
 
-  import Phoenix.Controller
   import Plug.Conn
 
   alias PosServer.{TenantContext, Tenants}

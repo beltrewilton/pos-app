@@ -55,6 +55,7 @@ defmodule PosServerWeb.PosLive do
         |> assign(:sequence, "CF")
         |> assign(:memo, "")
         |> assign(:print_prompt, nil)
+        |> assign(:client_info, nil)
         |> assign(:mobile_cart_open, false)
         |> load_products()
         |> sync()
@@ -564,6 +565,9 @@ defmodule PosServerWeb.PosLive do
   end
 
   def handle_event("printer_status", _params, socket), do: {:noreply, socket}
+
+  def handle_event("client_info", params, socket),
+    do: {:noreply, assign(socket, :client_info, normalize_client_info(params))}
 
   def handle_event("printer_result", %{"status" => "success"}, socket),
     do: {:noreply, assign(socket, :print_prompt, nil)}
@@ -2547,6 +2551,34 @@ defmodule PosServerWeb.PosLive do
 
   defp update_print_prompt(socket, status, printing),
     do: update(socket, :print_prompt, &Map.merge(&1, %{status: status, printing: printing}))
+
+  defp normalize_client_info(params) do
+    %{
+      user_agent: string_param(params, "user_agent"),
+      platform: string_param(params, "platform"),
+      mobile: params["mobile"] == true,
+      tablet: params["tablet"] == true,
+      touch_points: integer_param(params, "touch_points"),
+      webusb: params["webusb"] == true
+    }
+  end
+
+  defp string_param(params, key) when is_map(params) do
+    case params[key] do
+      value when is_binary(value) -> String.slice(value, 0, 512)
+      _ -> nil
+    end
+  end
+
+  defp integer_param(params, key) when is_map(params) do
+    case params[key] do
+      value when is_integer(value) -> value
+      value when is_binary(value) -> String.to_integer(value)
+      _ -> 0
+    end
+  rescue
+    _ -> 0
+  end
 
   attr :prompt, :map, required: true
 
