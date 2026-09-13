@@ -76,9 +76,10 @@ defmodule PosServer.Accounts do
         %User{tenant: tenant} = user when is_binary(tenant) and tenant != "" ->
           attrs = %{attrs | tenant: user.tenant || attrs.tenant}
 
-          user
-          |> User.google_oauth_changeset(attrs)
-          |> Repo.update()
+          with {:ok, user} <- user |> User.google_oauth_changeset(attrs) |> Repo.update(),
+               :ok <- ensure_tenant_company(user, attrs) do
+            {:ok, user}
+          end
 
         %User{} = user ->
           user_attrs = Map.drop(attrs, [:tenant])
@@ -256,6 +257,18 @@ defmodule PosServer.Accounts do
       {:error, reason} -> {:error, :tenant, reason}
     end
   end
+
+  defp ensure_tenant_company(%User{tenant: tenant} = user, attrs)
+       when is_binary(tenant) and tenant != "" do
+    if Tenants.exists?(tenant) do
+      :ok
+    else
+      company_changeset = Company.changeset(%Company{}, %{company_name: "#{attrs.name}'s business"})
+      create_tenant_company(tenant, user.id, company_changeset)
+    end
+  end
+
+  defp ensure_tenant_company(_user, _attrs), do: :ok
 
   defp create_user_company(repo, tenant, user_id, company_id) do
     %UserCompany{}

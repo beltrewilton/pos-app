@@ -43,6 +43,11 @@ defmodule PosServerWeb.GoogleAuthController do
 
   def logout(conn, _params) do
     conn
+    |> delete_session(:user_token)
+    |> delete_session(:store_id)
+    |> delete_session(:tenant)
+    |> delete_session(:google_oauth_state)
+    |> delete_session(:admin_authenticated)
     |> configure_session(drop: true)
     |> redirect(to: ~p"/")
   end

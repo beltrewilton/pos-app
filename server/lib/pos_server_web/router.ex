@@ -109,12 +109,12 @@ defmodule PosServerWeb.Router do
 
     get "/login", AdminSessionController, :new
     post "/login", AdminSessionController, :create
+    post "/logout", AdminSessionController, :delete
   end
 
   scope "/admin", PosServerWeb do
     pipe_through [:browser, :admin]
 
-    post "/logout", AdminSessionController, :delete
     live "/", UserLive, :index
     live "/users", UserLive, :index
     live "/users/new", UserLive, :new

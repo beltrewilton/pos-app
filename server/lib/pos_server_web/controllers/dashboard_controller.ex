@@ -113,7 +113,11 @@ defmodule PosServerWeb.DashboardController do
     }
   end
 
-  defp dashboard_company(%{actor: :admin}, user), do: Accounts.get_company_for_user(user)
+  defp dashboard_company(%{actor: :admin}, user) do
+    Accounts.get_company_for_user(user)
+  rescue
+    _ -> nil
+  end
 
   defp dashboard_company(%{tenant: tenant}, _user) when is_binary(tenant) do
     Repo.one(from(company in Company, limit: 1), prefix: Triplex.to_prefix(tenant)) ||

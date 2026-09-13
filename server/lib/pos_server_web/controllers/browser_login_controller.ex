@@ -25,8 +25,18 @@ defmodule PosServerWeb.BrowserLoginController do
 
   def delete(conn, _params) do
     conn
-    |> configure_session(drop: true)
+    |> clear_browser_auth_session()
     |> redirect(to: ~p"/pos/login")
+  end
+
+  defp clear_browser_auth_session(conn) do
+    conn
+    |> delete_session(:user_token)
+    |> delete_session(:store_id)
+    |> delete_session(:tenant)
+    |> delete_session(:google_oauth_state)
+    |> delete_session(:admin_authenticated)
+    |> configure_session(drop: true)
   end
 
   defp landing_path(scope) do
