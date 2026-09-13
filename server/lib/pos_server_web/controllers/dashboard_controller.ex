@@ -32,7 +32,7 @@ defmodule PosServerWeb.DashboardController do
             |> configure_session(renew: true)
             |> put_session(:user_token, session_token)
             |> put_flash(:info, "Your workspace has been created.")
-            |> redirect(to: ~p"/pos/dashboard")
+            |> redirect(external: tenant_url(conn, updated_user.tenant, ~p"/pos/dashboard"))
 
           {:error, :tenant, changeset} ->
             render_dashboard(conn, user,
@@ -168,6 +168,30 @@ defmodule PosServerWeb.DashboardController do
       _ -> %{}
     end
   end
+
+  defp tenant_url(conn, tenant, path) do
+    endpoint_url = PosServerWeb.Endpoint.config(:url) || []
+    base_host = endpoint_url |> Keyword.get(:host, conn.host) |> to_string()
+    scheme = endpoint_url |> Keyword.get(:scheme, to_string(conn.scheme)) |> to_string()
+    port = endpoint_url |> Keyword.get(:port, conn.port)
+
+    %URI{
+      scheme: scheme,
+      host: tenant_host(tenant, base_host),
+      port: url_port(scheme, port),
+      path: path
+    }
+    |> URI.to_string()
+  end
+
+  defp tenant_host(tenant, base_host) when base_host in ["localhost", "127.0.0.1"],
+    do: "#{tenant}.localhost"
+
+  defp tenant_host(tenant, base_host), do: "#{tenant}.#{base_host}"
+
+  defp url_port("http", 80), do: nil
+  defp url_port("https", 443), do: nil
+  defp url_port(_scheme, port), do: port
 
   defp pos_layout_store_assigns(%{tenant: tenant} = scope, selected_id) when is_binary(tenant) do
     with {:ok, stores} <- InventoryContext.stores(scope) do

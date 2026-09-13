@@ -20,6 +20,7 @@
       dropzone: "#company-logo-dropzone",
       form: "#company-logo-form",
       width: 360,
+      preserveTransparency: true,
       helpText: "Drop an image here or choose a file (max 10 MB). It will be resized and stored as Base64."
     }
   }
@@ -64,6 +65,22 @@
   }
 
   const targetForElement = element => Object.values(uploadTargets).find(target => element?.matches?.(target.input) || element?.matches?.(target.dropzone) || element?.closest?.(target.dropzone))
+  const hasTransparentPixels = context => {
+    const {width, height} = context.canvas
+    const data = context.getImageData(0, 0, width, height).data
+    for (let index = 3; index < data.length; index += 4) {
+      if (data[index] < 255) return true
+    }
+    return false
+  }
+  const outputType = (file, context, target) => {
+    if (target.preserveTransparency && (file.type === "image/png" || hasTransparentPixels(context))) return "image/png"
+    return "image/jpeg"
+  }
+  const blobFromCanvas = (canvas, type) => new Promise((resolve, reject) => {
+    const quality = type === "image/jpeg" ? 0.82 : undefined
+    canvas.toBlob(value => value ? resolve(value) : reject(new Error("Image conversion failed")), type, quality)
+  })
 
   const prepare = async (file, target = uploadTargets.product) => {
     const {raw, preview, help, dropzone} = elements(target)
@@ -103,7 +120,8 @@
       context.imageSmoothingEnabled = true
       context.imageSmoothingQuality = "high"
       context.drawImage(image, 0, 0, width, height)
-      const blob = await new Promise((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error("Image conversion failed")), "image/jpeg", 0.82))
+      const type = outputType(file, context, target)
+      const blob = await blobFromCanvas(canvas, type)
       const dataUrl = await new Promise((resolve, reject) => {
         const reader = new FileReader()
         reader.onload = () => resolve(reader.result)
@@ -155,6 +173,16 @@
     if (dropzone && event.target === dropzone && ["Enter", " "].includes(event.key)) { event.preventDefault(); input.click() }
   })
   document.addEventListener("submit", event => {
+    if (event.target.matches("#workspace-setup-form")) {
+      const button = event.target.querySelector("button[type='submit']")
+      const label = event.target.querySelector("[data-submit-label]")
+      if (button) button.disabled = true
+      if (label) label.textContent = event.target.dataset.submittingLabel || "Creating workspace..."
+      event.target.setAttribute("aria-busy", "true")
+      event.target.dataset.submitting = "true"
+      return
+    }
+
     const target = Object.values(uploadTargets).find(uploadTarget => event.target.matches(uploadTarget.form))
     if (!target) return
     const {dropzone, help} = elements(target)

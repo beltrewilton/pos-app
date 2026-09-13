@@ -93,7 +93,13 @@
           <h2 class="card-title" id="tenant-setup-title" data-i18n="dashboard.createWorkspace">Create workspace</h2>
           <p class="card-description" data-i18n="dashboard.setupWorkspace">Set up the company workspace for this account.</p>
         </div>
-        <form class="card-content" action={~p"/pos/dashboard/tenant"} method="post">
+        <form
+          id="workspace-setup-form"
+          class="card-content"
+          action={~p"/pos/dashboard/tenant"}
+          method="post"
+          data-submitting-label="Creating workspace..."
+        >
           <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
           <div class="form-grid dashboard-form-grid">
             <div
@@ -158,7 +164,9 @@
             </div>
           </div>
           <div class="form-actions dashboard-form-actions">
-            <button class="btn" data-variant="default" type="submit"><span data-i18n="dashboard.createWorkspace">Create workspace</span></button>
+            <button class="btn" data-variant="default" type="submit">
+              <span data-submit-label data-i18n="dashboard.createWorkspace">Create workspace</span>
+            </button>
           </div>
         </form>
       </section>
