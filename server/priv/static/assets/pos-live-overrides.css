@@ -1,26 +1,26 @@
 /* LiveView-only affordance for the two Tauri cart discount entry points. */
-#pos-live .printer-status[data-status="connected"] {
+.pos-shell .printer-status[data-status="connected"] {
   color: #16a34a;
   opacity: 1;
 }
 
-#pos-live .printer-status[data-status="disconnected"],
-#pos-live .printer-status[data-status="error"] {
+.pos-shell .printer-status[data-status="disconnected"],
+.pos-shell .printer-status[data-status="error"] {
   color: #dc2626;
   opacity: 1;
 }
 
-#pos-live .printer-status[data-status="connecting"] {
+.pos-shell .printer-status[data-status="connecting"] {
   color: #f59e0b;
   opacity: 1;
 }
 
-#pos-live .network-status[data-status="connected"] {
+.pos-shell .network-status[data-status="connected"] {
   color: #16a34a;
   opacity: 1;
 }
 
-#pos-live .network-status[data-status="disconnected"] {
+.pos-shell .network-status[data-status="disconnected"] {
   color: #dc2626;
   opacity: 1;
 }

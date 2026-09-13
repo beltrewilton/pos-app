@@ -32,6 +32,7 @@ export class WebUSBPrinterTransport extends EventTarget {
   }
 
   async open(device) {
+    if (this.connected() && sameUsbDevice(this.device, device)) return
     this.device = device
     if (!device.opened) await device.open()
     if (device.configuration === null) await device.selectConfiguration(1)
@@ -45,10 +46,22 @@ export class WebUSBPrinterTransport extends EventTarget {
     this.dispatchEvent(new CustomEvent("connected", {detail: this.deviceInfo()}))
   }
 
-  async disconnect() {
-    if (this.device?.opened) await this.device.close()
+  connected() {
+    return Boolean(this.device?.opened && this.endpointNumber !== null)
+  }
+
+  matches(device) {
+    return sameUsbDevice(this.device, device)
+  }
+
+  clear() {
     this.device = null
     this.endpointNumber = null
+  }
+
+  async disconnect() {
+    if (this.device?.opened) await this.device.close()
+    this.clear()
     this.dispatchEvent(new Event("disconnected"))
   }
 
@@ -69,6 +82,13 @@ export class WebUSBPrinterTransport extends EventTarget {
       language: "esc-pos"
     }
   }
+}
+
+function sameUsbDevice(left, right) {
+  if (!left || !right) return false
+  return left.vendorId === right.vendorId &&
+    left.productId === right.productId &&
+    (!left.serialNumber || !right.serialNumber || left.serialNumber === right.serialNumber)
 }
 
 function usbPrinterFilters() {

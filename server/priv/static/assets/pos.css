@@ -276,11 +276,13 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  min-height: 20px;
   padding: 0 13px;
   border-bottom: 1px solid var(--border);
   background: var(--card);
   color: var(--muted-foreground);
   font-size: 0.7rem;
+  line-height: 1;
 }
 .catalog-panel {
   grid-column: 2;
@@ -1245,16 +1247,27 @@
     align-items: stretch;
   }
 }
+.printer-status-shell,
+.network-status,
+.status-strip .language-switcher summary {
+  display: inline-grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  flex: 0 0 20px;
+  line-height: 0;
+}
 .printer-status {
   display: grid;
   place-items: center;
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   padding: 0;
   border: 0;
   background: transparent;
   color: var(--muted-foreground);
   cursor: pointer;
+  line-height: 0;
 }
 .printer-status svg {
   width: 16px;

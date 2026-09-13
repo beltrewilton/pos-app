@@ -35,6 +35,11 @@ export class ReceiptPrinterService extends EventTarget {
   async reconnect() {
     const saved = this.savedDevice()
     if (!saved) return null
+    if (this.transport.connected()) {
+      const device = this.transport.deviceInfo()
+      this.connected(device)
+      return device
+    }
     return this.withState("connecting", async () => {
       const device = await this.transport.reconnect(saved)
       if (device) this.connected(device)
@@ -63,14 +68,17 @@ export class ReceiptPrinterService extends EventTarget {
     const device = this.matchingGrantedDevice(devices, saved)
 
     if (!device) {
+      if (this.transport.connected()) {
+        if (this.state !== "connected") this.connected(this.transport.deviceInfo())
+        return true
+      }
       this.device = null
-      this.transport.device = null
-      this.transport.endpointNumber = null
+      this.transport.clear()
       if (this.state !== "disconnected") this.setState("disconnected")
       return false
     }
 
-    if (this.state !== "connected") {
+    if (this.state !== "connected" || !this.transport.connected()) {
       await this.transport.open(device)
       this.connected(this.transport.deviceInfo())
     }
@@ -92,6 +100,27 @@ export class ReceiptPrinterService extends EventTarget {
     this.setState("disconnected")
   }
 
+  usbDisconnected(device) {
+    if (!device || (this.transport.device && !this.transport.matches(device))) return
+    this.device = null
+    this.transport.clear()
+    this.setState("disconnected")
+  }
+
+  isConnected() {
+    return this.transport.connected()
+  }
+
+  currentDevice() {
+    return this.device || this.transport.deviceInfo()
+  }
+
+  statusDetail(detail = {}) {
+    const device = detail.device || this.currentDevice()
+    const state = this.isConnected() ? "connected" : this.state
+    return {...detail, state, device}
+  }
+
   async printReceipt(sale) {
     return this.print("receipt", sale)
   }
@@ -109,11 +138,11 @@ export class ReceiptPrinterService extends EventTarget {
   }
 
   async print(kind, sale, payment = null) {
-    if (this.state !== "connected") throw new Error(t("js.noReceiptPrinter"))
+    if (!this.isConnected()) throw new Error(t("js.noReceiptPrinter"))
     console.log("[printer] ReceiptPrinterService.print", {kind, sequence: sale?.sequence, paymentId: payment?.id})
     const formatter = new ReceiptFormatter(this.config)
     const document = kind === "payment" ? formatter.payment(sale, payment) : kind === "invoice" ? formatter.invoice(sale) : kind === "reconciliation" ? formatter.reconciliation(sale) : formatter.receipt(sale)
-    const encoder = new ReceiptEncoder(encoderConfig(this.config, this.device)).initialize()
+    const encoder = new ReceiptEncoder(encoderConfig(this.config, this.currentDevice())).initialize()
     for (const line of document) {
       encoder.align(line.align || "left")
       if (line.type === "image") {
@@ -148,9 +177,12 @@ export class ReceiptPrinterService extends EventTarget {
   }
 
   setState(state, detail = {}) {
-    if (this.state === state && sameDeviceInfo(this.device, detail)) return
-    this.state = state
-    this.dispatchEvent(new CustomEvent("status", {detail: {state, device: this.device, ...detail}}))
+    const next = this.statusDetail({state, ...detail})
+    if (this.state === next.state && sameDeviceInfo(this.currentDevice(), next.device)) return
+    this.state = next.state
+    this.device = next.device
+    tracePrinter("state", next)
+    this.dispatchEvent(new CustomEvent("status", {detail: next}))
   }
 }
 
@@ -165,4 +197,11 @@ function sameDeviceInfo(left, right) {
     left.serialNumber === right.serialNumber &&
     left.productName === right.productName &&
     left.manufacturerName === right.manufacturerName
+}
+
+function tracePrinter(message, detail = {}) {
+  try {
+    if (localStorage.getItem("pos.printer.debug") === "true") console.debug(`[printer] ${message}`, detail)
+  } catch {
+  }
 }

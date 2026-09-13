@@ -707,34 +707,39 @@ defmodule PosServerWeb.PosLayoutComponents do
             >Español</button><button type="button" data-language="pt">Português</button>
           </div>
         </details>
-        <button
+        <span
           id={"#{@id}-printer-status"}
-          class="printer-status"
-          style="appearance: none; display: inline-grid; place-items: center; width: 16px; height: 16px; padding: 0; border: 0; background: transparent; line-height: 0; vertical-align: middle;"
-          type="button"
-          data-printer-status
-          data-status="disconnected"
-          phx-update="ignore"
+          class="printer-status-shell"
           phx-hook="PrinterStatus"
-          aria-label="Printer disconnected"
-          title="Printer disconnected"
-          data-i18n-aria-label="layout.status.printerDisconnected"
-          data-i18n-title="layout.status.printerDisconnected"
+          phx-update="ignore"
         >
-          <svg
-            role="img"
-            width="15"
-            height="15"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+          <button
+            id={"#{@id}-printer-status-button"}
+            class="printer-status"
+            style="appearance: none; display: inline-grid; place-items: center; width: 16px; height: 16px; padding: 0; border: 0; background: transparent; line-height: 0; vertical-align: middle;"
+            type="button"
+            data-printer-status
+            data-status="disconnected"
+            aria-label="Printer disconnected"
+            title="Printer disconnected"
+            data-i18n-aria-label="layout.status.printerDisconnected"
+            data-i18n-title="layout.status.printerDisconnected"
           >
-            <path d="M6 9V3h12v6" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><path d="M6 14h12v7H6z" />
-          </svg>
-        </button>
+            <svg
+              role="img"
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M6 9V3h12v6" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><path d="M6 14h12v7H6z" />
+            </svg>
+          </button>
+        </span>
         <svg
           id={"#{@id}-network-status"}
           class="network-status"

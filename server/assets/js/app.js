@@ -455,11 +455,16 @@ function installPrinterStatus(element) {
   if (!element) return
   element.printerStatusInstallCount = (element.printerStatusInstallCount || 0) + 1
   if (element.printerStatusHandler) return
+  element.printerStatusTarget = element.matches?.("[data-printer-status]")
+    ? element
+    : element.querySelector("[data-printer-status]")
+  if (!element.printerStatusTarget) return
   element.printerStatusHandler = event => {
-    const state = event.detail.state
-    element.dataset.status = state
-    element.setAttribute("aria-label", printerStatusLabel(state))
-    element.title = event.detail.device?.productName || printerStatusLabel(state)
+    const detail = receiptPrinter.statusDetail(event.detail)
+    const state = detail.state
+    element.printerStatusTarget.dataset.status = state
+    element.printerStatusTarget.setAttribute("aria-label", printerStatusLabel(state))
+    element.printerStatusTarget.title = detail.device?.productName || printerStatusLabel(state)
   }
   element.printerStatusClickHandler = async () => {
     try {
@@ -468,8 +473,8 @@ function installPrinterStatus(element) {
     }
   }
   receiptPrinter.addEventListener("status", element.printerStatusHandler)
-  element.addEventListener("click", element.printerStatusClickHandler)
-  element.printerStatusHandler({detail: {state: receiptPrinter.state, device: receiptPrinter.device}})
+  element.printerStatusTarget.addEventListener("click", element.printerStatusClickHandler)
+  element.printerStatusHandler({detail: receiptPrinter.statusDetail()})
 }
 
 function uninstallPrinterStatus(element) {
@@ -477,9 +482,10 @@ function uninstallPrinterStatus(element) {
   element.printerStatusInstallCount = Math.max((element.printerStatusInstallCount || 1) - 1, 0)
   if (element.printerStatusInstallCount > 0) return
   receiptPrinter.removeEventListener("status", element.printerStatusHandler)
-  element.removeEventListener("click", element.printerStatusClickHandler)
+  element.printerStatusTarget?.removeEventListener("click", element.printerStatusClickHandler)
   delete element.printerStatusHandler
   delete element.printerStatusClickHandler
+  delete element.printerStatusTarget
   delete element.printerStatusInstallCount
 }
 
@@ -487,12 +493,13 @@ function installPrinterSession(element) {
   if (!element || element.printerSessionInstalled) return
   element.printerSessionInstalled = true
   element.printerSessionRefreshHandler = () => {
-    if (document.hidden || receiptPrinter.state === "connected" || receiptPrinter.state === "connecting") return
+    const state = receiptPrinter.statusDetail().state
+    if (document.hidden || state === "connected" || state === "connecting") return
     receiptPrinter.reconnect().catch(() => {})
   }
-  element.printerSessionUsbDisconnectHandler = () => {
-    if (receiptPrinter.state !== "connected") return
-    receiptPrinter.refreshStatus().catch(() => {})
+  element.printerSessionUsbDisconnectHandler = event => {
+    if (!receiptPrinter.isConnected()) return
+    receiptPrinter.usbDisconnected(event.device)
   }
   window.addEventListener("focus", element.printerSessionRefreshHandler)
   document.addEventListener("visibilitychange", element.printerSessionRefreshHandler)
@@ -671,7 +678,7 @@ function createLiveViewPrintRelay({token, storeId, onRequest}) {
   const refreshPrinter = async () => {
     if (document.hidden) return
     if (relayDevice() !== "desktop" || channel.state !== "joined") return
-    if (receiptPrinter.state === "connected") {
+    if (receiptPrinter.isConnected()) {
       publishPrinter()
       return
     }
@@ -755,7 +762,7 @@ function samePrinterMeta(left, right) {
 
 function shouldRelayPrint() {
   const mobileSize = window.matchMedia?.("(max-width: 767px)")?.matches
-  return mobileSize || !navigator.usb || receiptPrinter.state !== "connected"
+  return mobileSize || !navigator.usb || !receiptPrinter.isConnected()
 }
 
 function relayDevice() {
@@ -763,11 +770,12 @@ function relayDevice() {
 }
 
 function desktopPrinterMeta() {
-  const device = receiptPrinter.device
+  const status = receiptPrinter.statusDetail()
+  const device = status.device
   return {
     label: "Desktop Web POS",
     printer: device?.productName || device?.manufacturerName || "Receipt printer",
-    printer_online: relayDevice() === "desktop" && receiptPrinter.state === "connected"
+    printer_online: relayDevice() === "desktop" && status.state === "connected"
   }
 }
 
