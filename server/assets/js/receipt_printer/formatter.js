@@ -131,9 +131,9 @@ function columnsHeader(columns) {
 }
 
 function itemLine(qty, unit, tax, total, columns) {
-  const left = `${trimNumber(qty)} x ${money(unit)}`
-  const taxValue = money(tax)
-  const right = money(total)
+  const left = `${trimNumber(qty)} x ${receiptMoney(unit)}`
+  const taxValue = receiptMoney(tax)
+  const right = receiptMoney(total)
   const taxColumn = taxValue.padStart(10)
   const rightColumn = right.padStart(12)
   return `${left}`.padEnd(Math.max(1, columns - taxColumn.length - rightColumn.length)).slice(0, columns - taxColumn.length - rightColumn.length) + taxColumn + rightColumn
@@ -164,7 +164,14 @@ function receiptTotals(sale) {
 }
 
 function amountLine(label, value, columns) {
-  return twoCol(label, money(value), columns)
+  return twoCol(label, receiptMoney(value), columns)
+}
+
+function receiptMoney(value) {
+  if (getLanguage() !== "pt") return money(value)
+  const amount = number(value)
+  const formatted = Math.abs(amount).toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2})
+  return `${amount < 0 ? "-" : ""}$${formatted}`
 }
 
 function reconciliationAmountLine(label, value, columns) {
@@ -209,11 +216,17 @@ function receiptDate(value) {
 }
 
 function paymentLabel(type) {
-  return type === "CC" ? t("receipts.creditCard") : t("receipts.cash")
+  const labels = {
+    en: {CC: "Credit Card", CASH: "Cash"},
+    es: {CC: "Tarjeta de credito", CASH: "Efectivo"},
+    pt: {CC: "Cartao de credito", CASH: "Dinheiro"}
+  }
+  const language = getLanguage()
+  return labels[language]?.[type] || labels.en[type] || str(type)
 }
 
 function paymentLine(payment, columns) {
-  const amount = money(payment.amount)
+  const amount = receiptMoney(payment.amount)
   return twoCol(paymentLabel(payment.type), amount, columns)
 }
 

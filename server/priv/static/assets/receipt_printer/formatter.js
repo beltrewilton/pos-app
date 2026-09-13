@@ -167,7 +167,7 @@ function receiptDate(value) {
 }
 
 function paymentLabel(type) {
-  return type === "CC" ? "Tarjeta de credito" : "Efectivo"
+  return type === "CC" ? "Cartao de credito" : "Dinheiro"
 }
 
 function paymentLine(payment, columns) {
