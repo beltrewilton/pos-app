@@ -13,7 +13,7 @@ defmodule PosServerWeb.CashReconciliationLive do
   @payment_labels %{"CASH" => "Cash payments", "CC" => "Credit/debit card payments"}
 
   @impl true
-  def mount(_params, session, socket) do
+  def mount(params, session, socket) do
     today = Date.to_iso8601(server_today())
 
     with token when is_binary(token) <- session["user_token"],
@@ -21,7 +21,7 @@ defmodule PosServerWeb.CashReconciliationLive do
          true <- Scope.allowed?(scope, "pos.reconciliation"),
          _ <- TenantContext.put_tenant(scope.tenant),
          {:ok, stores} <- InventoryContext.stores(scope),
-         %{id: store_id} <- selected_store(stores, session["store_id"]) do
+         %{id: store_id} <- selected_store(stores, Map.get(params, "store_id") || session["store_id"]) do
       cashiers = cashiers(scope)
       cashier = List.first(cashiers)
 

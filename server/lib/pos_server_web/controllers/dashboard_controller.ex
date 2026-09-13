@@ -7,9 +7,9 @@ defmodule PosServerWeb.DashboardController do
   alias PosServer.Accounts.{Company, Scope}
   alias PosServer.Retaily.{CompanySettings, InventoryContext}
 
-  def index(%{assigns: %{current_scope: scope}} = conn, _params) do
+  def index(%{assigns: %{current_scope: scope}} = conn, params) do
     if Scope.allowed?(scope, "dashboard.view"),
-      do: render_dashboard(conn, dashboard_user(scope)),
+      do: render_dashboard(conn, dashboard_user(scope), selected_store_id: params["store_id"]),
       else: redirect(conn, to: landing_path(scope))
   end
 
@@ -88,7 +88,10 @@ defmodule PosServerWeb.DashboardController do
     company_changeset = company_changeset(conn, opts)
 
     {stores, store_id} =
-      pos_layout_store_assigns(conn.assigns.current_scope, get_session(conn, :store_id))
+      pos_layout_store_assigns(
+        conn.assigns.current_scope,
+        Keyword.get(opts, :selected_store_id) || get_session(conn, :store_id)
+      )
 
     render(conn, :index,
       user: user,

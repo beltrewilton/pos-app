@@ -13,13 +13,13 @@ defmodule PosServerWeb.CustomerLive do
   @page_size 100
 
   @impl true
-  def mount(_params, session, socket) do
+  def mount(params, session, socket) do
     with token when is_binary(token) <- session["user_token"],
          {:ok, scope} <- Authentication.authenticate(token),
          true <- Scope.allowed?(scope, "pos.customer"),
          _ <- TenantContext.put_tenant(scope.tenant),
          {:ok, stores} <- InventoryContext.stores(scope),
-         %{id: store_id} <- selected_store(stores, session["store_id"]) do
+         %{id: store_id} <- selected_store(stores, Map.get(params, "store_id") || session["store_id"]) do
       {:ok,
        socket
        |> assign(:page_title, "Tigoo Customers")
@@ -70,8 +70,14 @@ defmodule PosServerWeb.CustomerLive do
           search={@customer_search}
           status={@customers_status}
           loading={@loading_customers?}
+          store_id={@store_id}
         />
-        <.customer_detail :if={@mode == :detail} detail={@detail} loading={@detail_loading?} />
+        <.customer_detail
+          :if={@mode == :detail}
+          detail={@detail}
+          loading={@detail_loading?}
+          store_id={@store_id}
+        />
       </section>
       <.customer_dialog
         :if={@customer_dialog?}

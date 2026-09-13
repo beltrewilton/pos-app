@@ -295,8 +295,12 @@ button {
 .sidebar-theme-icon { width: 19px; height: 19px; }
 .sidebar-menu-trigger:focus-visible { outline: 2px solid var(--sidebar-ring); outline-offset: 2px; }
 .sidebar-menu-content { bottom: 0; left: calc(100% + 8px); }
-.sidebar-menu-action { display: flex; width: 100%; min-height: 32px; align-items: center; padding: 6px 8px; border: 0; border-radius: calc(var(--radius-md) - 3px); background: transparent; color: inherit; font: inherit; font-size: .8125rem; font-weight: 600; text-align: left; cursor: pointer; }
+.sidebar-menu-action { display: flex; width: 100%; min-height: 32px; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px; border: 0; border-radius: calc(var(--radius-md) - 3px); background: transparent; color: inherit; font: inherit; font-size: .8125rem; font-weight: 600; text-align: left; cursor: pointer; }
 .sidebar-menu-action:hover, .sidebar-menu-action[aria-current="true"] { background: var(--accent); color: var(--accent-foreground); }
+.sidebar-menu-action > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-menu-check { width: 15px; height: 15px; flex: 0 0 auto; }
+.sidebar-theme-selector .sidebar-menu-check { visibility: hidden; }
+.sidebar-theme-selector .sidebar-menu-action[aria-current="true"] .sidebar-menu-check { visibility: visible; }
 
 /* These legacy neutral surfaces stay untouched for Default; Nature maps them to its semantic background. */
 .theme-nature .application-screen,

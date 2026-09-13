@@ -77,7 +77,7 @@ defmodule PosServerWeb.PosLayoutComponents do
           <a
             :if={nav_allowed?(@scope, :dashboard)}
             class="mobile-nav-link"
-            href={~p"/pos/dashboard"}
+            href={nav_href(:dashboard, @active_page, @store_id)}
             aria-current={current_page(@active_page, :dashboard)}
           >
             Dashboard
@@ -85,7 +85,7 @@ defmodule PosServerWeb.PosLayoutComponents do
           <a
             :if={nav_allowed?(@scope, :pos)}
             class="mobile-nav-link"
-            href={pos_href(@active_page)}
+            href={nav_href(:pos, @active_page, @store_id)}
             aria-current={current_page(@active_page, :pos)}
           >
             POS
@@ -93,7 +93,7 @@ defmodule PosServerWeb.PosLayoutComponents do
           <a
             :if={nav_allowed?(@scope, :invoices)}
             class="mobile-nav-link"
-            href={~p"/pos/invoices"}
+            href={nav_href(:invoices, @active_page, @store_id)}
             aria-current={current_page(@active_page, :invoices)}
           >
             Invoice report
@@ -101,7 +101,7 @@ defmodule PosServerWeb.PosLayoutComponents do
           <a
             :if={nav_allowed?(@scope, :reconciliation)}
             class="mobile-nav-link"
-            href={~p"/pos/reconciliation"}
+            href={nav_href(:reconciliation, @active_page, @store_id)}
             aria-current={current_page(@active_page, :reconciliation)}
           >
             Cash reconciliation
@@ -109,7 +109,7 @@ defmodule PosServerWeb.PosLayoutComponents do
           <a
             :if={nav_allowed?(@scope, :customers)}
             class="mobile-nav-link"
-            href={~p"/pos/customers"}
+            href={nav_href(:customers, @active_page, @store_id)}
             aria-current={current_page(@active_page, :customers)}
           >
             Customers
@@ -117,7 +117,7 @@ defmodule PosServerWeb.PosLayoutComponents do
           <a
             :if={nav_allowed?(@scope, :inventory)}
             class="mobile-nav-link"
-            href={~p"/pos/inventory"}
+            href={nav_href(:inventory, @active_page, @store_id)}
             aria-current={current_page(@active_page, :inventory)}
           >
             Inventory
@@ -125,7 +125,7 @@ defmodule PosServerWeb.PosLayoutComponents do
           <a
             :if={nav_allowed?(@scope, :orders)}
             class="mobile-nav-link"
-            href={~p"/pos/orders"}
+            href={nav_href(:orders, @active_page, @store_id)}
             aria-current={current_page(@active_page, :orders)}
           >
             Purchase orders
@@ -133,7 +133,7 @@ defmodule PosServerWeb.PosLayoutComponents do
           <a
             :if={nav_allowed?(@scope, :installed_addons)}
             class="mobile-nav-link"
-            href={~p"/pos/addons"}
+            href={nav_href(:installed_addons, @active_page, @store_id)}
             aria-current={current_page(@active_page, :installed_addons)}
           >
             Installed Add-ons
@@ -141,7 +141,7 @@ defmodule PosServerWeb.PosLayoutComponents do
           <a
             :if={nav_allowed?(@scope, :company_settings)}
             class="mobile-nav-link"
-            href={~p"/pos/company-settings"}
+            href={nav_href(:company_settings, @active_page, @store_id)}
             aria-current={current_page(@active_page, :company_settings)}
           >
             Company settings
@@ -149,7 +149,7 @@ defmodule PosServerWeb.PosLayoutComponents do
           <a
             :if={nav_allowed?(@scope, :users)}
             class="mobile-nav-link"
-            href={~p"/pos/users"}
+            href={nav_href(:users, @active_page, @store_id)}
             aria-current={current_page(@active_page, :users)}
           >
             Users
@@ -157,7 +157,7 @@ defmodule PosServerWeb.PosLayoutComponents do
           <a
             :if={nav_allowed?(@scope, :addons)}
             class="mobile-nav-link"
-            href={~p"/pos/addons/install"}
+            href={nav_href(:addons, @active_page, @store_id)}
             aria-current={current_page(@active_page, :addons)}
           >
             Install Addons
@@ -262,7 +262,7 @@ defmodule PosServerWeb.PosLayoutComponents do
         <a
           :if={nav_allowed?(@scope, :dashboard)}
           class="sidebar-link"
-          href={~p"/pos/dashboard"}
+          href={nav_href(:dashboard, @active_page, @store_id)}
           aria-current={current_page(@active_page, :dashboard)}
           aria-label="Dashboard"
           data-i18n-aria-label="dashboard.dashboard"
@@ -294,7 +294,7 @@ defmodule PosServerWeb.PosLayoutComponents do
         <a
           :if={nav_allowed?(@scope, :pos)}
           class="sidebar-link"
-          href={pos_href(@active_page)}
+          href={nav_href(:pos, @active_page, @store_id)}
           aria-current={current_page(@active_page, :pos)}
           aria-label="POS"
           data-i18n-aria-label="layout.nav.pos"
@@ -312,7 +312,7 @@ defmodule PosServerWeb.PosLayoutComponents do
         <a
           :if={nav_allowed?(@scope, :invoices)}
           class="sidebar-link"
-          href={~p"/pos/invoices"}
+          href={nav_href(:invoices, @active_page, @store_id)}
           aria-current={current_page(@active_page, :invoices)}
           aria-label="Invoice report"
           data-i18n-aria-label="layout.nav.invoices"
@@ -330,7 +330,7 @@ defmodule PosServerWeb.PosLayoutComponents do
         <a
           :if={nav_allowed?(@scope, :reconciliation)}
           class="sidebar-link"
-          href={~p"/pos/reconciliation"}
+          href={nav_href(:reconciliation, @active_page, @store_id)}
           aria-current={current_page(@active_page, :reconciliation)}
           aria-label="Cash reconciliation"
           data-i18n-aria-label="layout.nav.reconciliation"
@@ -352,7 +352,7 @@ defmodule PosServerWeb.PosLayoutComponents do
         <a
           :if={nav_allowed?(@scope, :customers)}
           class="sidebar-link"
-          href={~p"/pos/customers"}
+          href={nav_href(:customers, @active_page, @store_id)}
           aria-current={current_page(@active_page, :customers)}
           aria-label="Customers"
           data-i18n-aria-label="layout.nav.customers"
@@ -370,7 +370,7 @@ defmodule PosServerWeb.PosLayoutComponents do
         <a
           :if={nav_allowed?(@scope, :inventory)}
           class="sidebar-link"
-          href={~p"/pos/inventory"}
+          href={nav_href(:inventory, @active_page, @store_id)}
           aria-current={current_page(@active_page, :inventory)}
           aria-label="Inventory"
           data-i18n-aria-label="layout.nav.inventory"
@@ -388,7 +388,7 @@ defmodule PosServerWeb.PosLayoutComponents do
         <a
           :if={nav_allowed?(@scope, :orders)}
           class="sidebar-link"
-          href={~p"/pos/orders"}
+          href={nav_href(:orders, @active_page, @store_id)}
           aria-current={current_page(@active_page, :orders)}
           aria-label="Purchase orders"
           data-i18n-aria-label="layout.nav.orders"
@@ -406,7 +406,7 @@ defmodule PosServerWeb.PosLayoutComponents do
         <a
           :if={nav_allowed?(@scope, :installed_addons)}
           class="sidebar-link"
-          href={~p"/pos/addons"}
+          href={nav_href(:installed_addons, @active_page, @store_id)}
           aria-current={current_page(@active_page, :installed_addons)}
           aria-label="Installed Add-ons"
           data-i18n-aria-label="addons.installedAddons"
@@ -425,7 +425,7 @@ defmodule PosServerWeb.PosLayoutComponents do
           :if={nav_allowed?(@scope, :company_settings)}
           id="company-settings-nav"
           class="sidebar-link"
-          href={~p"/pos/company-settings"}
+          href={nav_href(:company_settings, @active_page, @store_id)}
           aria-current={current_page(@active_page, :company_settings)}
           aria-label="Company settings"
           data-i18n-aria-label="layout.nav.companySettings"
@@ -446,7 +446,7 @@ defmodule PosServerWeb.PosLayoutComponents do
           :if={nav_allowed?(@scope, :users)}
           id="users-nav"
           class="sidebar-link"
-          href={~p"/pos/users"}
+          href={nav_href(:users, @active_page, @store_id)}
           aria-current={current_page(@active_page, :users)}
           aria-label="Users"
           data-i18n-aria-label="layout.nav.users"
@@ -466,7 +466,7 @@ defmodule PosServerWeb.PosLayoutComponents do
         <a
           :if={nav_allowed?(@scope, :addons)}
           class="sidebar-link"
-          href={~p"/pos/addons/install"}
+          href={nav_href(:addons, @active_page, @store_id)}
           aria-current={current_page(@active_page, :addons)}
           aria-label="Install Addons"
           data-i18n-aria-label="dashboard.installAddon"
@@ -522,76 +522,24 @@ defmodule PosServerWeb.PosLayoutComponents do
             data-i18n-aria-label="layout.theme.label"
           >
             <button
+              :for={{theme, label, i18n_key} <- theme_options()}
               class="sidebar-menu-action"
               type="button"
-              data-theme="default-light"
-              data-i18n="layout.theme.defaultLight"
+              data-theme={theme}
             >
-              Default Light
-            </button>
-            <button
-              class="sidebar-menu-action"
-              type="button"
-              data-theme="nature-light"
-              data-i18n="layout.theme.natureLight"
-            >
-              Nature Light
-            </button>
-            <button
-              class="sidebar-menu-action"
-              type="button"
-              data-theme="nature-dark"
-              data-i18n="layout.theme.natureDark"
-            >
-              Nature Dark
-            </button>
-            <button
-              class="sidebar-menu-action"
-              type="button"
-              data-theme="caffeine-light"
-              data-i18n="layout.theme.caffeineLight"
-            >
-              Caffeine Light
-            </button>
-            <button
-              class="sidebar-menu-action"
-              type="button"
-              data-theme="caffeine-dark"
-              data-i18n="layout.theme.caffeineDark"
-            >
-              Caffeine Dark
-            </button>
-            <button
-              class="sidebar-menu-action"
-              type="button"
-              data-theme="bold-tech-light"
-              data-i18n="layout.theme.boldTechLight"
-            >
-              Bold Tech Light
-            </button>
-            <button
-              class="sidebar-menu-action"
-              type="button"
-              data-theme="bold-tech-dark"
-              data-i18n="layout.theme.boldTechDark"
-            >
-              Bold Tech Dark
-            </button>
-            <button
-              class="sidebar-menu-action"
-              type="button"
-              data-theme="doom-64-light"
-              data-i18n="layout.theme.doom64Light"
-            >
-              Doom 64 Light
-            </button>
-            <button
-              class="sidebar-menu-action"
-              type="button"
-              data-theme="doom-64-dark"
-              data-i18n="layout.theme.doom64Dark"
-            >
-              Doom 64 Dark
+              <span data-i18n={i18n_key}>{label}</span>
+              <svg
+                class="sidebar-menu-check"
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M20 6 9 17l-5-5" />
+              </svg>
             </button>
           </div>
         </details>
@@ -775,9 +723,38 @@ defmodule PosServerWeb.PosLayoutComponents do
 
   defp current_page(page, page), do: "page"
   defp current_page(_, _), do: nil
-  defp pos_href(:pos), do: "#"
-  defp pos_href(_), do: ~p"/pos"
+
+  defp nav_href(active_page, active_page, _store_id), do: "#"
+  defp nav_href(:dashboard, _active_page, store_id), do: store_href(~p"/pos/dashboard", store_id)
+  defp nav_href(:pos, _active_page, store_id), do: store_href(~p"/pos", store_id)
+  defp nav_href(:invoices, _active_page, store_id), do: store_href(~p"/pos/invoices", store_id)
+  defp nav_href(:reconciliation, _active_page, store_id), do: store_href(~p"/pos/reconciliation", store_id)
+  defp nav_href(:customers, _active_page, store_id), do: store_href(~p"/pos/customers", store_id)
+  defp nav_href(:inventory, _active_page, store_id), do: store_href(~p"/pos/inventory", store_id)
+  defp nav_href(:orders, _active_page, store_id), do: store_href(~p"/pos/orders", store_id)
+  defp nav_href(:installed_addons, _active_page, store_id), do: store_href(~p"/pos/addons", store_id)
+  defp nav_href(:company_settings, _active_page, store_id), do: store_href(~p"/pos/company-settings", store_id)
+  defp nav_href(:users, _active_page, store_id), do: store_href(~p"/pos/users", store_id)
+  defp nav_href(:addons, _active_page, store_id), do: store_href(~p"/pos/addons/install", store_id)
+
+  defp store_href(path, nil), do: path
+  defp store_href(path, ""), do: path
+  defp store_href(path, store_id), do: path <> "?" <> URI.encode_query(%{"store_id" => store_id})
   defp nav_allowed?(scope, page), do: Scope.allowed?(scope, nav_permission(page))
+
+  defp theme_options do
+    [
+      {"default-light", "Default Light", "layout.theme.defaultLight"},
+      {"nature-light", "Nature Light", "layout.theme.natureLight"},
+      {"nature-dark", "Nature Dark", "layout.theme.natureDark"},
+      {"caffeine-light", "Caffeine Light", "layout.theme.caffeineLight"},
+      {"caffeine-dark", "Caffeine Dark", "layout.theme.caffeineDark"},
+      {"bold-tech-light", "Bold Tech Light", "layout.theme.boldTechLight"},
+      {"bold-tech-dark", "Bold Tech Dark", "layout.theme.boldTechDark"},
+      {"doom-64-light", "Doom 64 Light", "layout.theme.doom64Light"},
+      {"doom-64-dark", "Doom 64 Dark", "layout.theme.doom64Dark"}
+    ]
+  end
 
   defp nav_permission(:dashboard), do: "dashboard.view"
   defp nav_permission(:pos), do: "sales.pos"

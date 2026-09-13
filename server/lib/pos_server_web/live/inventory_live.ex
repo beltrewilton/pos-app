@@ -11,13 +11,13 @@ defmodule PosServerWeb.InventoryLive do
   @sort_keys ~w(product_name product_code product_cost product_price total_quantity quantity prev_quantity last_update user_updated)
 
   @impl true
-  def mount(_params, session, socket) do
+  def mount(params, session, socket) do
     with token when is_binary(token) <- session["user_token"],
          {:ok, scope} <- Authentication.authenticate(token),
          true <- Scope.allowed?(scope, "inventory.view"),
          _ <- TenantContext.put_tenant(scope.tenant),
          {:ok, stores} <- InventoryContext.stores(scope),
-         %{id: store_id} <- selected_store(stores, session["store_id"]) do
+         %{id: store_id} <- selected_store(stores, Map.get(params, "store_id") || session["store_id"]) do
       socket =
         socket
         |> assign(:page_title, "Tigoo Inventory")

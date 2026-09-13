@@ -8,6 +8,7 @@ defmodule PosServerWeb.CustomerComponents do
   attr :search, :string, required: true
   attr :status, :string, required: true
   attr :loading, :boolean, default: false
+  attr :store_id, :any, default: nil
 
   def customer_list(assigns) do
     ~H"""
@@ -34,7 +35,7 @@ defmodule PosServerWeb.CustomerComponents do
             >
               <span data-i18n="pos.customers.createCustomer">Create customer</span>
             </button>
-            <a id="customers-back" class="btn" data-variant="outline" href={~p"/pos"}>
+            <a id="customers-back" class="btn" data-variant="outline" href={store_path("/pos", @store_id)}>
               <span data-i18n="common.back">Back</span>
             </a>
           </div>
@@ -182,6 +183,7 @@ defmodule PosServerWeb.CustomerComponents do
 
   attr :detail, :map, default: nil
   attr :loading, :boolean, default: false
+  attr :store_id, :any, default: nil
 
   def customer_detail(assigns) do
     ~H"""
@@ -224,13 +226,14 @@ defmodule PosServerWeb.CustomerComponents do
           <.skeleton_block class="skeleton-line" width="40%" />
           <.skeleton_block class="skeleton-line" width="75%" />
         </div>
-        <.customer_detail_content :if={!@loading and @detail} detail={@detail} />
+        <.customer_detail_content :if={!@loading and @detail} detail={@detail} store_id={@store_id} />
       </article>
     </section>
     """
   end
 
   attr :detail, :map, required: true
+  attr :store_id, :any, default: nil
 
   def customer_detail_content(assigns) do
     ~H"""
@@ -333,7 +336,7 @@ defmodule PosServerWeb.CustomerComponents do
                   <.link
                     class="btn"
                     data-variant="ghost"
-                    navigate={~p"/pos/invoices?search=#{customer.name || ""}"}
+                    navigate={invoice_path(customer.name || "", @store_id)}
                   >
                     <span data-i18n="common.view">View</span>
                   </.link>
@@ -563,6 +566,12 @@ defmodule PosServerWeb.CustomerComponents do
 
   defp customer_date(_), do: "—"
   defp money(value), do: "$" <> :erlang.float_to_binary(float(value), decimals: 2)
+  defp store_path(path, nil), do: path
+  defp store_path(path, ""), do: path
+  defp store_path(path, store_id), do: path <> "?" <> URI.encode_query(%{"store_id" => store_id})
+  defp invoice_path(search, nil), do: ~p"/pos/invoices?search=#{search}"
+  defp invoice_path(search, ""), do: ~p"/pos/invoices?search=#{search}"
+  defp invoice_path(search, store_id), do: ~p"/pos/invoices?#{%{search: search, store_id: store_id}}"
   defp memo?(purchase), do: String.trim(to_string(value(purchase, :additional_info) || "")) != ""
 
   defp memo_author(purchase),

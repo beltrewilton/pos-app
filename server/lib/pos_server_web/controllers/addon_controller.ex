@@ -6,11 +6,11 @@ defmodule PosServerWeb.AddonController do
   alias PosServer.Accounts.Scope
   alias PosServer.Retaily.InventoryContext
 
-  def index(%{assigns: %{current_scope: scope}} = conn, _params) do
+  def index(%{assigns: %{current_scope: scope}} = conn, params) do
     tenant = scope.tenant
 
     with true <- Scope.allowed?(scope, "pos.addons"),
-         {:ok, layout} <- pos_layout_assigns(conn) do
+         {:ok, layout} <- pos_layout_assigns(conn, params) do
       render(conn, :index,
         installed: Addons.enabled_for(tenant),
         tenant: tenant,
@@ -25,11 +25,11 @@ defmodule PosServerWeb.AddonController do
 
   def index(conn, _params), do: redirect(conn, to: ~p"/")
 
-  def install_index(%{assigns: %{current_scope: %{actor: :admin}}} = conn, _params) do
+  def install_index(%{assigns: %{current_scope: %{actor: :admin}}} = conn, params) do
     tenant = conn.assigns.current_scope.tenant
 
     with true <- Scope.allowed?(conn.assigns.current_scope, "pos.addons.install"),
-         {:ok, layout} <- pos_layout_assigns(conn) do
+         {:ok, layout} <- pos_layout_assigns(conn, params) do
       render(conn, :install,
         catalog: Installer.catalog(),
         installed: Addons.enabled_for(tenant),
@@ -105,13 +105,11 @@ defmodule PosServerWeb.AddonController do
   def uninstall(conn, _params), do: redirect(conn, to: ~p"/")
 
   # Runtime registry lookup selects the add-on behind the generic POS route.
-  def show(%{assigns: %{current_scope: scope}} = conn, %{
-        "identifier" => identifier
-      }) do
+  def show(%{assigns: %{current_scope: scope}} = conn, %{"identifier" => identifier} = params) do
     with true <- Scope.allowed?(scope, "pos.addons"),
          addon when not is_nil(addon) <- Addons.get_enabled_for(identifier, scope.tenant),
          {:ok, handler} <- Installer.handler(addon),
-         {:ok, layout} <- pos_layout_assigns(conn) do
+         {:ok, layout} <- pos_layout_assigns(conn, params) do
       render(conn, :show,
         addon: addon,
         entrypoint: handler,
@@ -150,11 +148,11 @@ defmodule PosServerWeb.AddonController do
     }
   end
 
-  defp pos_layout_assigns(conn) do
+  defp pos_layout_assigns(conn, params \\ %{}) do
     scope = conn.assigns.current_scope
 
     with {:ok, stores} <- InventoryContext.stores(scope) do
-      store = selected_store(stores, get_session(conn, :store_id))
+      store = selected_store(stores, params["store_id"] || get_session(conn, :store_id))
       {:ok, %{scope: scope, stores: stores, store_id: store && store.id}}
     end
   end

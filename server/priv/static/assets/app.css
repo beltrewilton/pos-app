@@ -45,6 +45,12 @@
   height: 15px;
   flex: 0 0 15px;
 }
+.pos-shell .sidebar-theme-selector .sidebar-menu-check {
+  visibility: hidden;
+}
+.pos-shell .sidebar-theme-selector .sidebar-menu-action[aria-current="true"] .sidebar-menu-check {
+  visibility: visible;
+}
 .dashboard-account-menu {
   position: relative;
 }

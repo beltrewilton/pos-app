@@ -11,7 +11,7 @@ defmodule PosServerWeb.CompanySettingsLive do
   @kinds ~w(price-list store provider sequence)
 
   @impl true
-  def mount(_params, session, socket) do
+  def mount(params, session, socket) do
     with token when is_binary(token) <- session["user_token"],
          {:ok, scope} <- Authentication.authenticate(token),
          true <- Scope.allowed?(scope, "company.settings"),
@@ -23,7 +23,7 @@ defmodule PosServerWeb.CompanySettingsLive do
        |> assign(:scope, scope)
        |> assign(:overview, overview)
        |> assign(:stores, overview.stores)
-       |> assign(:store_id, selected_store_id(overview.stores, session["store_id"]))
+       |> assign(:store_id, selected_store_id(overview.stores, Map.get(params, "store_id") || session["store_id"]))
        |> assign(:editing, nil)
        |> assign(:status, "")}
     else

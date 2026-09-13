@@ -20,7 +20,7 @@ defmodule PosServerWeb.InvoiceReportLive do
          true <- Scope.allowed?(scope, "sales.view"),
          _ <- TenantContext.put_tenant(scope.tenant),
          {:ok, stores} <- InventoryContext.stores(scope),
-         %{id: store_id} <- selected_store(stores, session["store_id"]) do
+         %{id: store_id} <- selected_store(stores, Map.get(params, "store_id") || session["store_id"]) do
       {:ok,
        socket
        |> assign(:page_title, "Tigoo Invoice report")

@@ -25,7 +25,15 @@
         </div>
 
         <div :if={@installed != []} class="installed-addons-grid">
-          <a :for={addon <- @installed} class="installed-addon-card" href={"/pos/addons/#{addon.identifier}"}>
+          <a
+            :for={addon <- @installed}
+            class="installed-addon-card"
+            href={
+              if @store_id,
+                do: "/pos/addons/#{addon.identifier}?#{URI.encode_query(%{"store_id" => @store_id})}",
+                else: "/pos/addons/#{addon.identifier}"
+            }
+          >
             <span class="addon-icon installed-addon-icon" aria-hidden="true">{addon.icon}</span>
             <span class="installed-addon-name">{addon.name}</span>
           </a>
@@ -39,7 +47,15 @@
             </p>
           </div>
           <div :if={PosServer.Accounts.Scope.allowed?(@scope, "pos.addons.install")} class="card-footer">
-            <a class="btn" data-variant="default" href={~p"/pos/addons/install"}>
+            <a
+              class="btn"
+              data-variant="default"
+              href={
+                if @store_id,
+                  do: "/pos/addons/install?#{URI.encode_query(%{"store_id" => @store_id})}",
+                  else: "/pos/addons/install"
+              }
+            >
               <span data-i18n="dashboard.installAddon">Install Addons</span>
             </a>
           </div>
