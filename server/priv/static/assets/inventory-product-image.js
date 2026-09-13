@@ -77,7 +77,7 @@
     if (target.preserveTransparency && (file.type === "image/png" || hasTransparentPixels(context))) return "image/png"
     return "image/jpeg"
   }
-  const blobFromCanvas = (canvas, type) => new Promise((resolve, reject) => {
+  const canvasBlob = (canvas, type) => new Promise((resolve, reject) => {
     const quality = type === "image/jpeg" ? 0.82 : undefined
     canvas.toBlob(value => value ? resolve(value) : reject(new Error("Image conversion failed")), type, quality)
   })
@@ -121,7 +121,7 @@
       context.imageSmoothingQuality = "high"
       context.drawImage(image, 0, 0, width, height)
       const type = outputType(file, context, target)
-      const blob = await blobFromCanvas(canvas, type)
+      const blob = await canvasBlob(canvas, type)
       const dataUrl = await new Promise((resolve, reject) => {
         const reader = new FileReader()
         reader.onload = () => resolve(reader.result)
