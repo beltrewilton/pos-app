@@ -24,6 +24,7 @@ defmodule PosServerWeb.InvoiceReportLive do
       {:ok,
        socket
        |> assign(:page_title, "Tigoo Invoice report")
+       |> assign(:print_relay_token, token)
        |> assign(:scope, scope)
        |> assign(:stores, stores)
        |> assign(:store_id, store_id)
@@ -629,6 +630,7 @@ defmodule PosServerWeb.InvoiceReportLive do
       scope={@scope}
       stores={@stores}
       store_id={@store_id}
+      print_relay_token={@print_relay_token}
       phx-hook="InvoiceReport"
     >
       <:before_layout>

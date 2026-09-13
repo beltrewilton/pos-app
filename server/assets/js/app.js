@@ -20,7 +20,7 @@
 // Include phoenix_html to handle method=PUT/DELETE in forms and buttons.
 import "phoenix_html"
 // Establish Phoenix Socket and LiveView configuration.
-import {Socket} from "phoenix"
+import {Socket, Presence} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/pos_server"
 import topbar from "../vendor/topbar"
@@ -30,6 +30,8 @@ import {initI18n, money, t, translatePage} from "./i18n"
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const POS_STORE_KEY = "pos-selected-store-id"
 const POS_DRAFT_KEY_PREFIX = "pos-sale-draft"
+const POS_CATALOG_VIEW_KEY = "pos-catalog-view"
+const PRINT_RELAY_SESSION_KEY = "pos.printRelay.sessionId"
 
 const hooks = {
   LoginScreen: window.LoginScreenHook,
@@ -84,6 +86,7 @@ const hooks = {
   InvoiceReport: {
     mounted() {
       installPrinterEvents(this)
+      installPrintRelay(this)
       this.fixed = this.el.querySelector(".invoice-report-fixed")
       this.syncStickyOffset = () => this.el.querySelector("#invoice-report")?.style.setProperty("--invoice-fixed-height", `${this.fixed?.offsetHeight || 0}px`)
       this.resizeObserver = new ResizeObserver(this.syncStickyOffset)
@@ -100,6 +103,7 @@ const hooks = {
       translatePage(this.el)
     },
     destroyed() {
+      uninstallPrintRelay(this)
       this.resizeObserver?.disconnect()
       document.removeEventListener("pointerdown", this.onPointerDown)
     }
@@ -188,11 +192,16 @@ const hooks = {
   PosShell: {
     mounted() {
       installPrinterEvents(this)
+      installPrintRelay(this)
       installPrinterStatus(this.el.querySelector("[data-printer-status]"))
       installNetworkStatus(this.el.querySelector("[data-network-status]"))
       this.draftKey = posDraftKey(this.el)
       const draft = readStoredJson(this.draftKey)
       if (draft) this.pushEvent("restore_pos_draft", draft)
+      const catalogView = getStoredValue(POS_CATALOG_VIEW_KEY)
+      if (catalogView === "cards" || catalogView === "table") {
+        this.pushEvent("set_catalog_view", {view: catalogView})
+      }
       this.handleEvent("pos:draft-changed", ({draft}) => {
         if (!draft || !Array.isArray(draft.cart) || draft.cart.length === 0) {
           removeStoredValue(this.draftKey)
@@ -204,7 +213,12 @@ const hooks = {
       this.onKeydown = event => {
         if (event.key === "Escape" && this.el.dataset.mobileCartOpen === "true") this.pushEvent("close_mobile_cart")
       }
+      this.onClick = event => {
+        const button = event.target.closest(".catalog-view-toggle[phx-value-view]")
+        if (button) setStoredValue(POS_CATALOG_VIEW_KEY, button.getAttribute("phx-value-view"))
+      }
       document.addEventListener("keydown", this.onKeydown)
+      this.el.addEventListener("click", this.onClick)
     },
     updated() {
       const panel = this.el.querySelector("#order-panel")
@@ -221,9 +235,11 @@ const hooks = {
       translatePage(this.el)
     },
     destroyed() {
+      uninstallPrintRelay(this)
       uninstallPrinterStatus(this.el.querySelector("[data-printer-status]"))
       uninstallNetworkStatus(this.el.querySelector("[data-network-status]"))
       document.removeEventListener("keydown", this.onKeydown)
+      this.el.removeEventListener("click", this.onClick)
     }
   },
   CartAmounts: {
@@ -538,29 +554,181 @@ function installPrinterEvents(hook) {
   hook.handleEvent("printer:print-receipt", payload => {
     const sale = payload.receipt || payload.sale
     console.log("[printer] LiveView event printer:print-receipt", {requestId: payload.request_id, sequence: sale?.sequence, hasCopyLabel: sale?.copy === true})
-    return hook.printWithResult(payload.request_id, () => receiptPrinter.printReceipt(sale))
+    return hook.printWithResult(payload.request_id, payload, () => receiptPrinter.printReceipt(sale))
   })
   hook.handleEvent("printer:print-payment", payload => {
     console.log("[printer] LiveView event printer:print-payment", {requestId: payload.request_id, sequence: payload.sale?.sequence, paymentId: payload.payment?.id})
-    return hook.printWithResult(payload.request_id, () => receiptPrinter.printPayment(payload))
+    return hook.printWithResult(payload.request_id, payload, () => receiptPrinter.printPayment(payload))
   })
   hook.handleEvent("printer:reprint-invoice", payload => {
     const sale = payload.invoice || payload.receipt || payload.sale
     console.log("[printer] LiveView event printer:reprint-invoice", {requestId: payload.request_id, sequence: sale?.sequence})
-    return hook.printWithResult(payload.request_id, () => receiptPrinter.reprintInvoice(sale))
+    return hook.printWithResult(payload.request_id, payload, () => receiptPrinter.reprintInvoice(sale))
   })
   hook.handleEvent("printer:print-reconciliation", payload => {
     const reconciliation = payload.reconciliation || payload.receipt
-    return hook.printWithResult(payload.request_id, () => receiptPrinter.printReconciliation(reconciliation))
+    return hook.printWithResult(payload.request_id, payload, () => receiptPrinter.printReconciliation(reconciliation))
   })
-  hook.printWithResult = async (requestId, operation) => {
+  hook.printWithResult = async (requestId, payload, operation) => {
     try {
-      await operation()
+      if (shouldRelayPrint() && hook.printRelay) await hook.printRelay.print(payload)
+      else await operation()
       if (requestId) hook.pushEvent("printer_result", {request_id: requestId, status: "success"})
     } catch (error) {
       if (requestId) hook.pushEvent("printer_result", {request_id: requestId, status: "failed", message: error.message})
     }
   }
+}
+
+function installPrintRelay(hook) {
+  const token = hook.el.dataset.printRelayToken
+  const storeId = hook.el.dataset.storeId
+  if (!token || !storeId) return
+
+  hook.printRelay = createLiveViewPrintRelay({
+    token,
+    storeId,
+    onRequest: payload => handleRemotePrintRequest(hook, payload)
+  })
+  hook.printRelay.connect()
+}
+
+function uninstallPrintRelay(hook) {
+  hook.printRelay?.close()
+  hook.printRelay = null
+}
+
+function createLiveViewPrintRelay({token, storeId, onRequest}) {
+  const socket = new Socket("/socket", {params: {token}})
+  let presence = {}
+  const pending = new Map()
+  const channel = socket.channel(`print-relay:${storeId}`, {
+    device: relayDevice(),
+    session_id: printRelaySessionId(),
+    ...desktopPrinterMeta()
+  })
+  const relay = {socket, channel, targets: []}
+  const syncTargets = targets => {
+    relay.targets = [...(targets || [])].sort((a, b) => String(a.session_id).localeCompare(String(b.session_id)))
+  }
+  const updatePrinter = async () => {
+    if (relayDevice() !== "desktop" || channel.state !== "joined") return
+    await receiptPrinter.refreshStatus().catch(() => false)
+    channel.push("printer_status", desktopPrinterMeta()).receive("ok", response => syncTargets(response.targets))
+  }
+
+  channel.on("presence_state", state => {
+    presence = Presence.syncState(presence, state)
+    syncTargets(printRelayTargets(presence))
+  })
+  channel.on("presence_diff", diff => {
+    presence = Presence.syncDiff(presence, diff)
+    syncTargets(printRelayTargets(presence))
+  })
+  channel.on("print_request", onRequest)
+  channel.on("print_result", payload => {
+    const callback = pending.get(payload.request_id)
+    if (!callback) return
+    pending.delete(payload.request_id)
+    callback(payload)
+  })
+  receiptPrinter.addEventListener("status", updatePrinter)
+  window.addEventListener("focus", updatePrinter)
+  document.addEventListener("visibilitychange", updatePrinter)
+
+  return {
+    connect() {
+      socket.connect()
+      channel.join()
+        .receive("ok", response => {
+          syncTargets(response.targets)
+          updatePrinter()
+        })
+        .receive("error", error => console.warn("[printer] print relay unavailable", error))
+    },
+    close() {
+      receiptPrinter.removeEventListener("status", updatePrinter)
+      window.removeEventListener("focus", updatePrinter)
+      document.removeEventListener("visibilitychange", updatePrinter)
+      channel.leave()
+      socket.disconnect()
+    },
+    async print(payload) {
+      if (relay.targets.length === 0) throw new Error("No desktop receipt printer is available for this store.")
+      const target = relay.targets[0]
+      const requestId = payload.request_id || `print-${Date.now()}`
+      return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          pending.delete(requestId)
+          reject(new Error("Remote print request timed out."))
+        }, 20_000)
+        pending.set(requestId, result => {
+          clearTimeout(timeout)
+          if (result.status === "success") resolve(result)
+          else reject(new Error(result.message || "Remote print failed."))
+        })
+        channel.push("print", {request_id: requestId, target_session_id: target.session_id, job: payload})
+          .receive("error", response => {
+            clearTimeout(timeout)
+            pending.delete(requestId)
+            reject(new Error(response.reason || "Remote print request failed."))
+          })
+          .receive("timeout", () => {
+            clearTimeout(timeout)
+            pending.delete(requestId)
+            reject(new Error("Remote print request timed out."))
+          })
+      })
+    }
+  }
+}
+
+function shouldRelayPrint() {
+  const mobileSize = window.matchMedia?.("(max-width: 767px)")?.matches
+  return mobileSize || !navigator.usb || receiptPrinter.state !== "connected"
+}
+
+function relayDevice() {
+  return window.matchMedia?.("(max-width: 767px)")?.matches ? "mobile" : "desktop"
+}
+
+function desktopPrinterMeta() {
+  const device = receiptPrinter.device
+  return {
+    label: "Desktop Web POS",
+    printer: device?.productName || device?.manufacturerName || "Receipt printer",
+    printer_online: relayDevice() === "desktop" && receiptPrinter.state === "connected"
+  }
+}
+
+function printRelaySessionId() {
+  const existing = getStoredValue(PRINT_RELAY_SESSION_KEY)
+  if (existing) return existing
+  const id = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`
+  setStoredValue(PRINT_RELAY_SESSION_KEY, id)
+  return id
+}
+
+function printRelayTargets(presence) {
+  return Object.entries(presence || {}).flatMap(([sessionId, value]) =>
+    (value.metas || [])
+      .filter(meta => meta.device === "desktop" && meta.printer_online === true)
+      .map(meta => ({session_id: sessionId, ...meta}))
+  )
+}
+
+function handleRemotePrintRequest(hook, payload) {
+  const job = payload.job || {request_id: payload.request_id, receipt: payload.receipt}
+  return printJob(job)
+    .then(() => hook.printRelay?.channel.push("print_result", {request_id: payload.request_id, status: "success"}))
+    .catch(error => hook.printRelay?.channel.push("print_result", {request_id: payload.request_id, status: "failed", message: error.message}))
+}
+
+function printJob(payload) {
+  if (payload.reconciliation) return receiptPrinter.printReconciliation(payload.reconciliation)
+  if (payload.payment) return receiptPrinter.printPayment(payload)
+  if (payload.invoice) return receiptPrinter.reprintInvoice(payload.invoice)
+  return receiptPrinter.printReceipt(payload.receipt || payload.sale)
 }
 
 function getStoredValue(key) {

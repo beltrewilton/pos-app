@@ -10,6 +10,7 @@ defmodule PosServerWeb.PosLayoutComponents do
   attr(:scope, :map, required: true)
   attr(:stores, :list, required: true)
   attr(:store_id, :any, required: true)
+  attr(:print_relay_token, :string, default: nil)
   attr(:rest, :global)
 
   slot(:before_layout)
@@ -17,7 +18,13 @@ defmodule PosServerWeb.PosLayoutComponents do
 
   def pos_layout(assigns) do
     ~H"""
-    <main id={@id} class={@class} {@rest}>
+    <main
+      id={@id}
+      class={@class}
+      data-store-id={@store_id}
+      data-print-relay-token={@print_relay_token}
+      {@rest}
+    >
       <span
         id={"#{@id}-store-preference"}
         phx-hook="StorePreference"

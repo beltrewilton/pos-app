@@ -19,6 +19,7 @@ defmodule PosServerWeb.PosLive do
       socket =
         socket
         |> assign(:page_title, "Tigoo POS")
+        |> assign(:print_relay_token, token)
         |> assign(:scope, scope)
         |> assign(:stores, stores)
         |> assign(:store_id, store && store.id)
@@ -27,6 +28,7 @@ defmodule PosServerWeb.PosLive do
         |> assign(:has_more, true)
         |> assign(:loading_products, false)
         |> assign(:product_search, "")
+        |> assign(:catalog_view, "cards")
         |> assign(:cart, [])
         |> assign(:selected_customer, nil)
         |> assign(:customers, [])
@@ -76,6 +78,11 @@ defmodule PosServerWeb.PosLive do
     do: {:noreply, assign(socket, :product_search, "")}
 
   def handle_event("load_more_products", _, socket), do: {:noreply, load_products(socket)}
+
+  def handle_event("set_catalog_view", %{"view" => view}, socket) when view in ["cards", "table"],
+    do: {:noreply, assign(socket, :catalog_view, view)}
+
+  def handle_event("set_catalog_view", _, socket), do: {:noreply, socket}
 
   def handle_event("change_store", %{"store_id" => id}, socket) do
     with {store_id, ""} <- Integer.parse(id),
@@ -603,9 +610,11 @@ defmodule PosServerWeb.PosLive do
       scope={@scope}
       stores={@stores}
       store_id={@store_id}
+      print_relay_token={@print_relay_token}
       phx-hook="PosShell"
       data-mobile-cart-open={to_string(@mobile_cart_open)}
       data-checkout-stage={@checkout_stage || ""}
+      data-catalog-view={@catalog_view}
     >
       <:before_layout>
         <svg class="navigation-icon-sprite" aria-hidden="true" focusable="false">
@@ -618,6 +627,34 @@ defmodule PosServerWeb.PosLive do
             stroke-linecap="round"
           >
             <circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" />
+          </symbol>
+          <symbol
+            id="ui-icon-grid"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.25"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="3" y="3" width="7" height="7" rx="1.5" />
+            <rect x="14" y="3" width="7" height="7" rx="1.5" />
+            <rect x="3" y="14" width="7" height="7" rx="1.5" />
+            <rect x="14" y="14" width="7" height="7" rx="1.5" />
+          </symbol>
+          <symbol
+            id="ui-icon-list"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.25"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="3" y="5" width="4" height="4" rx="1" />
+            <path d="M11 7h10" />
+            <rect x="3" y="15" width="4" height="4" rx="1" />
+            <path d="M11 17h10" />
           </symbol>
         </svg>
         <div
@@ -736,6 +773,22 @@ defmodule PosServerWeb.PosLive do
               >
                 <svg aria-hidden="true"><use href="#ui-icon-search" /></svg>
               </button>
+              <button
+                class="btn catalog-view-toggle"
+                type="button"
+                data-variant="outline"
+                data-size="icon"
+                phx-click="set_catalog_view"
+                phx-value-view={if @catalog_view == "cards", do: "table", else: "cards"}
+                aria-label={
+                  if @catalog_view == "cards", do: "Show table catalog", else: "Show card catalog"
+                }
+                aria-pressed={to_string(@catalog_view == "table")}
+                title={if @catalog_view == "cards", do: "Show table catalog", else: "Show card catalog"}
+              >
+                <svg :if={@catalog_view == "cards"} aria-hidden="true"><use href="#ui-icon-grid" /></svg>
+                <svg :if={@catalog_view == "table"} aria-hidden="true"><use href="#ui-icon-list" /></svg>
+              </button>
             </div>
           </header>
           <div class="catalog-heading">
@@ -791,8 +844,74 @@ defmodule PosServerWeb.PosLive do
               </div>
             </article>
             <.product_skeleton_cards :if={@loading_products and @products == []} />
+            <div id="products-sentinel" phx-hook="InfiniteCatalog" aria-hidden="true">
+            </div>
           </div>
-          <div id="products-sentinel" phx-hook="InfiniteCatalog" aria-hidden="true"></div>
+          <div
+            :if={@catalog_view == "table"}
+            id="product-table-wrap"
+            class="table-container product-table-container"
+            aria-live="polite"
+          >
+            <table class="table product-table">
+              <caption class="table-caption">Catalog products. Select a row to add it to the current sale.</caption>
+              <thead>
+                <tr class="table-row">
+                  <th class="table-head" scope="col">Product</th>
+                  <th class="table-head" scope="col">SKU</th>
+                  <th class="table-head" scope="col">Stock</th>
+                  <th class="table-head product-table-price-head" scope="col">Price</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  :for={product <- visible_products(assigns)}
+                  class="table-row product-table-row"
+                  tabindex="0"
+                  role="button"
+                  phx-click="add_product"
+                  phx-value-id={product.id}
+                  phx-keydown="add_product"
+                  phx-key="Enter"
+                  aria-label={"Add #{product.name}"}
+                >
+                  <td class="table-cell product-table-product" data-label="Product">
+                    <img
+                      :if={product.image_raw}
+                      class="product-table-image"
+                      src={image_source(product.image_raw)}
+                      alt=""
+                      loading="lazy"
+                    />
+                    <span
+                      :if={!product.image_raw}
+                      class="product-table-image product-table-image-placeholder"
+                      aria-hidden="true"
+                    >
+                      {String.first(product.name || "?")}
+                    </span>
+                    <span class="product-table-name">{product.name || "Unnamed product"}</span>
+                  </td>
+                  <td class="table-cell product-table-muted" data-label="SKU">
+                    {if product.code, do: "SKU #{product.code}", else: "Tap to add"}
+                  </td>
+                  <td class="table-cell" data-label="Stock">
+                    <span class={[
+                      "inventory-badge",
+                      if(float(product.inventory_quantity) <= 0, do: "inventory-badge-low")
+                    ]}>
+                      <span data-i18n="pos.catalog.stock">Stock</span> {product.inventory_quantity || 0}
+                    </span>
+                  </td>
+                  <td class="table-cell product-table-price numeric" data-label="Price">
+                    {money(float(product.price))}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <.product_skeleton_cards :if={@loading_products and @products == []} />
+            <div id="products-table-sentinel" phx-hook="InfiniteCatalog" aria-hidden="true"></div>
+          </div>
         </div>
         <section
           :if={@dialog == :customer_picker}

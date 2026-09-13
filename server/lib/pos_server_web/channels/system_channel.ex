@@ -91,6 +91,20 @@ defmodule PosServerWeb.SystemChannel do
       )
       when is_binary(request_id) and byte_size(request_id) in 16..128 and is_binary(target) and
              is_map(receipt) do
+    relay_print_request(socket, request_id, target, %{receipt: receipt})
+  end
+
+  def handle_in(
+        "print",
+        %{"request_id" => request_id, "target_session_id" => target, "job" => job},
+        socket
+      )
+      when is_binary(request_id) and byte_size(request_id) in 16..128 and is_binary(target) and
+             is_map(job) do
+    relay_print_request(socket, request_id, target, %{job: job})
+  end
+
+  defp relay_print_request(socket, request_id, target, payload) do
     relay = socket.assigns[:print_relay]
 
     if relay && PrintRelay.available_desktop?(socket.assigns.tenant, relay.store_id, target) do
@@ -102,7 +116,7 @@ defmodule PosServerWeb.SystemChannel do
       Phoenix.PubSub.broadcast(
         PosServer.PubSub,
         PrintRelay.desktop_topic(socket.assigns.tenant, relay.store_id, target),
-        {:print_request, %{request_id: request_id, receipt: receipt}}
+        {:print_request, Map.put(payload, :request_id, request_id)}
       )
 
       {:reply, {:ok, %{request_id: request_id, status: "queued"}}, socket}

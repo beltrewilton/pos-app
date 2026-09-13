@@ -337,7 +337,7 @@
 }
 .topbar-search {
   display: grid;
-  grid-template-columns: minmax(220px, 520px) auto;
+  grid-template-columns: minmax(220px, 520px) auto auto;
   flex: 1;
   justify-content: end;
   gap: 10px;
@@ -383,6 +383,9 @@
   grid-template-columns: repeat(auto-fill, minmax(176px, 1fr));
   gap: 16px;
   padding-bottom: 28px;
+}
+#pos-live[data-catalog-view="table"] .product-grid {
+  display: none;
 }
 .product {
   display: flex;
@@ -433,6 +436,66 @@
   justify-content: space-between;
   gap: 8px;
   margin-top: auto;
+}
+.product-table-container {
+  height: calc(100dvh - 160px);
+  min-height: 430px;
+  overflow: auto;
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+}
+.product-table {
+  min-width: 680px;
+}
+.product-table .table-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--muted);
+  box-shadow: 0 1px 0 var(--border);
+}
+.product-table-row {
+  cursor: pointer;
+}
+.product-table-row:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.product-table-product {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 260px;
+}
+.product-table-image {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border-radius: var(--radius-md);
+  object-fit: cover;
+  background: var(--muted);
+}
+.product-table-image-placeholder {
+  color: var(--muted-foreground);
+  font-weight: 750;
+}
+.product-table-name {
+  min-width: 0;
+  font-weight: 650;
+  line-height: 1.2;
+}
+.product-table-muted {
+  color: var(--muted-foreground);
+}
+.product-table-price-head,
+.product-table-price {
+  text-align: right;
+}
+.product-table-price {
+  font-weight: 800;
+  white-space: nowrap;
 }
 .inventory-badge {
   padding: 0.28rem 0.46rem;
@@ -955,6 +1018,13 @@
     order: 3;
     grid-template-columns: minmax(0, 1fr) auto;
     width: 100%;
+  }
+  .catalog-view-toggle,
+  .product-table-container {
+    display: none;
+  }
+  #pos-live[data-catalog-view="table"] .product-grid {
+    display: grid;
   }
   .mobile-topbar-cart,
   .mobile-cart-trigger,

@@ -28,6 +28,7 @@ defmodule PosServerWeb.CashReconciliationLive do
       socket =
         socket
         |> assign(:page_title, "Tigoo Cash reconciliation")
+        |> assign(:print_relay_token, token)
         |> assign(:scope, scope)
         |> assign(:stores, stores)
         |> assign(:store_id, store_id)
@@ -98,7 +99,7 @@ defmodule PosServerWeb.CashReconciliationLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <.pos_layout id="cash-reconciliation-live" active_page={:reconciliation} scope={@scope} stores={@stores} store_id={@store_id} phx-hook="PosShell">
+    <.pos_layout id="cash-reconciliation-live" active_page={:reconciliation} scope={@scope} stores={@stores} store_id={@store_id} print_relay_token={@print_relay_token} phx-hook="PosShell">
       <section class="catalog-panel reconciliation-panel" aria-labelledby="reconciliation-title">
         <header class="topbar invoice-topbar">
           <div class="brand-lockup">
