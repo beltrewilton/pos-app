@@ -164,7 +164,7 @@
       </section>
 
       <section
-        :if={@company}
+        :if={@workspace_created?}
         class="card dashboard-panel"
         aria-labelledby="workspace-summary-title"
       >
@@ -175,7 +175,7 @@
         <div class="card-content dashboard-detail-grid">
           <div>
             <p class="dashboard-detail-label" data-i18n="company.company">Company</p>
-            <p class="dashboard-detail-value">{@company.company_name}</p>
+            <p class="dashboard-detail-value">{workspace_name(@company, @user)}</p>
           </div>
           <div>
             <p class="dashboard-detail-label" data-i18n="dashboard.workspaceId">Workspace ID</p>
@@ -183,13 +183,13 @@
           </div>
           <div>
             <p class="dashboard-detail-label">RNC</p>
-            <p class="dashboard-detail-value"><span data-i18n={if @company.rnc, do: nil, else: "dashboard.notProvided"}>{@company.rnc || "Not provided"}</span></p>
+            <p class="dashboard-detail-value"><span data-i18n={if company_field(@company, :rnc), do: nil, else: "dashboard.notProvided"}>{company_field(@company, :rnc, "Not provided")}</span></p>
           </div>
         </div>
       </section>
 
       <section
-        :if={@company}
+        :if={@workspace_created?}
         class="card dashboard-panel"
         aria-labelledby="company-logo-title"
       >
@@ -209,9 +209,9 @@
             <img
               id="company-logo-preview"
               class="product-image-preview company-logo-preview"
-              src={@company.brand_logo}
+              src={company_field(@company, :brand_logo)}
               alt="Company logo preview"
-              hidden={!is_binary(@company.brand_logo) || @company.brand_logo == ""}
+              hidden={!is_binary(company_field(@company, :brand_logo)) || company_field(@company, :brand_logo) == ""}
             /><label class="label" for="company-logo">Logo upload</label>
             <p id="company-logo-help" class="field-description">
               Drop an image here or choose a file (max 10 MB). It will be resized and stored as Base64.
@@ -220,7 +220,7 @@
               id="company-brand-logo"
               name="company[brand_logo]"
               type="hidden"
-              value={@company.brand_logo}
+              value={company_field(@company, :brand_logo)}
             />
           </div>
           <div class="form-actions dashboard-form-actions">

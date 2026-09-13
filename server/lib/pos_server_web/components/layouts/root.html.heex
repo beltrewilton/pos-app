@@ -9,7 +9,7 @@
       {assigns[:page_title]}
     </.live_title>
     <link :if={pos_pwa_path?(assigns)} rel="manifest" href="/manifest.json" />
-    <link :if={pos_pwa_path?(assigns)} rel="icon" type="image/x-icon" href={~p"/favicon.ico"} />
+    <link :if={pos_pwa_path?(assigns)} rel="icon" type="image/svg+xml" href={~p"/images/tigoo.svg"} />
     <link
       :if={pos_pwa_path?(assigns)}
       rel="icon"
@@ -17,6 +17,7 @@
       sizes="32x32"
       href={~p"/pwa/icons/favicon-32.png"}
     />
+    <link :if={pos_pwa_path?(assigns)} rel="icon" type="image/x-icon" href={~p"/favicon.ico"} />
     <link
       :if={pos_pwa_path?(assigns)}
       rel="apple-touch-icon"

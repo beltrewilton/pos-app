@@ -115,16 +115,16 @@ defmodule PosServerWeb.DashboardController do
   end
 
   defp dashboard_company(%{actor: :admin, tenant: tenant}, user) when is_binary(tenant) do
-    Accounts.get_company_for_user(user) || first_company(tenant)
+    Accounts.get_company_for_user(user) || first_company(tenant) || fallback_company(tenant)
   rescue
-    _ -> nil
+    _ -> fallback_company(tenant)
   end
 
   defp dashboard_company(%{tenant: tenant}, _user) when is_binary(tenant) do
     Repo.one(from(company in Company, limit: 1), prefix: Triplex.to_prefix(tenant)) ||
-      %{company_name: tenant, rnc: nil, brand_logo: nil}
+      fallback_company(tenant)
   rescue
-    _ -> %{company_name: tenant, rnc: nil, brand_logo: nil}
+    _ -> fallback_company(tenant)
   end
 
   defp dashboard_company(_, _), do: nil
@@ -134,6 +134,9 @@ defmodule PosServerWeb.DashboardController do
   rescue
     _ -> nil
   end
+
+  defp fallback_company(tenant),
+    do: %{company_name: tenant, rnc: nil, brand_logo: nil}
 
   defp workspace_created?(%{tenant: tenant}, _user) when is_binary(tenant) and tenant != "", do: true
   defp workspace_created?(_scope, %{tenant: tenant}) when is_binary(tenant) and tenant != "", do: true
