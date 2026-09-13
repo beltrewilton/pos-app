@@ -28,9 +28,9 @@ git clean -fd
 mix local.hex --force
 mix local.rebar --force
 mix deps.get --only prod
-mix phx.digest
 mix deps.compile
 mix compile
+mix assets.deploy
 
 # Start distributed Elixir node
 if [[ "${1:-}" == "norun" ]]; then

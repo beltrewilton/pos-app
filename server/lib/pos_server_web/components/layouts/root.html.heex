@@ -8,7 +8,7 @@
     <.live_title default="tigoo" suffix="">
       {assigns[:page_title]}
     </.live_title>
-    <link :if={pos_pwa_path?(assigns)} rel="manifest" href={~p"/manifest.json"} />
+    <link :if={pos_pwa_path?(assigns)} rel="manifest" href="/manifest.json" />
     <link :if={pos_pwa_path?(assigns)} rel="icon" type="image/x-icon" href={~p"/favicon.ico"} />
     <link
       :if={pos_pwa_path?(assigns)}
@@ -52,8 +52,6 @@
     <link rel="stylesheet" href={~p"/assets/purchase-orders-live.css"} />
     <script>
       try { const theme = localStorage.getItem("pos-theme"); if (theme === "nature-light" || theme === "nature-dark") document.documentElement.classList.add("theme-nature"); if (theme === "caffeine-light" || theme === "caffeine-dark") document.documentElement.classList.add("theme-caffeine"); if (theme === "bold-tech-light" || theme === "bold-tech-dark") document.documentElement.classList.add("theme-bold-tech"); if (theme === "doom-64-light" || theme === "doom-64-dark") document.documentElement.classList.add("theme-doom-64"); if (theme === "nature-dark" || theme === "caffeine-dark" || theme === "bold-tech-dark" || theme === "doom-64-dark") document.documentElement.classList.add("dark"); } catch {}
-    </script>
-    <script defer src={~p"/assets/phoenix.js"}>
     </script>
     <script defer src={~p"/assets/inventory-product-image.js"}>
     </script>

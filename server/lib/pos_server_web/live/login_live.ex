@@ -184,14 +184,14 @@ defmodule PosServerWeb.LoginLive do
                   disabled={@submitting?}
                 >
                   <span data-i18n={if @phase == :store_selection, do: "common.continue", else: "pos.login.signIn"}>{if @phase == :store_selection, do: "Continue", else: "Sign in"}</span>
-                </button><button
+                </button><a
                   id="google-login"
                   class="btn login-submit"
-                  type="button"
+                  href={~p"/google_auth_url"}
                   data-variant="outline"
-                  disabled={@phase == :store_selection or @submitting?}
-                  phx-click="google_unavailable"
-                ><span data-i18n="pos.login.continueWithGoogle">Continue with Google</span></button>
+                  aria-disabled={@phase == :store_selection or @submitting?}
+                ><span data-i18n="pos.login.continueWithGoogle">Continue with Google</span>
+                </a>
               </div>
             </form>
           </div>

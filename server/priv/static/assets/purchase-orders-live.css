@@ -1,0 +1,3 @@
+/* LiveView owns state and events; the desktop client stylesheet owns every visual rule. */
+#purchase-orders-live .purchase-order-actions .btn[disabled] { pointer-events: none; }
+#purchase-orders-live .observed-input:disabled { cursor: default; }

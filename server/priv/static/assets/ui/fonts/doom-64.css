@@ -1,0 +1,8 @@
+/* Doom 64 uses Oxanium, bundled locally to avoid runtime font requests. */
+@font-face {
+  font-family: "Oxanium";
+  src: url("./oxanium-latin-variable.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+}
