@@ -54,10 +54,13 @@
     <script>
       try { const theme = localStorage.getItem("pos-theme"); if (theme === "nature-light" || theme === "nature-dark") document.documentElement.classList.add("theme-nature"); if (theme === "caffeine-light" || theme === "caffeine-dark") document.documentElement.classList.add("theme-caffeine"); if (theme === "bold-tech-light" || theme === "bold-tech-dark") document.documentElement.classList.add("theme-bold-tech"); if (theme === "doom-64-light" || theme === "doom-64-dark") document.documentElement.classList.add("theme-doom-64"); if (theme === "nature-dark" || theme === "caffeine-dark" || theme === "bold-tech-dark" || theme === "doom-64-dark") document.documentElement.classList.add("dark"); } catch {}
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/eruda">
-    </script>
     <script>
-      eruda.init();
+      if (new URLSearchParams(window.location.search).has("debug")) {
+        const script = document.createElement("script");
+        script.src = "https://cdn.jsdelivr.net/npm/eruda";
+        script.onload = () => window.eruda?.init();
+        document.head.appendChild(script);
+      }
     </script>
     <script defer src={~p"/assets/inventory-product-image.js"}>
     </script>
