@@ -708,7 +708,6 @@ defmodule PosServerWeb.PosLive do
         class="catalog-panel"
         data-view={pos_mobile_view(assigns)}
         aria-labelledby="pos-title"
-        inert={if @mobile_cart_open, do: true}
       >
         <div :if={is_nil(@checkout_stage) and @dialog != :customer_picker} class="catalog-content">
           <header class="topbar">

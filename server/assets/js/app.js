@@ -201,6 +201,9 @@ const hooks = {
       if (catalogView === "cards" || catalogView === "table") {
         this.pushEvent("set_catalog_view", {view: catalogView})
       }
+      this.mobileCartMedia = window.matchMedia?.("(max-width: 640px)")
+      this.syncMobileCartState = () => syncMobileCartState(this.el, this.mobileCartMedia?.matches === true)
+      this.mobileCartMedia?.addEventListener?.("change", this.syncMobileCartState)
       this.handleEvent("pos:draft-changed", ({draft}) => {
         if (!draft || !Array.isArray(draft.cart) || draft.cart.length === 0) {
           removeStoredValue(this.draftKey)
@@ -218,19 +221,10 @@ const hooks = {
       }
       document.addEventListener("keydown", this.onKeydown)
       this.el.addEventListener("click", this.onClick)
+      this.syncMobileCartState()
     },
     updated() {
-      const panel = this.el.querySelector("#order-panel")
-      const catalog = this.el.querySelector(".catalog-panel")
-      if (this.el.dataset.mobileCartOpen === "true") {
-        panel?.setAttribute("role", "dialog")
-        panel?.setAttribute("aria-modal", "true")
-        catalog?.setAttribute("inert", "")
-      } else {
-        panel?.removeAttribute("role")
-        panel?.removeAttribute("aria-modal")
-        catalog?.removeAttribute("inert")
-      }
+      this.syncMobileCartState?.()
       translatePage(this.el)
     },
     destroyed() {
@@ -238,6 +232,7 @@ const hooks = {
       uninstallNetworkStatus(this.el.querySelector("[data-network-status]"))
       document.removeEventListener("keydown", this.onKeydown)
       this.el.removeEventListener("click", this.onClick)
+      this.mobileCartMedia?.removeEventListener?.("change", this.syncMobileCartState)
     }
   },
   CartAmounts: {
@@ -578,6 +573,22 @@ function installPrinterEvents(hook) {
   }
 }
 
+function syncMobileCartState(root, mobileViewport) {
+  const panel = root.querySelector("#order-panel")
+  const catalog = root.querySelector(".catalog-panel")
+  const modalOpen = root.dataset.mobileCartOpen === "true" && mobileViewport
+
+  if (modalOpen) {
+    panel?.setAttribute("role", "dialog")
+    panel?.setAttribute("aria-modal", "true")
+    catalog?.setAttribute("inert", "")
+  } else {
+    panel?.removeAttribute("role")
+    panel?.removeAttribute("aria-modal")
+    catalog?.removeAttribute("inert")
+  }
+}
+
 function installPrintRelay(hook) {
   const token = hook.el.dataset.printRelayToken
   const storeId = hook.el.dataset.storeId
@@ -610,13 +621,18 @@ function createLiveViewPrintRelay({token, storeId, onRequest}) {
   const syncTargets = targets => {
     relay.targets = [...(targets || [])].sort((a, b) => String(a.session_id).localeCompare(String(b.session_id)))
   }
-  const updatePrinter = async () => {
+  const publishPrinter = () => {
     if (relayDevice() !== "desktop" || channel.state !== "joined") return
-    await receiptPrinter.refreshStatus().catch(() => false)
     const meta = desktopPrinterMeta()
     if (samePrinterMeta(lastPrinterMeta, meta)) return
     lastPrinterMeta = meta
     channel.push("printer_status", meta).receive("ok", response => syncTargets(response.targets))
+  }
+  const refreshPrinter = async () => {
+    if (document.hidden) return
+    if (relayDevice() !== "desktop" || channel.state !== "joined") return
+    await receiptPrinter.refreshStatus().catch(() => false)
+    publishPrinter()
   }
 
   channel.on("presence_state", state => {
@@ -634,9 +650,9 @@ function createLiveViewPrintRelay({token, storeId, onRequest}) {
     pending.delete(payload.request_id)
     callback(payload)
   })
-  receiptPrinter.addEventListener("status", updatePrinter)
-  window.addEventListener("focus", updatePrinter)
-  document.addEventListener("visibilitychange", updatePrinter)
+  receiptPrinter.addEventListener("status", publishPrinter)
+  window.addEventListener("focus", refreshPrinter)
+  document.addEventListener("visibilitychange", refreshPrinter)
 
   return {
     connect() {
@@ -644,14 +660,14 @@ function createLiveViewPrintRelay({token, storeId, onRequest}) {
       channel.join()
         .receive("ok", response => {
           syncTargets(response.targets)
-          updatePrinter()
+          refreshPrinter()
         })
         .receive("error", error => console.warn("[printer] print relay unavailable", error))
     },
     close() {
-      receiptPrinter.removeEventListener("status", updatePrinter)
-      window.removeEventListener("focus", updatePrinter)
-      document.removeEventListener("visibilitychange", updatePrinter)
+      receiptPrinter.removeEventListener("status", publishPrinter)
+      window.removeEventListener("focus", refreshPrinter)
+      document.removeEventListener("visibilitychange", refreshPrinter)
       pending.clear()
       channel.leave()
       socket.disconnect()
