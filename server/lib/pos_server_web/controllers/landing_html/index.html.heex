@@ -47,7 +47,7 @@
             </svg>
           </summary>
           <div class="landing-account-menu-content">
-            <a href={~p"/pos/dashboard"}>Visita tu perfil</a>
+            <a href={@profile_url}>Visita tu perfil</a>
             <form action={~p"/logout"} method="post">
               <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
               <button type="submit" class="landing-logout">
@@ -257,7 +257,7 @@
       </p>
       <div class="buttons">
         <a
-          href={if @current_user, do: ~p"/pos/dashboard", else: ~p"/google_auth_url"}
+          href={if @current_user, do: @profile_url, else: ~p"/google_auth_url"}
           class="btn btn-primary"
         >
           {if @current_user, do: "Visita tu perfil", else: "Comenzar con tigoo"}

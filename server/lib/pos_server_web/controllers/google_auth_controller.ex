@@ -186,18 +186,31 @@ defmodule PosServerWeb.GoogleAuthController do
           |> configure_session(renew: true)
           |> put_session(:user_token, session_token)
           |> put_flash(:info, "Sesión iniciada con Google.")
-          |> redirect(to: landing_path(scope))
+          |> redirect(external: landing_url(scope))
         end
     end
   end
 
-  defp landing_path(scope) do
-    cond do
-      Scope.admin?(scope) -> ~p"/pos/dashboard"
-      Scope.allowed?(scope, "dashboard.view") -> ~p"/pos/dashboard"
-      true -> ~p"/pos"
-    end
+  defp landing_url(scope) do
+    path =
+      cond do
+        Scope.admin?(scope) -> ~p"/pos/dashboard"
+        Scope.allowed?(scope, "dashboard.view") -> ~p"/pos/dashboard"
+        true -> ~p"/pos"
+      end
+
+    tenant_url(scope, path)
   end
+
+  defp tenant_url(%Scope{tenant: tenant}, path) when is_binary(tenant) and tenant != "" do
+    url = PosServerWeb.Endpoint.config(:url)
+    host = url |> Keyword.get(:host, "localhost") |> to_string()
+    scheme = url |> Keyword.get(:scheme, "https") |> to_string()
+
+    URI.to_string(%URI{scheme: scheme, host: "#{tenant}.#{host}", path: path})
+  end
+
+  defp tenant_url(_scope, path), do: path
 
   defp google_error(conn, _reason) do
     case get_session(conn, :google_oauth_state) do

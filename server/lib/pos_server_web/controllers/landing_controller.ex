@@ -14,6 +14,7 @@ defmodule PosServerWeb.LandingController do
     |> put_root_layout(html: {PosServerWeb.LandingLayouts, :root})
     |> render(:index,
       current_user: current_user,
+      profile_url: profile_url(current_user),
       page_title: "tigoo",
       page_description:
         "Ventas, inventario y facturación electrónica para negocios que quieren avanzar.",
@@ -48,4 +49,14 @@ defmodule PosServerWeb.LandingController do
     |> put_root_layout(html: {PosServerWeb.LandingLayouts, :root})
     |> render(template, assigns)
   end
+
+  defp profile_url(%{tenant: tenant}) when is_binary(tenant) and tenant != "" do
+    url = PosServerWeb.Endpoint.config(:url)
+    host = url |> Keyword.get(:host, "localhost") |> to_string()
+    scheme = url |> Keyword.get(:scheme, "https") |> to_string()
+
+    URI.to_string(%URI{scheme: scheme, host: "#{tenant}.#{host}", path: ~p"/pos/dashboard"})
+  end
+
+  defp profile_url(_current_user), do: ~p"/pos/dashboard"
 end

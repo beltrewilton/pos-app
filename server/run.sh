@@ -17,6 +17,10 @@ if [[ -f .env-prod ]]; then
     set +a
 fi
 
+if [[ -n "${PHX_HOST:-}" && -z "${SESSION_COOKIE_DOMAIN:-}" ]]; then
+    export SESSION_COOKIE_DOMAIN=".${PHX_HOST}"
+fi
+
 
 # Authoritative sync with origin/main.
 # WARNING: destroys local tracked changes and untracked files.

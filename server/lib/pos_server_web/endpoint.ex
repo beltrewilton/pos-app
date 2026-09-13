@@ -4,12 +4,16 @@ defmodule PosServerWeb.Endpoint do
   # The session will be stored in the cookie and signed,
   # this means its contents can be read but not tampered with.
   # Set :encryption_salt if you would also like to encrypt it.
+  @session_cookie_domain System.get_env("SESSION_COOKIE_DOMAIN")
   @session_options [
-    store: :cookie,
-    key: "_pos_server_key",
-    signing_salt: "XQ2PO7ap",
-    same_site: "Lax"
-  ]
+                     store: :cookie,
+                     key: "_pos_server_key",
+                     signing_salt: "XQ2PO7ap",
+                     same_site: "Lax"
+                   ] ++
+                     if @session_cookie_domain in [nil, ""],
+                       do: [],
+                       else: [domain: @session_cookie_domain]
 
   socket "/live", Phoenix.LiveView.Socket,
     websocket: [connect_info: [session: @session_options]],
