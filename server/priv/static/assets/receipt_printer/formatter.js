@@ -33,7 +33,7 @@ export class ReceiptFormatter {
     const paid = sum(payments.map(item => item.amount))
     const paidToDate = number(sale.total_paid) > 0 ? number(sale.total_paid) : paid
     const pending = Math.max(0, number(sale.due_balance ?? number(sale.amount) - paid))
-    const savings = number(sale.discount || 0) + sum((sale.lines || []).map(line => line.discount))
+    const totals = receiptTotals(sale)
     const items = sum((sale.lines || []).map(line => line.quantity || line.qty || 0))
     const sequence = str(sale.sequence || sale.id || "-")
 
@@ -45,13 +45,15 @@ export class ReceiptFormatter {
       {text: twoCol("RNC", str(store.company_id || store.rnc || store.company_rnc || ""), columns)},
       {text: twoCol("e-NCF", sequence, columns)},
       {text: twoCol("Fecha", receiptDate(sale.date_create), columns)},
+      {text: twoCol("Tienda", str(store.name || ""), columns)},
       {text: twoCol("Cliente", str(sale.client_name || client.name || "CONSUMIDOR FINAL"), columns)},
       {text: twoCol("Documento", str(sale.client_document_id || client.document_id || ""), columns)},
       {text: twoCol("Vendedor", str(sale.login || ""), columns)},
       copyLabel ? {align: "center", text: copyLabel} : null,
       {align: "center", text: sale.status === "CREDIT" ? "FACTURA A CREDITO" : "DIARIO DE VENTAS"},
       {text: rule(columns)},
-      {text: columnsHeader(columns)}
+      {text: columnsHeader(columns)},
+      {text: rule(columns)}
     ].filter(Boolean)
 
     for (const item of sale.lines || sale.items || []) {
@@ -60,29 +62,28 @@ export class ReceiptFormatter {
       const sku = str(product.code || item.code || item.sku || item.product_id || "")
       const qty = number(item.quantity || item.qty || 1)
       const unit = number(item.amount || item.price || product.price || 0)
-      const total = number(item.total_amount || item.total || unit * qty)
+      const total = lineQuotedTotal(item)
       const tax = itemTax(item, total)
-      const valueBeforeTax = Math.max(0, total - tax)
-      const unitBeforeTax = qty > 0 ? valueBeforeTax / qty : valueBeforeTax
       lines.push({text: wrap(name, columns)})
       if (sku) lines.push({text: `SKU: ${sku}`.slice(0, columns)})
-      lines.push({text: itemLine(qty, unitBeforeTax, tax, valueBeforeTax, columns)})
+      lines.push({text: itemLine(qty, unit, tax, total, columns)})
     }
 
     lines.push({text: rule(columns)})
-    lines.push({text: amountLine("Subtotal", sale.sub || sale.subtotal, columns)})
-    lines.push({text: amountLine("Impuesto", sale.tax_amount || sale.tax, columns)})
-    if (number(sale.discount) > 0) lines.push({text: amountLine("Descuento", -number(sale.discount), columns)})
-    if (number(sale.delivery_charge || sale.delivery) > 0) lines.push({text: amountLine("Entrega", sale.delivery_charge || sale.delivery, columns)})
-    lines.push({bold: true, text: amountLine("Total", sale.amount || sale.total, columns)})
-    if (savings > 0) lines.push({text: amountLine("Ahorro en compra", savings, columns)})
-    lines.push({text: twoCol("Articulos", String(items), columns)})
+    lines.push({italic: true, text: amountLine("Cotizado", totals.quoted, columns)})
+    if (totals.discount > 0) lines.push({bold: true, text: amountLine("Ahorro en compra (descuento)", -totals.discount, columns)})
+    lines.push({text: ""})
+    lines.push({text: amountLine("Subtotal", totals.subtotal, columns)})
+    lines.push({text: amountLine("Impuesto", totals.tax, columns)})
+    if (totals.delivery > 0) lines.push({text: amountLine("Entrega", totals.delivery, columns)})
+    lines.push({bold: true, text: amountLine("Total", totals.total, columns)})
     lines.push({text: rule(columns)})
 
     for (const item of payments) lines.push({text: paymentLine(item, columns)})
-    if (paidToDate > 0) lines.push({text: amountLine("Total pagado a la fecha", paidToDate, columns)})
-    if (pending > 0) lines.push({text: amountLine("Saldo pendiente", pending, columns)})
+    if (payment && paidToDate > 0) lines.push({text: amountLine("Total pagado a la fecha", paidToDate, columns)})
+    if (payment && pending > 0) lines.push({text: amountLine("Saldo pendiente", pending, columns)})
     if (number(sale.change_amount) > 0) lines.push({text: amountLine("Devuelta", sale.change_amount, columns)})
+    lines.push({text: twoCol("Articulos", trimNumber(items), columns)})
 
     lines.push({text: rule(columns)})
     lines.push({align: "center", text: "Gracias por su compra"})
@@ -105,13 +106,27 @@ function itemLine(qty, unit, tax, total, columns) {
 }
 
 function itemTax(item, total) {
-  const quantity = number(item.quantity || item.qty || 1)
   const explicit = number(item.tax_amount || item.tax)
-  if (explicit > 0) return explicit * quantity
-  const unit = number(item.amount || item.price || item.product?.price || 0)
-  const subtotal = number(item.sub || item.subtotal || 0) * quantity
+  if (explicit > 0) return explicit
+  const subtotal = number(item.sub || item.subtotal || 0)
   if (subtotal > 0) return Math.max(0, total - subtotal)
   return Math.max(0, total - total / 1.18)
+}
+
+function lineQuotedTotal(item) {
+  const qty = number(item.quantity || item.qty || 1)
+  const unit = number(item.amount || item.price || item.product?.price || 0)
+  return unit * qty
+}
+
+function receiptTotals(sale) {
+  const total = number(sale.amount || sale.total)
+  const delivery = number(sale.delivery_charge || sale.delivery)
+  const subtotal = number(sale.sub || sale.subtotal)
+  const tax = number(sale.tax_amount || sale.tax)
+  const discount = number(sale.discount || 0)
+  const quoted = total - delivery + discount
+  return {quoted, discount, subtotal, tax, delivery, total}
 }
 
 function amountLine(label, value, columns) {
@@ -156,14 +171,8 @@ function paymentLabel(type) {
 }
 
 function paymentLine(payment, columns) {
-  const date = shortDate(payment.date_create || payment.date)
   const amount = money(payment.amount)
-  const amountWidth = 12
-  const dateWidth = 12
-  const methodWidth = Math.max(1, columns - dateWidth - amountWidth)
-  return paymentLabel(payment.type).padEnd(methodWidth).slice(0, methodWidth) +
-    str(date).padStart(dateWidth).slice(0, dateWidth) +
-    amount.padStart(amountWidth).slice(0, amountWidth)
+  return twoCol(paymentLabel(payment.type), amount, columns)
 }
 
 function receiptPayments(sale, payment) {

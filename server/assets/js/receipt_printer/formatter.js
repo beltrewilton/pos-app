@@ -67,7 +67,7 @@ export class ReceiptFormatter {
     const paid = sum(payments.map(item => item.amount))
     const paidToDate = number(sale.total_paid) > 0 ? number(sale.total_paid) : paid
     const pending = Math.max(0, number(sale.due_balance ?? number(sale.amount) - paid))
-    const savings = number(sale.discount || 0) + sum((sale.lines || []).map(line => line.discount))
+    const totals = receiptTotals(sale)
     const items = sum((sale.lines || []).map(line => line.quantity || line.qty || 0))
     const sequence = str(sale.sequence || sale.id || "-")
 
@@ -79,13 +79,15 @@ export class ReceiptFormatter {
       {text: twoCol(t("receipts.rnc"), str(store.company_id || store.rnc || store.company_rnc || ""), columns)},
       {text: twoCol(t("receipts.encf"), sequence, columns)},
       {text: twoCol(t("receipts.date"), receiptDate(sale.date_create), columns)},
+      {text: twoCol(t("receipts.store"), str(store.name || ""), columns)},
       {text: twoCol(t("receipts.customer"), str(sale.client_name || client.name || t("receipts.consumerFinal")), columns)},
       {text: twoCol(t("receipts.document"), str(sale.client_document_id || client.document_id || ""), columns)},
       {text: twoCol(t("receipts.salesperson"), str(sale.login || ""), columns)},
       copyLabel ? {align: "center", text: copyLabel} : null,
       {align: "center", text: sale.status === "CREDIT" ? t("receipts.creditInvoice") : t("receipts.salesJournal")},
       {text: rule(columns)},
-      {text: columnsHeader(columns)}
+      {text: columnsHeader(columns)},
+      {text: rule(columns)}
     ].filter(Boolean)
 
     for (const item of sale.lines || sale.items || []) {
@@ -94,29 +96,28 @@ export class ReceiptFormatter {
       const sku = str(product.code || item.code || item.sku || item.product_id || "")
       const qty = number(item.quantity || item.qty || 1)
       const unit = number(item.amount || item.price || product.price || 0)
-      const total = number(item.total_amount || item.total || unit * qty)
+      const total = lineQuotedTotal(item)
       const tax = itemTax(item, total)
-      const valueBeforeTax = Math.max(0, total - tax)
-      const unitBeforeTax = qty > 0 ? valueBeforeTax / qty : valueBeforeTax
       lines.push({text: wrap(name, columns)})
       if (sku) lines.push({text: `SKU: ${sku}`.slice(0, columns)})
-      lines.push({text: itemLine(qty, unitBeforeTax, tax, valueBeforeTax, columns)})
+      lines.push({text: itemLine(qty, unit, tax, total, columns)})
     }
 
     lines.push({text: rule(columns)})
-    lines.push({text: amountLine(t("common.subtotal"), sale.sub || sale.subtotal, columns)})
-    lines.push({text: amountLine(t("receipts.itbis"), sale.tax_amount || sale.tax, columns)})
-    if (number(sale.discount) > 0) lines.push({text: amountLine(t("receipts.discount"), -number(sale.discount), columns)})
-    if (number(sale.delivery_charge || sale.delivery) > 0) lines.push({text: amountLine(t("receipts.delivery"), sale.delivery_charge || sale.delivery, columns)})
-    lines.push({bold: true, text: amountLine(t("common.total"), sale.amount || sale.total, columns)})
-    if (savings > 0) lines.push({text: amountLine(t("receipts.purchaseSavings"), savings, columns)})
-    lines.push({text: twoCol(t("receipts.articles"), String(items), columns)})
+    lines.push({italic: true, text: amountLine(t("receipts.quoted"), totals.quoted, columns)})
+    if (totals.discount > 0) lines.push({bold: true, text: amountLine(t("receipts.purchaseSavings"), -totals.discount, columns)})
+    lines.push({text: ""})
+    lines.push({text: amountLine(t("common.subtotal"), totals.subtotal, columns)})
+    lines.push({text: amountLine(t("receipts.itbis"), totals.tax, columns)})
+    if (totals.delivery > 0) lines.push({text: amountLine(t("receipts.delivery"), totals.delivery, columns)})
+    lines.push({bold: true, text: amountLine(t("common.total"), totals.total, columns)})
     lines.push({text: rule(columns)})
 
     for (const item of payments) lines.push({text: paymentLine(item, columns)})
-    if (paidToDate > 0) lines.push({text: amountLine(t("receipts.paidToDate"), paidToDate, columns)})
-    if (pending > 0) lines.push({text: amountLine(t("receipts.pendingBalance"), pending, columns)})
+    if (payment && paidToDate > 0) lines.push({text: amountLine(t("receipts.paidToDate"), paidToDate, columns)})
+    if (payment && pending > 0) lines.push({text: amountLine(t("receipts.pendingBalance"), pending, columns)})
     if (number(sale.change_amount) > 0) lines.push({text: amountLine(t("receipts.change"), sale.change_amount, columns)})
+    lines.push({text: twoCol(t("receipts.articles"), trimNumber(items), columns)})
 
     lines.push({text: rule(columns)})
     lines.push({align: "center", text: t("receipts.thanks")})
@@ -139,13 +140,27 @@ function itemLine(qty, unit, tax, total, columns) {
 }
 
 function itemTax(item, total) {
-  const quantity = number(item.quantity || item.qty || 1)
   const explicit = number(item.tax_amount || item.tax)
-  if (explicit > 0) return explicit * quantity
-  const unit = number(item.amount || item.price || item.product?.price || 0)
-  const subtotal = number(item.sub || item.subtotal || 0) * quantity
+  if (explicit > 0) return explicit
+  const subtotal = number(item.sub || item.subtotal || 0)
   if (subtotal > 0) return Math.max(0, total - subtotal)
   return Math.max(0, total - total / 1.18)
+}
+
+function lineQuotedTotal(item) {
+  const qty = number(item.quantity || item.qty || 1)
+  const unit = number(item.amount || item.price || item.product?.price || 0)
+  return unit * qty
+}
+
+function receiptTotals(sale) {
+  const total = number(sale.amount || sale.total)
+  const delivery = number(sale.delivery_charge || sale.delivery)
+  const subtotal = number(sale.sub || sale.subtotal)
+  const tax = number(sale.tax_amount || sale.tax)
+  const discount = number(sale.discount || 0)
+  const quoted = total - delivery + discount
+  return {quoted, discount, subtotal, tax, delivery, total}
 }
 
 function amountLine(label, value, columns) {
@@ -198,14 +213,8 @@ function paymentLabel(type) {
 }
 
 function paymentLine(payment, columns) {
-  const date = shortDate(payment.date_create || payment.date)
   const amount = money(payment.amount)
-  const amountWidth = 12
-  const dateWidth = 12
-  const methodWidth = Math.max(1, columns - dateWidth - amountWidth)
-  return paymentLabel(payment.type).padEnd(methodWidth).slice(0, methodWidth) +
-    str(date).padStart(dateWidth).slice(0, dateWidth) +
-    amount.padStart(amountWidth).slice(0, amountWidth)
+  return twoCol(paymentLabel(payment.type), amount, columns)
 }
 
 function receiptPayments(sale, payment) {

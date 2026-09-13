@@ -487,6 +487,7 @@ defmodule PosServerWeb.PosLive do
 
   def handle_event("complete_sale", params, socket) do
     socket = assign_credit_due_date(socket, params)
+    socket = assign_payments_from_params(socket, params)
 
     if socket.assigns.selected_customer &&
          payment_complete?(socket) do
@@ -2346,6 +2347,26 @@ defmodule PosServerWeb.PosLive do
     do: assign(socket, :credit_due_date, value)
 
   defp assign_credit_due_date(socket, _params), do: socket
+
+  defp assign_payments_from_params(socket, %{"payments" => payments}) when is_list(payments) do
+    payments =
+      payments
+      |> Enum.flat_map(fn
+        %{"type" => type, "amount" => amount} when type in ["CASH", "CC"] ->
+          amount = Float.round(max(0.0, float(amount)), 2)
+
+          if amount > 0,
+            do: [%{id: "payment-submit-#{System.unique_integer([:positive])}", type: type, amount: amount}],
+            else: []
+
+        _ ->
+          []
+      end)
+
+    assign(socket, :payments, payments)
+  end
+
+  defp assign_payments_from_params(socket, _params), do: socket
 
   defp payment_complete?(state) do
     state = state(state)

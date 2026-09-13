@@ -29,6 +29,11 @@ export class ReceiptEncoder {
     return this
   }
 
+  italic(enabled = true) {
+    this.bytes.push(0x1b, 0x34, enabled ? 1 : 0)
+    return this
+  }
+
   size(width = 1, height = 1) {
     const widthBits = Math.max(0, Math.min(7, Number(width) - 1 || 0))
     const heightBits = Math.max(0, Math.min(7, Number(height) - 1 || 0))

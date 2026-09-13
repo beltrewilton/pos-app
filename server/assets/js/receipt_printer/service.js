@@ -151,7 +151,9 @@ export class ReceiptPrinterService extends EventTarget {
       }
       encoder.size(line.width || 1, line.height || 1)
       encoder.bold(Boolean(line.bold))
+      encoder.italic(Boolean(line.italic))
       for (const part of String(line.text || "").split("\n")) encoder.line(part)
+      encoder.italic(false)
       encoder.bold(false)
       encoder.size(1, 1)
     }

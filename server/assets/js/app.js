@@ -416,7 +416,20 @@ const hooks = {
         input.dataset.previousAmount = String(entered)
         this.updateSummary()
       }
+      this.currentPayments = () => [...this.el.querySelectorAll(".payment-line")].map(line => {
+        const type = line.querySelector("select")?.value
+        const amount = Number(line.querySelector("input")?.value) || 0
+        return {type, amount}
+      }).filter(payment => ["CASH", "CC"].includes(payment.type) && payment.amount > 0)
+      this.onComplete = event => {
+        const button = event.target.closest("#complete-sale")
+        if (!button || button.disabled) return
+        event.preventDefault()
+        event.stopPropagation()
+        this.pushEvent("complete_sale", {payments: this.currentPayments()})
+      }
       this.el.addEventListener("input", this.onInput)
+      this.el.closest(".checkout-stage")?.addEventListener("click", this.onComplete, true)
       this.onCartTotal = event => {
         const total = Number(event.detail?.total)
         if (!Number.isFinite(total)) return
@@ -431,6 +444,7 @@ const hooks = {
     updated() { this.updateSummary() },
     destroyed() {
       this.el.removeEventListener("input", this.onInput)
+      this.el.closest(".checkout-stage")?.removeEventListener("click", this.onComplete, true)
       window.removeEventListener("pos:checkout-total", this.onCartTotal)
       window.removeEventListener("pos:language-changed", this.onLanguage)
     }
