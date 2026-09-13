@@ -29,7 +29,7 @@ defmodule PosServerWeb.PosLive do
         |> assign(:loading_products, false)
         |> assign(:product_image_versions, %{})
         |> assign(:product_search, "")
-        |> assign(:catalog_view, "cards")
+        |> assign(:catalog_view, initial_catalog_view(socket))
         |> assign(:cart, [])
         |> assign(:selected_customer, nil)
         |> assign(:customers, [])
@@ -904,7 +904,6 @@ defmodule PosServerWeb.PosLive do
                 </div>
               </div>
             </article>
-            <.product_skeleton_cards :if={@loading_products and @products == []} />
             <div id="products-sentinel" phx-hook="InfiniteCatalog" aria-hidden="true">
             </div>
           </div>
@@ -974,7 +973,6 @@ defmodule PosServerWeb.PosLive do
                 </tr>
               </tbody>
             </table>
-            <.product_skeleton_cards :if={@loading_products and @products == []} />
             <div id="products-table-sentinel" phx-hook="InfiniteCatalog" aria-hidden="true"></div>
           </div>
         </div>
@@ -2546,6 +2544,17 @@ defmodule PosServerWeb.PosLive do
   end
 
   defp pos_content_loading?(assigns), do: assigns.loading_products and assigns.products == []
+
+  defp initial_catalog_view(socket) do
+    if connected?(socket) do
+      case get_connect_params(socket) do
+        %{"catalog_view" => view} when view in ["cards", "table"] -> view
+        _ -> "cards"
+      end
+    else
+      "cards"
+    end
+  end
 
   defp image_source("data:image/" <> _ = source), do: source
   defp image_source(source), do: "data:image/jpeg;base64,#{source}"

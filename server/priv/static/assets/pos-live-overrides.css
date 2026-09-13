@@ -740,3 +740,111 @@
     align-items: stretch;
   }
 }
+
+#pos-live .catalog-panel.is-content-loading,
+#pos-live .order-panel.is-content-loading,
+#pos-live .catalog-panel[data-loading="true"],
+#pos-live .order-panel[data-loading="true"],
+body:has([data-phx-main]:not(.phx-connected) #pos-live) #pos-live .catalog-panel,
+body:has([data-phx-main]:not(.phx-connected) #pos-live) #pos-live .order-panel,
+html.pos-catalog-view-table #pos-live[data-catalog-view="cards"] .catalog-panel {
+  position: relative;
+  isolation: isolate;
+  pointer-events: none;
+}
+
+#pos-live .catalog-panel > *,
+#pos-live .order-panel > * {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 220ms ease 500ms,
+    transform 220ms ease 500ms;
+}
+
+#pos-live .catalog-panel.is-content-loading > *,
+#pos-live .order-panel.is-content-loading > *,
+#pos-live .catalog-panel[data-loading="true"] > *,
+#pos-live .order-panel[data-loading="true"] > *,
+body:has([data-phx-main]:not(.phx-connected) #pos-live) #pos-live .catalog-panel > *,
+body:has([data-phx-main]:not(.phx-connected) #pos-live) #pos-live .order-panel > *,
+html.pos-catalog-view-table #pos-live[data-catalog-view="cards"] .catalog-panel > * {
+  opacity: 0;
+  transform: translateY(4px);
+  transition-delay: 0ms;
+}
+
+#pos-live .product-image-placeholder,
+#pos-live .product-table-image-placeholder {
+  background: var(--muted);
+}
+
+html.pos-catalog-view-table #pos-live[data-catalog-view="cards"] .product-grid {
+  visibility: hidden;
+}
+
+#pos-live .catalog-panel.is-content-loading::before,
+#pos-live .order-panel.is-content-loading::before,
+#pos-live .catalog-panel[data-loading="true"]::before,
+#pos-live .order-panel[data-loading="true"]::before,
+body:has([data-phx-main]:not(.phx-connected) #pos-live) #pos-live .catalog-panel::before,
+body:has([data-phx-main]:not(.phx-connected) #pos-live) #pos-live .order-panel::before,
+html.pos-catalog-view-table #pos-live[data-catalog-view="cards"] .catalog-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  background: color-mix(in oklch, var(--background) 58%, transparent);
+}
+
+#pos-live .catalog-panel.is-content-loading::after,
+#pos-live .order-panel.is-content-loading::after,
+#pos-live .catalog-panel[data-loading="true"]::after,
+#pos-live .order-panel[data-loading="true"]::after,
+body:has([data-phx-main]:not(.phx-connected) #pos-live) #pos-live .catalog-panel::after,
+body:has([data-phx-main]:not(.phx-connected) #pos-live) #pos-live .order-panel::after,
+html.pos-catalog-view-table #pos-live[data-catalog-view="cards"] .catalog-panel::after {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  top: 50%;
+  width: 48px;
+  height: 48px;
+  margin: -24px 0 0 -24px;
+  border-radius: 999px;
+  border: 3px solid color-mix(in oklch, var(--primary) 18%, transparent);
+  border-top-color: var(--primary);
+  box-shadow: 0 0 0 8px color-mix(in oklch, var(--background) 54%, transparent);
+  animation: pos-content-loading-spin 850ms linear infinite;
+}
+
+@keyframes pos-content-loading-spin {
+  to { transform: rotate(1turn); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #pos-live .catalog-panel > *,
+  #pos-live .order-panel > * {
+    transition: none;
+  }
+
+  #pos-live .catalog-panel.is-content-loading::after,
+  #pos-live .order-panel.is-content-loading::after,
+  #pos-live .catalog-panel[data-loading="true"]::after,
+  #pos-live .order-panel[data-loading="true"]::after,
+  body:has([data-phx-main]:not(.phx-connected) #pos-live) #pos-live .catalog-panel::after,
+  body:has([data-phx-main]:not(.phx-connected) #pos-live) #pos-live .order-panel::after,
+  html.pos-catalog-view-table #pos-live[data-catalog-view="cards"] .catalog-panel::after {
+    animation: none;
+  }
+}
+
+@media (max-width: 800px) {
+  #pos-live .order-panel.is-content-loading::after,
+  body:has([data-phx-main]:not(.phx-connected) #pos-live) #pos-live .order-panel::after,
+  #pos-live .order-panel[data-loading="true"]::after {
+    top: 42%;
+  }
+}

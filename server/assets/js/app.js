@@ -37,6 +37,14 @@ const PRODUCT_IMAGE_VERSION_PREFIX = "pos:product-image-versions"
 const PRINT_RELAY_SESSION_KEY = "pos.printRelay.sessionId"
 let activePrintRelay = null
 
+function liveSocketParams() {
+  const catalogView = getStoredValue(POS_CATALOG_VIEW_KEY)
+  return {
+    _csrf_token: csrfToken,
+    catalog_view: catalogView === "cards" || catalogView === "table" ? catalogView : "cards"
+  }
+}
+
 const hooks = {
   LoginScreen: window.LoginScreenHook,
   CompanySettings: window.CompanySettingsHook,
@@ -256,7 +264,11 @@ const hooks = {
       }
       this.onClick = event => {
         const button = event.target.closest(".catalog-view-toggle[phx-value-view]")
-        if (button) setStoredValue(POS_CATALOG_VIEW_KEY, button.getAttribute("phx-value-view"))
+        if (button) {
+          const view = button.getAttribute("phx-value-view")
+          setStoredValue(POS_CATALOG_VIEW_KEY, view)
+          document.documentElement.classList.toggle("pos-catalog-view-table", view === "table")
+        }
       }
       document.addEventListener("keydown", this.onKeydown)
       this.el.addEventListener("click", this.onClick)
@@ -463,7 +475,7 @@ const hooks = {
 }
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
-  params: {_csrf_token: csrfToken},
+  params: liveSocketParams,
   hooks: {...colocatedHooks, ...hooks},
 })
 

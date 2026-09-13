@@ -786,7 +786,6 @@ defmodule PosServerWeb.InvoiceReportLive do
                     amounts={@payment_amounts}
                   />
                 <% end %>
-                <.skeleton_rows :if={@loading? && @entries == []} />
               </tbody>
             </table>
           </div>
@@ -942,7 +941,6 @@ defmodule PosServerWeb.InvoiceReportLive do
     <tr class="table-row invoice-details-row">
       <td class="table-cell" colspan="9">
         <section class="card invoice-details-card">
-          <.invoice_details_skeleton :if={is_nil(@detail)} />
           <%= if @detail do %>
             <div
               class={["invoice-due-marker", invoice_due_marker_class(@detail)]}
@@ -1238,12 +1236,6 @@ defmodule PosServerWeb.InvoiceReportLive do
         </span>
       </button>
     </div>
-    """
-  end
-
-  defp skeleton_rows(assigns) do
-    ~H"""
-    <.table_skeleton_rows rows={6} columns={8} />
     """
   end
 

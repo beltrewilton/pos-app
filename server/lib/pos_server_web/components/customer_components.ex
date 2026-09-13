@@ -119,7 +119,6 @@ defmodule PosServerWeb.CustomerComponents do
             </tr>
           </thead>
           <tbody id="customers-table-body">
-            <.table_skeleton_rows :if={@loading} rows={6} columns={8} />
             <.customer_row :for={customer <- @customers} customer={customer} />
           </tbody>
         </table>
@@ -216,16 +215,6 @@ defmodule PosServerWeb.CustomerComponents do
         </header>
       </div>
       <article id="customer-detail" class="card customer-detail-card" aria-live="polite">
-        <div
-          :if={@loading}
-          class="card-content invoice-details-skeleton"
-          role="status"
-          aria-label="Loading customer details"
-          data-i18n-aria-label="pos.customers.loadingDetails"
-        >
-          <.skeleton_block class="skeleton-line" width="40%" />
-          <.skeleton_block class="skeleton-line" width="75%" />
-        </div>
         <.customer_detail_content :if={!@loading and @detail} detail={@detail} store_id={@store_id} />
       </article>
     </section>
