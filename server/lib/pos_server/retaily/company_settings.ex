@@ -282,7 +282,7 @@ defmodule PosServer.Retaily.CompanySettings do
       )
 
   defp company(%{actor: :admin, actor_id: user_id}) do
-    Repo.one!(
+    Repo.one(
       from(company in Company,
         join: membership in UserCompany,
         on: membership.company_id == company.id,
@@ -296,10 +296,27 @@ defmodule PosServer.Retaily.CompanySettings do
         }
       ),
       prefix: TenantContext.tenant!()
-    )
+    ) || first_company(TenantContext.tenant!())
   end
 
   defp company(scope), do: %{id: scope.tenant, name: scope.tenant, rnc: nil, brand_logo: nil}
+
+  defp first_company(tenant) do
+    Repo.one(
+      from(company in Company,
+        limit: 1,
+        select: %{
+          id: company.id,
+          name: company.company_name,
+          rnc: company.rnc,
+          brand_logo: company.brand_logo
+        }
+      ),
+      prefix: tenant
+    ) || %{id: tenant, name: tenant, rnc: nil, brand_logo: nil}
+  rescue
+    _ -> %{id: tenant, name: tenant, rnc: nil, brand_logo: nil}
+  end
 
   defp price_key(label) when is_binary(label) do
     key =

@@ -40,12 +40,12 @@
           <div class="card-header">
             <p class="card-description" data-i18n="dashboard.workspace">Workspace</p>
             <h2 class="card-title">
-              <span data-i18n={if @company, do: nil, else: "dashboard.notCreated"}>{if @company, do: @company.company_name, else: "Not created"}</span>
+              <span data-i18n={if @workspace_created?, do: nil, else: "dashboard.notCreated"}>{if @workspace_created?, do: workspace_name(@company, @user), else: "Not created"}</span>
             </h2>
           </div>
           <div class="card-content">
             <p class="dashboard-summary-detail">
-              <span data-i18n={if @company, do: nil, else: "dashboard.createAfterConfirmation"}>{if @company, do: @user.tenant, else: "Create it after confirmation"}</span>
+              <span data-i18n={if @workspace_created?, do: nil, else: "dashboard.createAfterConfirmation"}>{if @workspace_created?, do: @user.tenant, else: "Create it after confirmation"}</span>
             </p>
           </div>
         </article>

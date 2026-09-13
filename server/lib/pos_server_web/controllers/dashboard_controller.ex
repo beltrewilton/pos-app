@@ -93,6 +93,7 @@ defmodule PosServerWeb.DashboardController do
     render(conn, :index,
       user: user,
       company: dashboard_company(conn.assigns.current_scope, user),
+      workspace_created?: workspace_created?(conn.assigns.current_scope, user),
       tenant_form: Phoenix.Component.to_form(tenant_changeset, as: :tenant),
       company_form: Phoenix.Component.to_form(company_changeset, as: :company),
       scope: conn.assigns.current_scope,
@@ -113,8 +114,8 @@ defmodule PosServerWeb.DashboardController do
     }
   end
 
-  defp dashboard_company(%{actor: :admin}, user) do
-    Accounts.get_company_for_user(user)
+  defp dashboard_company(%{actor: :admin, tenant: tenant}, user) when is_binary(tenant) do
+    Accounts.get_company_for_user(user) || first_company(tenant)
   rescue
     _ -> nil
   end
@@ -127,6 +128,16 @@ defmodule PosServerWeb.DashboardController do
   end
 
   defp dashboard_company(_, _), do: nil
+
+  defp first_company(tenant) do
+    Repo.one(from(company in Company, limit: 1), prefix: tenant)
+  rescue
+    _ -> nil
+  end
+
+  defp workspace_created?(%{tenant: tenant}, _user) when is_binary(tenant) and tenant != "", do: true
+  defp workspace_created?(_scope, %{tenant: tenant}) when is_binary(tenant) and tenant != "", do: true
+  defp workspace_created?(_scope, _user), do: false
 
   defp tenant_changeset(%{assigns: %{current_scope: %{actor: :admin}}}, user, opts) do
     Keyword.get(

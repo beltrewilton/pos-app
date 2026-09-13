@@ -16,7 +16,7 @@ defmodule PosServerWeb.CompanySettingsLive do
          {:ok, scope} <- Authentication.authenticate(token),
          true <- Scope.allowed?(scope, "company.settings"),
          _ <- TenantContext.put_tenant(scope.tenant),
-         {:ok, overview} <- CompanySettings.overview(scope) do
+         {:ok, overview} <- safe_overview(scope) do
       {:ok,
        socket
        |> assign(:page_title, "Tigoo Company settings")
@@ -27,6 +27,12 @@ defmodule PosServerWeb.CompanySettingsLive do
        |> assign(:editing, nil)
        |> assign(:status, "")}
     else
+      {:error, :load_failed} ->
+        {:ok,
+         socket
+         |> put_flash(:error, "Company settings could not be loaded.")
+         |> redirect(to: ~p"/pos/dashboard")}
+
       _ ->
         {:ok,
          socket
@@ -63,36 +69,52 @@ defmodule PosServerWeb.CompanySettingsLive do
     result =
       case {kind, socket.assigns.editing} do
         {"price-list", {"price-list", :new}} ->
-          CompanySettings.create_price_list(socket.assigns.scope, %{
-            "label" => Map.get(params, "name", "")
-          })
+          safe_company_settings(fn ->
+            CompanySettings.create_price_list(socket.assigns.scope, %{
+              "label" => Map.get(params, "name", "")
+            })
+          end)
 
         {"price-list", {"price-list", id}} ->
-          CompanySettings.update_price_list(socket.assigns.scope, id, %{
-            "label" => Map.get(params, "name", "")
-          })
+          safe_company_settings(fn ->
+            CompanySettings.update_price_list(socket.assigns.scope, id, %{
+              "label" => Map.get(params, "name", "")
+            })
+          end)
 
         {"store", {"store", :new}} ->
-          CompanySettings.create_store(socket.assigns.scope, store_attrs(params))
+          safe_company_settings(fn ->
+            CompanySettings.create_store(socket.assigns.scope, store_attrs(params))
+          end)
 
         {"store", {"store", id}} ->
-          CompanySettings.update_store(socket.assigns.scope, id, store_attrs(params))
+          safe_company_settings(fn ->
+            CompanySettings.update_store(socket.assigns.scope, id, store_attrs(params))
+          end)
 
         {"provider", {"provider", :new}} ->
-          CompanySettings.create_provider(socket.assigns.scope, %{
-            "name" => Map.get(params, "name", "")
-          })
+          safe_company_settings(fn ->
+            CompanySettings.create_provider(socket.assigns.scope, %{
+              "name" => Map.get(params, "name", "")
+            })
+          end)
 
         {"provider", {"provider", id}} ->
-          CompanySettings.update_provider(socket.assigns.scope, id, %{
-            "name" => Map.get(params, "name", "")
-          })
+          safe_company_settings(fn ->
+            CompanySettings.update_provider(socket.assigns.scope, id, %{
+              "name" => Map.get(params, "name", "")
+            })
+          end)
 
         {"sequence", {"sequence", :new}} ->
-          CompanySettings.create_sequence_set(socket.assigns.scope, sequence_attrs(params))
+          safe_company_settings(fn ->
+            CompanySettings.create_sequence_set(socket.assigns.scope, sequence_attrs(params))
+          end)
 
         {"sequence", {"sequence", id}} ->
-          CompanySettings.update_sequence_set(socket.assigns.scope, id, sequence_attrs(params))
+          safe_company_settings(fn ->
+            CompanySettings.update_sequence_set(socket.assigns.scope, id, sequence_attrs(params))
+          end)
 
         _ ->
           {:error, :invalid_edit}
@@ -109,9 +131,9 @@ defmodule PosServerWeb.CompanySettingsLive do
     with {id, ""} <- Integer.parse(id) do
       result =
         case kind do
-          "price-list" -> CompanySettings.delete_price_list(id)
-          "provider" -> CompanySettings.delete_provider(id)
-          "sequence" -> CompanySettings.delete_sequence_set(id)
+          "price-list" -> safe_company_settings(fn -> CompanySettings.delete_price_list(id) end)
+          "provider" -> safe_company_settings(fn -> CompanySettings.delete_provider(id) end)
+          "sequence" -> safe_company_settings(fn -> CompanySettings.delete_sequence_set(id) end)
         end
 
       case result do
@@ -226,7 +248,7 @@ defmodule PosServerWeb.CompanySettingsLive do
   attr :entries, :list, required: true
   attr :editing, :any, required: true
   attr :empty, :string, required: true
-  attr :company, :map, required: true
+  attr :company, :any, required: true
 
   defp settings_card(assigns) do
     ~H"""
@@ -272,7 +294,7 @@ defmodule PosServerWeb.CompanySettingsLive do
 
   attr :kind, :string, required: true
   attr :entry, :any, required: true
-  attr :company, :map, required: true
+  attr :company, :any, required: true
 
   defp setting_form(assigns) do
     ~H"""
@@ -439,7 +461,7 @@ defmodule PosServerWeb.CompanySettingsLive do
   end
 
   defp reload(socket) do
-    case CompanySettings.overview(socket.assigns.scope) do
+    case safe_overview(socket.assigns.scope) do
       {:ok, overview} ->
         stores = overview.stores
         store_id = selected_store_id(stores, socket.assigns.store_id)
@@ -492,9 +514,24 @@ defmodule PosServerWeb.CompanySettingsLive do
 
   defp company_name(company),
     do:
-      [value(company, :name), if(value(company, :rnc), do: "RNC #{value(company, :rnc)}")]
+      [
+        value(company, :company_name) || value(company, :name),
+        if(value(company, :rnc), do: "RNC #{value(company, :rnc)}")
+      ]
       |> Enum.reject(&is_nil/1)
       |> Enum.join(" · ")
+
+  defp safe_overview(scope) do
+    CompanySettings.overview(scope)
+  rescue
+    _ -> {:error, :load_failed}
+  end
+
+  defp safe_company_settings(fun) when is_function(fun, 0) do
+    fun.()
+  rescue
+    _ -> {:error, :load_failed}
+  end
 
   defp editing_key(nil), do: ""
   defp editing_key({kind, id}), do: "#{kind}:#{id}"

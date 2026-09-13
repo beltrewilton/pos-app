@@ -260,15 +260,33 @@ defmodule PosServer.Accounts do
 
   defp ensure_tenant_company(%User{tenant: tenant} = user, attrs)
        when is_binary(tenant) and tenant != "" do
-    if Tenants.exists?(tenant) do
-      :ok
-    else
+    cond do
+      Tenants.exists?(tenant) ->
+        :ok
+
+      tenant_schema_exists?(tenant) ->
+        Tenants.put(tenant)
+
+      true ->
       company_changeset = Company.changeset(%Company{}, %{company_name: "#{attrs.name}'s business"})
       create_tenant_company(tenant, user.id, company_changeset)
     end
   end
 
   defp ensure_tenant_company(_user, _attrs), do: :ok
+
+  defp tenant_schema_exists?(tenant) do
+    Repo.one(
+      from(schema in "schemata",
+        where: schema.schema_name == ^Triplex.to_prefix(tenant),
+        select: true,
+        limit: 1
+      ),
+      prefix: "information_schema"
+    ) == true
+  rescue
+    _ -> false
+  end
 
   defp create_user_company(repo, tenant, user_id, company_id) do
     %UserCompany{}
