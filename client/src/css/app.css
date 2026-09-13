@@ -36,6 +36,12 @@ body {
   width: min(360px, 32vw);
   min-height: 2.5rem;
 }
+.users-search-field {
+  width: min(360px, 32vw);
+}
+.users-search-field .users-search {
+  width: 100%;
+}
 .users-header {
   position: sticky;
   top: 0;
@@ -572,6 +578,12 @@ button {
 .search-field .input {
   height: 2.9rem;
   padding-left: 47px;
+  padding-right: 2.8rem;
+}
+.search-field .input::-webkit-search-cancel-button,
+.search-field .input::-webkit-search-decoration {
+  appearance: none;
+  -webkit-appearance: none;
 }
 .search-clear {
   position: absolute;
@@ -4458,7 +4470,7 @@ dialog#customer-purchases-dialog .dialog-content {
   .users-header-actions {
     width: 100%;
   }
-  .users-search {
+  .users-search-field {
     flex: 1 1 auto;
     width: auto;
     min-width: 0;

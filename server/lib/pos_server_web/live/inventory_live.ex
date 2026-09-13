@@ -136,18 +136,18 @@ defmodule PosServerWeb.InventoryLive do
       {:noreply, put_flash(socket, :error, "You do not have permission to edit products.")}
     else
       case ProductCatalog.get(socket.assigns.scope, integer(id)) do
-      {:ok, product} ->
-        {:noreply,
-         socket
-         |> assign(:product_dialog, true)
-         |> assign(:editing_product, product)
-         |> assign(:product_form_status, "")}
+        {:ok, product} ->
+          {:noreply,
+           socket
+           |> assign(:product_dialog, true)
+           |> assign(:editing_product, product)
+           |> assign(:product_form_status, "")}
 
-      {:error, :forbidden} ->
-        {:noreply, put_flash(socket, :error, "You do not have permission to edit products.")}
+        {:error, :forbidden} ->
+          {:noreply, put_flash(socket, :error, "You do not have permission to edit products.")}
 
-      _ ->
-        {:noreply, put_flash(socket, :error, "Product could not be loaded.")}
+        _ ->
+          {:noreply, put_flash(socket, :error, "Product could not be loaded.")}
       end
     end
   end
@@ -368,8 +368,7 @@ defmodule PosServerWeb.InventoryLive do
 
     case {InventoryContext.list(socket.assigns.scope, socket.assigns.store_id, filter,
             include_archived?: socket.assigns.show_archived?
-          ),
-          Sql.inventory_summary(socket.assigns.store_id)} do
+          ), Sql.inventory_summary(socket.assigns.store_id)} do
       {{:ok, entries}, {:ok, summary}} ->
         entries = sort_entries(entries, socket.assigns.sort)
 
@@ -534,6 +533,7 @@ defmodule PosServerWeb.InventoryLive do
 
   defp value(map, key), do: Map.get(map, key) || Map.get(map, Atom.to_string(key))
   defp money(value), do: :erlang.float_to_binary(decimal(value), decimals: 2) |> then(&"$#{&1}")
+
   defp cost_value(scope, value),
     do: if(Scope.allowed?(scope, "product.view.cost"), do: money(value), else: "—")
 
@@ -713,8 +713,19 @@ defmodule PosServerWeb.InventoryLive do
                     data-i18n-placeholder="inventory.searchProduct"
                     autocomplete="off"
                   />
+                  <button
+                    :if={@search != ""}
+                    class="btn search-clear"
+                    type="button"
+                    phx-click={JS.push("search", value: %{value: ""})}
+                  >
+                    ×
+                  </button>
                 </div>
-                <label class="inventory-checkbox-label inventory-archived-filter" for="inventory-show-archived">
+                <label
+                  class="inventory-checkbox-label inventory-archived-filter"
+                  for="inventory-show-archived"
+                >
                   <input
                     id="inventory-show-archived"
                     type="checkbox"
@@ -737,7 +748,11 @@ defmodule PosServerWeb.InventoryLive do
             </header>
             <p id="inventory-status" class="operations-status" role="status">{@status}</p>
           </div>
-          <section class="inventory-summary-section" aria-label="Inventory and operations KPIs" data-i18n-aria-label="inventory.kpis">
+          <section
+            class="inventory-summary-section"
+            aria-label="Inventory and operations KPIs"
+            data-i18n-aria-label="inventory.kpis"
+          >
             <section
               id="inventory-summary"
               class={["inventory-summary", if(!@kpis_expanded, do: "is-collapsed")]}
@@ -755,7 +770,9 @@ defmodule PosServerWeb.InventoryLive do
                     <p class="inventory-kpi-value numeric">
                       {money(value(@summary || %{}, :company_inventory_valuation))}
                     </p>
-                    <p class="inventory-valuation-caption numeric" data-i18n="inventory.companyTotal">Company total</p>
+                    <p class="inventory-valuation-caption numeric" data-i18n="inventory.companyTotal">
+                      Company total
+                    </p>
                   </div>
                   <div class="inventory-valuation-breakdown">
                     <div
@@ -827,13 +844,19 @@ defmodule PosServerWeb.InventoryLive do
               aria-expanded={to_string(@kpis_expanded)}
               aria-controls="inventory-summary"
             >
-              <span data-i18n={if @kpis_expanded, do: "inventory.showFewerKpis", else: "inventory.showMoreKpis"}>{if @kpis_expanded, do: "Show fewer KPIs", else: "Show more KPIs"}</span>
+              <span data-i18n={
+                if @kpis_expanded, do: "inventory.showFewerKpis", else: "inventory.showMoreKpis"
+              }>
+                {if @kpis_expanded, do: "Show fewer KPIs", else: "Show more KPIs"}
+              </span>
               <span aria-hidden="true">⌄</span>
             </button>
           </section>
           <div class="table-container operations-table-container">
             <table class="table operations-table">
-              <caption class="table-caption" data-i18n="inventory.byStore">Inventory by store.</caption>
+              <caption class="table-caption" data-i18n="inventory.byStore">
+                Inventory by store.
+              </caption>
               <thead>
                 <tr class="table-row">
                   <th
@@ -857,7 +880,9 @@ defmodule PosServerWeb.InventoryLive do
                     >
                       <span data-i18n={inventory_header_key(label)}>{label}</span>
                     </button>
-                    <span :if={is_nil(key)} class="sr-only" data-i18n={inventory_header_key(label)}>{label}</span>
+                    <span :if={is_nil(key)} class="sr-only" data-i18n={inventory_header_key(label)}>
+                      {label}
+                    </span>
                   </th>
                 </tr>
               </thead>
@@ -879,7 +904,11 @@ defmodule PosServerWeb.InventoryLive do
                         {entry.product_name || "Product ##{entry.product_id}"}
                       </span>
                     </td>
-                    <td class="table-cell inventory-product-status-cell" data-label="Status" data-i18n-data-label="common.status">
+                    <td
+                      class="table-cell inventory-product-status-cell"
+                      data-label="Status"
+                      data-i18n-data-label="common.status"
+                    >
                       <details
                         :if={Scope.allowed?(@scope, "product.edit")}
                         class="inventory-product-status-menu"
@@ -949,13 +978,27 @@ defmodule PosServerWeb.InventoryLive do
                         {entry.product_code || "—"}
                       </button>
                     </td>
-                    <td class="table-cell numeric" data-label="Cost" data-i18n-data-label="inventory.cost">
-                      {if Scope.allowed?(@scope, "product.view.cost"), do: money(entry.product_cost), else: "—"}
+                    <td
+                      class="table-cell numeric"
+                      data-label="Cost"
+                      data-i18n-data-label="inventory.cost"
+                    >
+                      {if Scope.allowed?(@scope, "product.view.cost"),
+                        do: money(entry.product_cost),
+                        else: "—"}
                     </td>
-                    <td class="table-cell numeric" data-label="Price" data-i18n-data-label="common.price">
+                    <td
+                      class="table-cell numeric"
+                      data-label="Price"
+                      data-i18n-data-label="common.price"
+                    >
                       {if is_nil(entry.product_price), do: "—", else: money(entry.product_price)}
                     </td>
-                    <td class="table-cell numeric inventory-total-quantity-cell" data-label="Total quantity" data-i18n-data-label="inventory.totalQuantity">
+                    <td
+                      class="table-cell numeric inventory-total-quantity-cell"
+                      data-label="Total quantity"
+                      data-i18n-data-label="inventory.totalQuantity"
+                    >
                       <button
                         class="btn inventory-total-quantity"
                         type="button"
@@ -968,7 +1011,11 @@ defmodule PosServerWeb.InventoryLive do
                           entry.quantity || 0}
                       </button>
                     </td>
-                    <td class="table-cell" data-label="Current quantity" data-i18n-data-label="inventory.currentQuantity">
+                    <td
+                      class="table-cell"
+                      data-label="Current quantity"
+                      data-i18n-data-label="inventory.currentQuantity"
+                    >
                       <%= if @editing_product_id == entry.product_id do %>
                         <form
                           :if={Scope.allowed?(@scope, "inventory.view")}
@@ -982,9 +1029,11 @@ defmodule PosServerWeb.InventoryLive do
                             type="number"
                             inputmode="numeric"
                             value={entry.quantity || 0}
-                          /><button class="btn" type="submit" data-variant="default" data-size="sm">
+                          />
+                          <button class="btn" type="submit" data-variant="default" data-size="sm">
                             <span data-i18n="inventory.update">Update</span>
-                          </button><button
+                          </button>
+                          <button
                             class="btn"
                             type="button"
                             data-variant="ghost"
@@ -1006,13 +1055,27 @@ defmodule PosServerWeb.InventoryLive do
                         </div>
                       <% end %>
                     </td>
-                    <td class="table-cell numeric inventory-previous-quantity-cell" data-label="Previous quantity" data-i18n-data-label="inventory.previousQuantity">
+                    <td
+                      class="table-cell numeric inventory-previous-quantity-cell"
+                      data-label="Previous quantity"
+                      data-i18n-data-label="inventory.previousQuantity"
+                    >
                       {entry.prev_quantity || "—"}
                     </td>
-                    <td class="table-cell" data-label="Last updated" data-i18n-data-label="inventory.lastUpdated">
+                    <td
+                      class="table-cell"
+                      data-label="Last updated"
+                      data-i18n-data-label="inventory.lastUpdated"
+                    >
                       {datetime(entry.last_update)}
                     </td>
-                    <td class="table-cell" data-label="Updated by" data-i18n-data-label="inventory.updatedBy">{entry.user_updated || "—"}</td>
+                    <td
+                      class="table-cell"
+                      data-label="Updated by"
+                      data-i18n-data-label="inventory.updatedBy"
+                    >
+                      {entry.user_updated || "—"}
+                    </td>
                   </tr>
                   <tr
                     :for={store <- @store_quantities}
@@ -1020,11 +1083,24 @@ defmodule PosServerWeb.InventoryLive do
                     class="table-row inventory-store-row"
                   >
                     <td class="table-cell" colspan="4"></td>
-                    <td class="table-cell inventory-store-name" data-label="Store" data-i18n-data-label="common.store">
+                    <td
+                      class="table-cell inventory-store-name"
+                      data-label="Store"
+                      data-i18n-data-label="common.store"
+                    >
                       {store.store_name}
                     </td>
-                    <td class="table-cell inventory-total-quantity-cell" data-label="Total quantity" data-i18n-data-label="inventory.totalQuantity"></td>
-                    <td class="table-cell" data-label="Current quantity" data-i18n-data-label="inventory.currentQuantity">
+                    <td
+                      class="table-cell inventory-total-quantity-cell"
+                      data-label="Total quantity"
+                      data-i18n-data-label="inventory.totalQuantity"
+                    >
+                    </td>
+                    <td
+                      class="table-cell"
+                      data-label="Current quantity"
+                      data-i18n-data-label="inventory.currentQuantity"
+                    >
                       <form
                         :if={Scope.allowed?(@scope, "inventory.view")}
                         class="inventory-inline-editor"
@@ -1041,18 +1117,33 @@ defmodule PosServerWeb.InventoryLive do
                           type="number"
                           inputmode="numeric"
                           value={store.quantity || 0}
-                        /><button class="btn" type="submit" data-variant="default" data-size="sm">
+                        />
+                        <button class="btn" type="submit" data-variant="default" data-size="sm">
                           <span data-i18n="inventory.update">Update</span>
                         </button>
                       </form>
                     </td>
-                    <td class="table-cell inventory-previous-quantity-cell" data-label="Previous quantity" data-i18n-data-label="inventory.previousQuantity">
+                    <td
+                      class="table-cell inventory-previous-quantity-cell"
+                      data-label="Previous quantity"
+                      data-i18n-data-label="inventory.previousQuantity"
+                    >
                       {store.prev_quantity || "—"}
                     </td>
-                    <td class="table-cell" data-label="Last updated" data-i18n-data-label="inventory.lastUpdated">
+                    <td
+                      class="table-cell"
+                      data-label="Last updated"
+                      data-i18n-data-label="inventory.lastUpdated"
+                    >
                       {datetime(store.last_update)}
                     </td>
-                    <td class="table-cell" data-label="Updated by" data-i18n-data-label="inventory.updatedBy">{store.user_updated || "—"}</td>
+                    <td
+                      class="table-cell"
+                      data-label="Updated by"
+                      data-i18n-data-label="inventory.updatedBy"
+                    >
+                      {store.user_updated || "—"}
+                    </td>
                   </tr>
                   <tr
                     :if={@expanded == {:traces, entry.product_id}}
@@ -1060,7 +1151,9 @@ defmodule PosServerWeb.InventoryLive do
                   >
                     <td class="table-cell" colspan="10">
                       <%= if @traces == [] do %>
-                        <p class="field-description" data-i18n="inventory.noTraceHistory">No trace history yet.</p>
+                        <p class="field-description" data-i18n="inventory.noTraceHistory">
+                          No trace history yet.
+                        </p>
                       <% else %>
                         <div class="inventory-trace-wrap">
                           <table class="table inventory-trace-table">
@@ -1070,7 +1163,9 @@ defmodule PosServerWeb.InventoryLive do
                                 <th class="table-head" data-i18n="common.action">Action</th>
                                 <th class="table-head" data-i18n="common.store">Store</th>
                                 <th class="table-head" data-i18n="inventory.change">Change</th>
-                                <th class="table-head" data-i18n="inventory.previousCurrent">Previous → Current</th>
+                                <th class="table-head" data-i18n="inventory.previousCurrent">
+                                  Previous → Current
+                                </th>
                                 <th class="table-head" data-i18n="inventory.updatedBy">Updated by</th>
                                 <th class="table-head" data-i18n="inventory.context">Context</th>
                               </tr>
@@ -1285,7 +1380,8 @@ defmodule PosServerWeb.InventoryLive do
                 phx-click="close_product_dialog"
               >
                 Cancel
-              </button><button
+              </button>
+              <button
                 :if={is_nil(@editing_product) or Scope.allowed?(@scope, "product.edit")}
                 class="btn"
                 type="submit"
@@ -1345,9 +1441,12 @@ defmodule PosServerWeb.InventoryLive do
       end)
 
   defp product_active?(nil), do: true
-  defp product_active?(product), do: (value(product, :active) || value(product, :product_active)) == 1
+
+  defp product_active?(product),
+    do: (value(product, :active) || value(product, :product_active)) == 1
 
   defp product_archived?(nil), do: false
+
   defp product_archived?(product),
     do: (value(product, :archived) || value(product, :product_archived)) == "1"
 
@@ -1377,11 +1476,19 @@ defmodule PosServerWeb.InventoryLive do
       <path d="M9 11h6" />
       <path d="M8 4h8l2 3H6z" />
     </svg>
-    <svg :if={!product_archived?(@entry) && product_active?(@entry)} viewBox="0 0 24 24" aria-hidden="true">
+    <svg
+      :if={!product_archived?(@entry) && product_active?(@entry)}
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
       <circle cx="12" cy="12" r="9" />
       <path d="m8 12 2.6 2.6L16.5 9" />
     </svg>
-    <svg :if={!product_archived?(@entry) && !product_active?(@entry)} viewBox="0 0 24 24" aria-hidden="true">
+    <svg
+      :if={!product_archived?(@entry) && !product_active?(@entry)}
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
       <circle cx="12" cy="12" r="9" />
       <path d="M5.7 5.7 18.3 18.3" />
     </svg>

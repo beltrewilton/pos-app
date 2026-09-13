@@ -18,7 +18,9 @@ defmodule PosServerWeb.CustomerComponents do
             <span class="brand-mark" aria-hidden="true">E</span>
             <div>
               <p class="eyebrow" data-i18n="pos.customers.customers">Customers</p>
-              <h2 id="customers-title" tabindex="-1" data-i18n="pos.customers.customerList">Customer list</h2>
+              <h2 id="customers-title" tabindex="-1" data-i18n="pos.customers.customerList">
+                Customer list
+              </h2>
             </div>
           </div>
           <div class="customers-header-actions">
@@ -32,12 +34,17 @@ defmodule PosServerWeb.CustomerComponents do
             >
               <span data-i18n="pos.customers.createCustomer">Create customer</span>
             </button>
-            <a id="customers-back" class="btn" data-variant="outline" href={~p"/pos"}><span data-i18n="common.back">Back</span></a>
+            <a id="customers-back" class="btn" data-variant="outline" href={~p"/pos"}>
+              <span data-i18n="common.back">Back</span>
+            </a>
           </div>
         </header>
       </div>
-      <div class="customer-search-field">
-        <label class="sr-only" for="customer-search" data-i18n="pos.customers.searchCustomers">Search customers</label>
+      <div class="customer-search-field search-field">
+        <label class="sr-only" for="customer-search" data-i18n="pos.customers.searchCustomers">
+          Search customers
+        </label>
+        <svg class="search-icon" aria-hidden="true"><use href="#ui-icon-search" /></svg>
         <input
           id="customer-search"
           class="input"
@@ -51,22 +58,62 @@ defmodule PosServerWeb.CustomerComponents do
           placeholder="Search customers by name or phone"
           data-i18n-placeholder="pos.customers.searchCustomersPlaceholder"
         />
+        <button
+          :if={@search != ""}
+          class="btn search-clear"
+          type="button"
+          phx-click={JS.push("search_customers", value: %{value: ""})}
+        >
+          ×
+        </button>
       </div>
       <p id="customers-status" class="customers-status" role="status">{@status}</p>
       <div class="table-container customer-table-container">
         <table class="table customer-table">
-          <caption class="table-caption" data-i18n="pos.customers.accountsCaption">Customer accounts and purchase activity.</caption>
+          <caption class="table-caption" data-i18n="pos.customers.accountsCaption">
+            Customer accounts and purchase activity.
+          </caption>
           <thead>
             <tr class="table-row">
               <th class="table-head" scope="col" data-i18n="common.name">Name</th>
               <th class="table-head" scope="col" data-i18n="common.documentId">Document ID</th>
               <th class="table-head" scope="col" data-i18n="common.phone">Phone</th>
-              <th class="table-head" scope="col" data-customer-management-column data-i18n="common.email">Email</th>
-              <th class="table-head" scope="col" data-customer-management-column data-i18n="pos.customers.wholesale">Wholesale</th>
-              <th class="table-head" scope="col" data-customer-management-column data-i18n="pos.customers.pendingBalance">Pending balance</th>
-              <th class="table-head" scope="col" data-customer-management-column data-i18n="pos.customers.lastPurchase">Last purchase</th>
+              <th
+                class="table-head"
+                scope="col"
+                data-customer-management-column
+                data-i18n="common.email"
+              >
+                Email
+              </th>
+              <th
+                class="table-head"
+                scope="col"
+                data-customer-management-column
+                data-i18n="pos.customers.wholesale"
+              >
+                Wholesale
+              </th>
+              <th
+                class="table-head"
+                scope="col"
+                data-customer-management-column
+                data-i18n="pos.customers.pendingBalance"
+              >
+                Pending balance
+              </th>
+              <th
+                class="table-head"
+                scope="col"
+                data-customer-management-column
+                data-i18n="pos.customers.lastPurchase"
+              >
+                Last purchase
+              </th>
               <th class="table-head" scope="col">
-                <span id="customers-action-heading" class="sr-only" data-i18n="common.view">View</span>
+                <span id="customers-action-heading" class="sr-only" data-i18n="common.view">
+                  View
+                </span>
               </th>
             </tr>
           </thead>
@@ -85,17 +132,37 @@ defmodule PosServerWeb.CustomerComponents do
   def customer_row(assigns) do
     ~H"""
     <tr class="table-row">
-      <td class="table-cell" data-label="Name" data-i18n-data-label="common.name">{dash(@customer.name)}</td>
-      <td class="table-cell" data-label="Document ID" data-i18n-data-label="common.documentId">{dash(@customer.document_id)}</td>
-      <td class="table-cell" data-label="Phone" data-i18n-data-label="common.phone">{dash(@customer.celphone)}</td>
-      <td class="table-cell" data-label="Email" data-i18n-data-label="common.email">{dash(@customer.email)}</td>
-      <td class="table-cell" data-label="Wholesale" data-i18n-data-label="pos.customers.wholesale">
-        <span data-i18n={if wholesale?(@customer), do: "common.yes", else: "common.no"}>{if wholesale?(@customer), do: "Yes", else: "No"}</span>
+      <td class="table-cell" data-label="Name" data-i18n-data-label="common.name">
+        {dash(@customer.name)}
       </td>
-      <td class="table-cell numeric" data-label="Pending balance" data-i18n-data-label="pos.customers.pendingBalance">
+      <td class="table-cell" data-label="Document ID" data-i18n-data-label="common.documentId">
+        {dash(@customer.document_id)}
+      </td>
+      <td class="table-cell" data-label="Phone" data-i18n-data-label="common.phone">
+        {dash(@customer.celphone)}
+      </td>
+      <td class="table-cell" data-label="Email" data-i18n-data-label="common.email">
+        {dash(@customer.email)}
+      </td>
+      <td class="table-cell" data-label="Wholesale" data-i18n-data-label="pos.customers.wholesale">
+        <span data-i18n={if wholesale?(@customer), do: "common.yes", else: "common.no"}>
+          {if wholesale?(@customer), do: "Yes", else: "No"}
+        </span>
+      </td>
+      <td
+        class="table-cell numeric"
+        data-label="Pending balance"
+        data-i18n-data-label="pos.customers.pendingBalance"
+      >
         {money(max(float(@customer.pending_balance), 0.0))}
       </td>
-      <td class="table-cell" data-label="Last purchase" data-i18n-data-label="pos.customers.lastPurchase">{date_only(@customer.last_purchase_date)}</td>
+      <td
+        class="table-cell"
+        data-label="Last purchase"
+        data-i18n-data-label="pos.customers.lastPurchase"
+      >
+        {date_only(@customer.last_purchase_date)}
+      </td>
       <td class="table-cell customer-action">
         <button
           class="btn"
@@ -129,7 +196,9 @@ defmodule PosServerWeb.CustomerComponents do
             <span class="brand-mark" aria-hidden="true">E</span>
             <div>
               <p class="eyebrow" data-i18n="pos.customers.customers">Customers</p>
-              <h2 id="customer-detail-title" tabindex="-1" data-i18n="pos.customers.detail">Customer detail</h2>
+              <h2 id="customer-detail-title" tabindex="-1" data-i18n="pos.customers.detail">
+                Customer detail
+              </h2>
             </div>
           </div>
           <button
@@ -189,7 +258,13 @@ defmodule PosServerWeb.CustomerComponents do
     </div>
     <div class="card-content">
       <p class="card-description">
-        {dash(customer.address, "No address")} · {dash(customer.email, "No email")} · <span data-i18n={if wholesale?(customer), do: "pos.customers.wholesale", else: "pos.customers.retail"}>{if wholesale?(customer), do: "Wholesale", else: "Retail"}</span> · <span data-i18n="pos.customers.created">Created</span> {customer_date(customer.date_create)}
+        {dash(customer.address, "No address")} · {dash(customer.email, "No email")} ·
+        <span data-i18n={
+          if wholesale?(customer), do: "pos.customers.wholesale", else: "pos.customers.retail"
+        }>
+          {if wholesale?(customer), do: "Wholesale", else: "Retail"}
+        </span>
+        · <span data-i18n="pos.customers.created">Created</span> {customer_date(customer.date_create)}
       </p>
       <section class="invoice-summary">
         <.summary_card
@@ -219,7 +294,9 @@ defmodule PosServerWeb.CustomerComponents do
         </article>
       </section>
       <div class="table-container">
-        <p class="invoice-table-section-title" data-i18n="pos.customers.purchaseHistory">Purchase history</p>
+        <p class="invoice-table-section-title" data-i18n="pos.customers.purchaseHistory">
+          Purchase history
+        </p>
         <table class="table">
           <thead>
             <tr class="table-row">
@@ -236,7 +313,9 @@ defmodule PosServerWeb.CustomerComponents do
           </thead>
           <tbody>
             <tr :if={@detail.purchases == []} class="table-row">
-              <td class="table-cell muted" colspan="9" data-i18n="pos.customers.noPurchases">No purchases found for this customer.</td>
+              <td class="table-cell muted" colspan="9" data-i18n="pos.customers.noPurchases">
+                No purchases found for this customer.
+              </td>
             </tr>
             <%= for purchase <- @detail.purchases do %>
               <tr class="table-row">
@@ -265,7 +344,9 @@ defmodule PosServerWeb.CustomerComponents do
                   <section class="card invoice-details-card">
                     <div class="card-content">
                       <section class="invoice-memo" aria-label="Sale memo">
-                        <p class="invoice-memo-text">{String.trim(value(purchase, :additional_info))}</p>
+                        <p class="invoice-memo-text">
+                          {String.trim(value(purchase, :additional_info))}
+                        </p>
                         <div class="invoice-memo-salesperson">
                           <.memo_avatar author={memo_author(purchase)} />
                           {memo_author_name(purchase)}
@@ -328,17 +409,47 @@ defmodule PosServerWeb.CustomerComponents do
     >
       <div class="dialog-content">
         <div class="dialog-header">
-          <h2 id="customer-dialog-title" class="dialog-title" data-i18n={if editing?, do: "pos.customers.editCustomer", else: "pos.customers.createCustomer"}>{if editing?, do: "Edit customer", else: "Create customer"}</h2>
-          <p class="dialog-description" data-i18n={if editing?, do: "pos.customers.editDialogCopy", else: "pos.customers.addDialogCopy"}>{if editing?, do: "Update this customer's account and contact details.", else: "Add a customer, then use them on this sale."}</p>
+          <h2
+            id="customer-dialog-title"
+            class="dialog-title"
+            data-i18n={
+              if editing?, do: "pos.customers.editCustomer", else: "pos.customers.createCustomer"
+            }
+          >
+            {if editing?, do: "Edit customer", else: "Create customer"}
+          </h2>
+          <p
+            class="dialog-description"
+            data-i18n={
+              if editing?, do: "pos.customers.editDialogCopy", else: "pos.customers.addDialogCopy"
+            }
+          >
+            {if editing?,
+              do: "Update this customer's account and contact details.",
+              else: "Add a customer, then use them on this sale."}
+          </p>
         </div>
-        <form id="customer-form" class="form" phx-submit={if editing?, do: "update_customer", else: "create_customer"}>
+        <form
+          id="customer-form"
+          class="form"
+          phx-submit={if editing?, do: "update_customer", else: "create_customer"}
+        >
           <input :if={editing?} type="hidden" name="customer_id" value={value(@customer, :id)} />
           <div class="form-field">
             <label class="label" for="customer-name" data-i18n="common.name">Name</label>
-            <input id="customer-name" class="input" name="name" value={value(@customer, :name)} required autocomplete="name" />
+            <input
+              id="customer-name"
+              class="input"
+              name="name"
+              value={value(@customer, :name)}
+              required
+              autocomplete="name"
+            />
           </div>
           <div class="form-field">
-            <label class="label" for="customer-document-id" data-i18n="common.documentId">Document ID</label>
+            <label class="label" for="customer-document-id" data-i18n="common.documentId">
+              Document ID
+            </label>
             <input
               id="customer-document-id"
               class="input"
@@ -349,20 +460,49 @@ defmodule PosServerWeb.CustomerComponents do
             />
           </div>
           <div class="form-field">
-            <label class="label" for="customer-address" data-i18n="pos.customers.address">Address</label>
-            <input id="customer-address" class="input" name="address" value={value(@customer, :address)} autocomplete="street-address" />
+            <label class="label" for="customer-address" data-i18n="pos.customers.address">
+              Address
+            </label>
+            <input
+              id="customer-address"
+              class="input"
+              name="address"
+              value={value(@customer, :address)}
+              autocomplete="street-address"
+            />
           </div>
           <div class="form-field">
             <label class="label" for="customer-phone" data-i18n="common.phone">Phone</label>
-            <input id="customer-phone" class="input" name="celphone" value={value(@customer, :celphone)} type="tel" autocomplete="tel" />
+            <input
+              id="customer-phone"
+              class="input"
+              name="celphone"
+              value={value(@customer, :celphone)}
+              type="tel"
+              autocomplete="tel"
+            />
           </div>
           <div class="form-field">
             <label class="label" for="customer-email" data-i18n="common.email">Email</label>
-            <input id="customer-email" class="input" name="email" value={value(@customer, :email)} type="email" autocomplete="email" />
+            <input
+              id="customer-email"
+              class="input"
+              name="email"
+              value={value(@customer, :email)}
+              type="email"
+              autocomplete="email"
+            />
           </div>
           <div class="form-field-inline">
             <input type="hidden" name="is_wholesaler" value="false" />
-            <input id="customer-is-wholesaler" class="checkbox" name="is_wholesaler" type="checkbox" checked={wholesale?(@customer)} /><label
+            <input
+              id="customer-is-wholesaler"
+              class="checkbox"
+              name="is_wholesaler"
+              type="checkbox"
+              checked={wholesale?(@customer)}
+            />
+            <label
               class="label"
               for="customer-is-wholesaler"
             >
@@ -375,7 +515,8 @@ defmodule PosServerWeb.CustomerComponents do
           <div class="dialog-footer">
             <button class="btn" type="button" data-variant="outline" phx-click="close_customer_dialog">
               <span data-i18n="common.cancel">Cancel</span>
-            </button><button
+            </button>
+            <button
               id="customer-submit"
               class="btn"
               type="submit"
