@@ -1331,7 +1331,26 @@ defmodule PosServerWeb.InvoiceReportLive do
   defp print_request_id, do: "print-#{System.unique_integer([:positive])}"
 
   defp printable_detail(detail, socket),
-    do: Map.put(detail, :store, Enum.find(socket.assigns.stores, &(&1.id == detail.store_id)))
+    do:
+      Map.put(
+        detail,
+        :store,
+        socket.assigns.stores
+        |> Enum.find(&(&1.id == detail.store_id))
+        |> printable_store()
+      )
+
+  defp printable_store(nil), do: nil
+
+  defp printable_store(store) do
+    %{
+      id: value(store, :id),
+      name: value(store, :name),
+      address: value(store, :address),
+      company_id: value(store, :company_id),
+      slogan: value(store, :slogan)
+    }
+  end
 
   defp print_prompt(:payment, sale, payment),
     do: %{

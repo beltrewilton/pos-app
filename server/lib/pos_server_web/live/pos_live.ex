@@ -2502,7 +2502,7 @@ defmodule PosServerWeb.PosLive do
       change_amount: value(sale, :change_amount),
       due_balance: value(sale, :due_balance),
       invoice_status: value(sale, :invoice_status),
-      store: store,
+      store: printable_store(store),
       lines:
         Enum.map(value(sale, :sale_lines) || value(sale, :lines) || [], fn line ->
           %{
@@ -2535,6 +2535,18 @@ defmodule PosServerWeb.PosLive do
 
   defp current_store(socket),
     do: Enum.find(socket.assigns.stores, &(&1.id == socket.assigns.store_id))
+
+  defp printable_store(nil), do: nil
+
+  defp printable_store(store) do
+    %{
+      id: value(store, :id),
+      name: value(store, :name),
+      address: value(store, :address),
+      company_id: value(store, :company_id),
+      slogan: value(store, :slogan)
+    }
+  end
 
   defp print_prompt(:receipt, receipt) do
     %{

@@ -42,13 +42,25 @@ defmodule PosServerWeb.SystemChannel do
   end
 
   def handle_info({:print_request, payload}, socket) do
-    IO.warn("print relay request pushed to desktop session=#{inspect(socket.assigns[:print_relay] && socket.assigns.print_relay.session_id)} request_id=#{inspect(payload[:request_id] || payload[\"request_id\"])}")
+    relay = socket.assigns[:print_relay]
+    request_id = payload[:request_id] || payload["request_id"]
+
+    IO.warn(
+      "print relay request pushed to desktop session=#{inspect(relay && relay.session_id)} request_id=#{inspect(request_id)}"
+    )
+
     push(socket, "print_request", payload)
     {:noreply, socket}
   end
 
   def handle_info({:print_result, payload}, socket) do
-    IO.warn("print relay result pushed to requester request_id=#{inspect(payload[\"request_id\"] || payload[:request_id])} status=#{inspect(payload[\"status\"] || payload[:status])}")
+    request_id = payload["request_id"] || payload[:request_id]
+    status = payload["status"] || payload[:status]
+
+    IO.warn(
+      "print relay result pushed to requester request_id=#{inspect(request_id)} status=#{inspect(status)}"
+    )
+
     push(socket, "print_result", payload)
     {:noreply, socket}
   end

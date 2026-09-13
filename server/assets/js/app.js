@@ -99,6 +99,7 @@ const hooks = {
       requestAnimationFrame(() => this.el.querySelector("#invoice-search")?.focus())
     },
     updated() {
+      syncPrintLogoCache(this.el)
       this.syncStickyOffset?.()
       translatePage(this.el)
     },
@@ -241,6 +242,7 @@ const hooks = {
       this.syncMobileCartState()
     },
     updated() {
+      syncPrintLogoCache(this.el)
       this.syncMobileCartState?.()
       translatePage(this.el)
     },
@@ -578,23 +580,28 @@ function uninstallNetworkStatus(element) {
 }
 
 function installPrinterEvents(hook) {
+  syncPrintLogoCache(hook.el)
   hook.handleEvent("printer:print-receipt", payload => {
-    const sale = payload.receipt || payload.sale
+    const prepared = preparePrintPayload(payload)
+    const sale = prepared.local.receipt || prepared.local.sale
     console.log("[printer] LiveView event printer:print-receipt", {requestId: payload.request_id, sequence: sale?.sequence, hasCopyLabel: sale?.copy === true})
-    return hook.printWithResult(payload.request_id, payload, () => receiptPrinter.printReceipt(sale))
+    return hook.printWithResult(payload.request_id, prepared.relay, () => receiptPrinter.printReceipt(sale))
   })
   hook.handleEvent("printer:print-payment", payload => {
-    console.log("[printer] LiveView event printer:print-payment", {requestId: payload.request_id, sequence: payload.sale?.sequence, paymentId: payload.payment?.id})
-    return hook.printWithResult(payload.request_id, payload, () => receiptPrinter.printPayment(payload))
+    const prepared = preparePrintPayload(payload)
+    console.log("[printer] LiveView event printer:print-payment", {requestId: payload.request_id, sequence: prepared.local.sale?.sequence, paymentId: prepared.local.payment?.id})
+    return hook.printWithResult(payload.request_id, prepared.relay, () => receiptPrinter.printPayment(prepared.local))
   })
   hook.handleEvent("printer:reprint-invoice", payload => {
-    const sale = payload.invoice || payload.receipt || payload.sale
+    const prepared = preparePrintPayload(payload)
+    const sale = prepared.local.invoice || prepared.local.receipt || prepared.local.sale
     console.log("[printer] LiveView event printer:reprint-invoice", {requestId: payload.request_id, sequence: sale?.sequence})
-    return hook.printWithResult(payload.request_id, payload, () => receiptPrinter.reprintInvoice(sale))
+    return hook.printWithResult(payload.request_id, prepared.relay, () => receiptPrinter.reprintInvoice(sale))
   })
   hook.handleEvent("printer:print-reconciliation", payload => {
-    const reconciliation = payload.reconciliation || payload.receipt
-    return hook.printWithResult(payload.request_id, payload, () => receiptPrinter.printReconciliation(reconciliation))
+    const prepared = preparePrintPayload(payload)
+    const reconciliation = prepared.local.reconciliation || prepared.local.receipt
+    return hook.printWithResult(payload.request_id, prepared.relay, () => receiptPrinter.printReconciliation(reconciliation))
   })
   hook.printWithResult = async (requestId, payload, operation) => {
     try {
@@ -624,6 +631,7 @@ function syncMobileCartState(root, mobileViewport) {
 }
 
 function installPrintRelay(hook) {
+  syncPrintLogoCache(hook.el)
   const token = hook.el.dataset.printRelayToken
   const storeId = hook.el.dataset.storeId
   printDebug("installPrintRelay", {hasToken: Boolean(token), storeId, client: clientDeviceInfo(), printer: receiptPrinter.statusDetail()})
@@ -641,6 +649,7 @@ function installPrintRelay(hook) {
 }
 
 function updatePrintRelay(hook) {
+  syncPrintLogoCache(hook.el)
   const token = hook.el.dataset.printRelayToken
   const storeId = hook.el.dataset.storeId
   printDebug("updatePrintRelay", {storeId, previousStoreId: hook.printRelayStoreId, tokenChanged: token !== hook.printRelayToken})
@@ -669,6 +678,8 @@ function createLiveViewPrintRelay({token, storeId, onRequest}) {
   const joinPayload = {
     device: relayDevice(),
     session_id: printRelaySessionId(),
+    tenant: tenantId(),
+    logo_version: cachedPrintLogoVersion(tenantId()),
     ...clientDeviceInfo(),
     ...desktopPrinterMeta()
   }
@@ -770,7 +781,7 @@ function createLiveViewPrintRelay({token, storeId, onRequest}) {
           if (result.status === "success") resolve(result)
           else reject(new Error(result.message || "Remote print failed."))
         })
-        printRelayPush(channel, "print", {request_id: requestId, target_session_id: target.session_id, job: payload})
+        printRelayPush(channel, "print", {request_id: requestId, target_session_id: target.session_id, job: stripPrintLogos({...payload, tenant: tenantId(), logo_version: cachedPrintLogoVersion(tenantId())})})
           .receive("ok", response => printDebug("relay.print:queued", response))
           .receive("error", response => {
             clearTimeout(timeout)
@@ -855,6 +866,103 @@ function pushClientInfo(hook) {
   hook.pushEvent("client_info", info)
 }
 
+function preparePrintPayload(payload) {
+  const local = hydratePrintLogos(payload)
+  const relay = stripPrintLogos(local)
+  return {local, relay}
+}
+
+function hydratePrintLogos(payload) {
+  return withPrintLogo(payload, cachedPrintLogo(payload?.tenant || tenantId(), payload?.logo_version || ""))
+}
+
+function stripPrintLogos(payload) {
+  return withPrintLogo(payload, null)
+}
+
+function withPrintLogo(payload, logo) {
+  const next = clonePrintPayload(payload || {})
+  for (const key of ["receipt", "sale", "invoice", "reconciliation"]) {
+    if (next[key]?.store) {
+      if (logo) next[key].store.logo = logo
+      else delete next[key].store.logo
+    }
+  }
+  if (next.sale?.store && next.payment) {
+    if (logo) next.sale.store.logo = logo
+    else delete next.sale.store.logo
+  }
+  next.tenant = next.tenant || tenantId()
+  next.logo_version = cachedPrintLogoVersion(next.tenant)
+  return next
+}
+
+function clonePrintPayload(payload) {
+  if (typeof structuredClone === "function") return structuredClone(payload)
+  return JSON.parse(JSON.stringify(payload))
+}
+
+function syncPrintLogoCache(element) {
+  const tenant = element?.dataset?.tenant || tenantId()
+  if (!tenant) return
+  const logo = element?.dataset?.printLogo || ""
+  const version = element?.dataset?.printLogoVersion || ""
+  const signature = `${tenant}:${version}`
+  if (element.printLogoCacheSignature === signature) return
+  element.printLogoCacheSignature = signature
+
+  try {
+    if (!logo || !version) {
+      localStorage.removeItem(printLogoKey(tenant))
+      localStorage.removeItem(printLogoVersionKey(tenant))
+      printDebug("logoCache:cleared", {tenant})
+      return
+    }
+
+    if (localStorage.getItem(printLogoVersionKey(tenant)) === version) return
+    localStorage.setItem(printLogoKey(tenant), logo)
+    localStorage.setItem(printLogoVersionKey(tenant), version)
+    printDebug("logoCache:updated", {tenant, version, bytes: logo.length})
+  } catch (error) {
+    printDebug("logoCache:unavailable", {tenant, message: error.message})
+  }
+}
+
+function cachedPrintLogo(tenant, expectedVersion = "") {
+  if (!tenant) return null
+  try {
+    if (expectedVersion && localStorage.getItem(printLogoVersionKey(tenant)) !== expectedVersion) return null
+    const logo = localStorage.getItem(printLogoKey(tenant))
+    if (logo && /^data:image\/[a-zA-Z0-9.+-]+;base64,/.test(logo)) return logo
+    localStorage.removeItem(printLogoKey(tenant))
+    localStorage.removeItem(printLogoVersionKey(tenant))
+  } catch (error) {
+    printDebug("logoCache:readFailed", {tenant, message: error.message})
+  }
+  return null
+}
+
+function cachedPrintLogoVersion(tenant) {
+  if (!tenant) return ""
+  try {
+    return localStorage.getItem(printLogoVersionKey(tenant)) || ""
+  } catch {
+    return ""
+  }
+}
+
+function printLogoKey(tenant) {
+  return `pos:print-logo:${tenant}`
+}
+
+function printLogoVersionKey(tenant) {
+  return `pos:print-logo-version:${tenant}`
+}
+
+function tenantId() {
+  return document.querySelector("[data-tenant]")?.dataset.tenant || ""
+}
+
 function printRelayPush(channel, event, payload) {
   if (!channel) {
     printDebug("channel.push:missing-channel", {event, payload})
@@ -885,7 +993,7 @@ function printRelayTargets(presence) {
 }
 
 function handleRemotePrintRequest(hook, payload) {
-  const job = payload.job || {request_id: payload.request_id, receipt: payload.receipt}
+  const job = hydratePrintLogos(payload.job || {request_id: payload.request_id, receipt: payload.receipt, tenant: payload.tenant, logo_version: payload.logo_version})
   printDebug("remotePrint:job", {requestId: payload.request_id, job})
   return printJob(job)
     .then(() => {

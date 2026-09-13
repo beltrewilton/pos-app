@@ -23,6 +23,9 @@ defmodule PosServerWeb.PosLayoutComponents do
       class={@class}
       data-store-id={@store_id}
       data-print-relay-token={@print_relay_token}
+      data-tenant={@scope.tenant}
+      data-print-logo={print_logo(@stores, @store_id)}
+      data-print-logo-version={print_logo_version(@stores, @store_id)}
       {@rest}
     >
       <span
@@ -38,6 +41,9 @@ defmodule PosServerWeb.PosLayoutComponents do
         phx-update="ignore"
         data-store-id={@store_id}
         data-print-relay-token={@print_relay_token}
+        data-tenant={@scope.tenant}
+        data-print-logo={print_logo(@stores, @store_id)}
+        data-print-logo-version={print_logo_version(@stores, @store_id)}
         hidden
       >
       </span>
@@ -886,4 +892,24 @@ defmodule PosServerWeb.PosLayoutComponents do
     </div>
     """
   end
+
+  defp print_logo(stores, store_id) do
+    stores
+    |> selected_store(store_id)
+    |> case do
+      %{logo: logo} when is_binary(logo) and logo != "" -> logo
+      %{"logo" => logo} when is_binary(logo) and logo != "" -> logo
+      _ -> nil
+    end
+  end
+
+  defp print_logo_version(stores, store_id) do
+    case print_logo(stores, store_id) do
+      nil -> ""
+      logo -> :crypto.hash(:sha256, logo) |> Base.encode16(case: :lower)
+    end
+  end
+
+  defp selected_store(stores, store_id),
+    do: Enum.find(stores || [], &(to_string(Map.get(&1, :id) || Map.get(&1, "id")) == to_string(store_id)))
 end
