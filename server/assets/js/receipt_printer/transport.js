@@ -1,5 +1,8 @@
 import {t} from "../i18n"
 
+const EPSON_VENDOR_ID = 0x04b8
+const EPSON_TM_T88V_PRODUCT_ID = 0x0202
+
 export class WebUSBPrinterTransport extends EventTarget {
   constructor() {
     super()
@@ -72,12 +75,15 @@ export class WebUSBPrinterTransport extends EventTarget {
 
   deviceInfo() {
     if (!this.device) return null
+    const printerProfile = receiptPrinterProfile(this.device)
     return {
       type: "usb",
       vendorId: this.device.vendorId,
       productId: this.device.productId,
       manufacturerName: this.device.manufacturerName,
       productName: this.device.productName,
+      printerModel: printerProfile.model,
+      receiptColumns: printerProfile.receiptColumns,
       serialNumber: this.device.serialNumber,
       language: "esc-pos"
     }
@@ -94,10 +100,18 @@ function sameUsbDevice(left, right) {
 function usbPrinterFilters() {
   return [
     {classCode: 0x07},
-    {vendorId: 0x04b8},
+    {vendorId: EPSON_VENDOR_ID},
     {vendorId: 0x0519},
     {vendorId: 0x1504},
     {vendorId: 0x0fe6},
     {vendorId: 0x0483}
   ]
+}
+
+function receiptPrinterProfile(device) {
+  if (device.vendorId === EPSON_VENDOR_ID && device.productId === EPSON_TM_T88V_PRODUCT_ID) {
+    return {model: "EPSON TM-T88V", receiptColumns: 42}
+  }
+
+  return {model: device.productName || null, receiptColumns: 48}
 }

@@ -866,7 +866,7 @@ function desktopPrinterMeta() {
   const printerOnline = canPrintLocally()
   return {
     label: printerOnline ? "Desktop Web POS" : clientDeviceInfo().label,
-    printer: device?.productName || device?.manufacturerName || "Receipt printer",
+    printer: device?.printerModel || device?.productName || device?.manufacturerName || "Receipt printer",
     printer_online: printerOnline
   }
 }

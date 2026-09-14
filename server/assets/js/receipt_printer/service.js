@@ -140,9 +140,10 @@ export class ReceiptPrinterService extends EventTarget {
   async print(kind, sale, payment = null) {
     if (!this.isConnected()) throw new Error(t("js.noReceiptPrinter"))
     console.log("[printer] ReceiptPrinterService.print", {kind, sequence: sale?.sequence, paymentId: payment?.id})
-    const formatter = new ReceiptFormatter(this.config)
+    const config = this.printConfig()
+    const formatter = new ReceiptFormatter(config)
     const document = kind === "payment" ? formatter.payment(sale, payment) : kind === "invoice" ? formatter.invoice(sale) : kind === "reconciliation" ? formatter.reconciliation(sale) : formatter.receipt(sale)
-    const encoder = new ReceiptEncoder(encoderConfig(this.config, this.currentDevice())).initialize()
+    const encoder = new ReceiptEncoder(encoderConfig(config, this.currentDevice())).initialize()
     for (const line of document) {
       encoder.align(line.align || "left")
       if (line.type === "image") {
@@ -166,6 +167,14 @@ export class ReceiptPrinterService extends EventTarget {
     this.device = device
     localStorage.setItem(STORAGE_KEY, JSON.stringify(device))
     this.setState("connected", device)
+  }
+
+  printConfig() {
+    const columns = Number(this.currentDevice()?.receiptColumns)
+    return {
+      ...this.config,
+      columns: columns > 0 ? columns : this.config.columns
+    }
   }
 
   async withState(state, operation) {
@@ -198,7 +207,9 @@ function sameDeviceInfo(left, right) {
     left.productId === right.productId &&
     left.serialNumber === right.serialNumber &&
     left.productName === right.productName &&
-    left.manufacturerName === right.manufacturerName
+    left.manufacturerName === right.manufacturerName &&
+    left.printerModel === right.printerModel &&
+    left.receiptColumns === right.receiptColumns
 }
 
 function tracePrinter(message, detail = {}) {
