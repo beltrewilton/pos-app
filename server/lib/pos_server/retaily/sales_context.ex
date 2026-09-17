@@ -26,6 +26,7 @@ defmodule PosServer.Retaily.Sales do
 
   @tax_rate Decimal.new("0.18")
   @zero Decimal.new(0)
+  @santo_domingo_offset_hours -4
 
   def create_sale(scope, attrs) do
     with {:ok, checkout} <- valid_checkout(attrs),
@@ -488,7 +489,7 @@ defmodule PosServer.Retaily.Sales do
         type: payment.type,
         sale_id: sale_id,
         login: login,
-        date_create: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+        date_create: local_business_now()
       }
 
       case %SalePaid{} |> SalePaid.changeset(attrs) |> Repo.insert(prefix: tenant) do
@@ -507,6 +508,13 @@ defmodule PosServer.Retaily.Sales do
       Logger.warning("payment_exceeds_balance: recording payment above sale total")
       :ok
     end
+  end
+
+  defp local_business_now do
+    DateTime.utc_now()
+    |> DateTime.add(@santo_domingo_offset_hours, :hour)
+    |> DateTime.to_naive()
+    |> NaiveDateTime.truncate(:second)
   end
 
   defp totals(lines, checkout) do
