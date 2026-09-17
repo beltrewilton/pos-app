@@ -5,7 +5,7 @@ defmodule PosServer.Retaily.ProductCatalog do
 
   alias PosServer.{InventoryEvents, Repo}
   alias PosServer.Accounts.Scope
-  alias PosServer.Retaily.{Inventory, Pricing, PricingList, Product, Store}
+  alias PosServer.Retaily.{BusinessTime, Inventory, Pricing, PricingList, Product, Store}
 
   def pricing_lists(%Scope{tenant: tenant}) do
     Repo.all(
@@ -23,7 +23,7 @@ defmodule PosServer.Retaily.ProductCatalog do
          store_id when is_integer(store_id) and store_id > 0 <- attrs.store_id,
          {:ok, tenant} <- PosServer.Retaily.InventoryContext.authorize_store(scope, store_id),
          :ok <- default_price?(attrs.prices) do
-      now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+      now = BusinessTime.local_now(tenant)
       username = scope.login || get_in(scope.user || %{}, [:name]) || "system"
 
       result =
@@ -44,7 +44,7 @@ defmodule PosServer.Retaily.ProductCatalog do
 
           with {:ok, product} <-
                  %Product{} |> Product.changeset(product_attrs) |> Repo.insert(prefix: tenant),
-               {_, _} <- initialize_inventory(product.id, username, now, tenant, store_ids),
+               {_, _} <- initialize_inventory(product.id, username, BusinessTime.local_now(tenant), tenant, store_ids),
                :ok <- save_prices(attrs.prices, product.id, username, now, tenant) do
             {product, store_ids}
           else

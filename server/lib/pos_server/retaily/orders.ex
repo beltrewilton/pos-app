@@ -11,6 +11,7 @@ defmodule PosServer.Retaily.Orders do
   alias PosServer.Retaily.{
     Inventory,
     InventoryContext,
+    BusinessTime,
     Product,
     ProductOrder,
     ProductOrderLine,
@@ -214,6 +215,7 @@ defmodule PosServer.Retaily.Orders do
       from_origin_id: request.from_origin_id,
       to_store_id: request.to_store_id,
       user_requester: username,
+      date_opened: now(tenant),
       status: "opened"
     })
     |> Repo.insert(prefix: tenant)
@@ -227,6 +229,7 @@ defmodule PosServer.Retaily.Orders do
         to_store_id: order.to_store_id,
         product_order_id: order.id,
         quantity: line.quantity,
+        date_create: now(tenant),
         status: "pending"
       }
 
@@ -310,7 +313,7 @@ defmodule PosServer.Retaily.Orders do
       # The imported Retaily schema limits this column to varchar(10).
       status: "transfered",
       user_receiver: username,
-      receiver_last_update: now(),
+      receiver_last_update: now(tenant),
       receiver_memo: memo
     })
     |> Repo.update(prefix: tenant)
@@ -328,7 +331,7 @@ defmodule PosServer.Retaily.Orders do
          else: "closed"
 
     order
-    |> ProductOrder.changeset(%{status: status, user_receiver: username, date_closed: now()})
+    |> ProductOrder.changeset(%{status: status, user_receiver: username, date_closed: now(tenant)})
     |> Repo.update(prefix: tenant)
   end
 
@@ -339,7 +342,7 @@ defmodule PosServer.Retaily.Orders do
     |> Inventory.changeset(%{
       prev_quantity: previous,
       quantity: previous + delta,
-      last_update: now(),
+      last_update: now(tenant),
       user_updated: username
     })
     |> Repo.update!(prefix: tenant)
@@ -576,5 +579,5 @@ defmodule PosServer.Retaily.Orders do
   end
 
   defp integer(_), do: {:error, :invalid_params}
-  defp now, do: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+  defp now(tenant), do: BusinessTime.local_now(tenant)
 end

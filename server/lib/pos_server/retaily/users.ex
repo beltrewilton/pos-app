@@ -2,6 +2,7 @@ defmodule PosServer.Retaily.User do
   use Ecto.Schema
   import Ecto.Changeset
 
+  alias PosServer.Retaily.BusinessTime
   alias PosServer.Password
 
   schema "app_users" do
@@ -43,7 +44,7 @@ defmodule PosServer.Retaily.User do
       put_change(
         changeset,
         :date_joined,
-        NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+        BusinessTime.local_now()
       )
     end
   end

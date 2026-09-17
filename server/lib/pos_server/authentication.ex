@@ -6,6 +6,7 @@ defmodule PosServer.Authentication do
   alias PosServer.Accounts.{OAuthHandoff, OAuthLoginAttempt, Scope, User}
   alias PosServer.{Accounts, Password, Repo, Tenants}
   alias PosServer.Retaily.Scope, as: EmployeeScope
+  alias PosServer.Retaily.BusinessTime
   alias PosServer.Retaily.User, as: Employee
   alias PosServer.Retaily.UserStore
 
@@ -337,5 +338,5 @@ defmodule PosServer.Authentication do
 
   defp handoff_digest(code), do: :crypto.hash(:sha256, code)
 
-  defp now, do: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+  defp now, do: BusinessTime.local_now()
 end

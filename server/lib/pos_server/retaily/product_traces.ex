@@ -5,6 +5,7 @@ defmodule PosServer.Retaily.ProductTraces do
   require Logger
 
   alias PosServer.Repo
+  alias PosServer.TenantContext
   alias PosServer.Retaily.{InventoryContext, ProductTrace, Store}
 
   # Audit writes deliberately run after the owning transaction. A failed trace is
@@ -12,6 +13,8 @@ defmodule PosServer.Retaily.ProductTraces do
   def dispatch(tenant, traces) when is_list(traces) do
     try do
       Task.Supervisor.start_child(PosServer.TaskSupervisor, fn ->
+        TenantContext.put_tenant(tenant)
+
         Enum.each(traces, fn attrs ->
           try do
             case %ProductTrace{}

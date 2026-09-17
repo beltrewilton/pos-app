@@ -5,13 +5,13 @@ defmodule PosServerWeb.ProductCreateController do
   alias Ecto.Changeset
   alias PosServer.{InventoryEvents, Repo, TenantContext}
   alias PosServer.Accounts.Scope
-  alias PosServer.Retaily.{Inventory, InventoryContext, PricingList, Product, Sql, Store}
+  alias PosServer.Retaily.{BusinessTime, Inventory, InventoryContext, PricingList, Product, Sql, Store}
 
   def create(conn, attrs) do
     with {:ok, store_id} <- positive_integer(attrs["store_id"]),
          {:ok, tenant} <- InventoryContext.authorize_store(conn.assigns.current_scope, store_id) do
       username = conn.assigns.current_scope.user.name
-      now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+      now = BusinessTime.local_now(tenant)
       store_ids = store_ids(tenant)
 
       product_attrs =
@@ -28,7 +28,7 @@ defmodule PosServerWeb.ProductCreateController do
         with :ok <- require_default_price(attrs["prices"]),
              {:ok, product} <-
                %Product{} |> Product.changeset(product_attrs) |> Repo.insert(prefix: tenant),
-             {_, _} <- initialize_inventory(product.id, username, now, tenant, store_ids),
+             {_, _} <- initialize_inventory(product.id, username, BusinessTime.local_now(tenant), tenant, store_ids),
              :ok <- save_prices(attrs["prices"], product.id, username, now, tenant) do
           product
         else

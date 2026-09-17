@@ -134,6 +134,7 @@ defmodule PosServer.Retaily.Client do
   use Ecto.Schema
 
   import Ecto.Changeset
+  alias PosServer.Retaily.BusinessTime
 
   schema "client" do
     field :name, :string
@@ -143,11 +144,20 @@ defmodule PosServer.Retaily.Client do
     field :email, :string
     field :date_create, :naive_datetime
     field :wholesaler, :integer
-
-    def changeset(client, attrs) do
-      client
-      |> cast(attrs, [:name, :document_id, :address, :celphone, :email, :wholesaler])
-      |> validate_required([:name])
-    end
   end
+
+  def changeset(client, attrs) do
+    client
+    |> cast(attrs, [:name, :document_id, :address, :celphone, :email, :wholesaler])
+    |> validate_required([:name])
+    |> default_created_at(client)
+  end
+
+  defp default_created_at(changeset, %{id: nil}) do
+    if get_field(changeset, :date_create),
+      do: changeset,
+      else: put_change(changeset, :date_create, BusinessTime.local_now())
+  end
+
+  defp default_created_at(changeset, _client), do: changeset
 end

@@ -5,7 +5,7 @@ defmodule PosServer.Retaily.CompanySettings do
 
   alias PosServer.{Repo, TenantContext}
   alias PosServer.Accounts.{Company, UserCompany}
-  alias PosServer.Retaily.{Inventory, Pricing, PricingList, Product, Provider, Sequence, Store}
+  alias PosServer.Retaily.{BusinessTime, Inventory, Pricing, PricingList, Product, Provider, Sequence, Store}
 
   def overview(scope) do
     tenant = TenantContext.tenant!()
@@ -149,7 +149,7 @@ defmodule PosServer.Retaily.CompanySettings do
       |> Map.merge(%{
         "company_id" => to_string(company_id),
         "date_create" =>
-          store.date_create || NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+          store.date_create || BusinessTime.local_now(TenantContext.tenant!())
       })
 
     tenant = TenantContext.tenant!()
@@ -171,7 +171,7 @@ defmodule PosServer.Retaily.CompanySettings do
   end
 
   defp initialize_store_inventory(store_id, username, tenant) do
-    now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+    now = BusinessTime.local_now(tenant)
 
     rows =
       Repo.all(

@@ -2,8 +2,6 @@ defmodule PosServerWeb.CustomerComponents do
   @moduledoc false
   use PosServerWeb, :html
 
-  import PosServerWeb.PosLayoutComponents
-
   attr :customers, :list, required: true
   attr :search, :string, required: true
   attr :status, :string, required: true

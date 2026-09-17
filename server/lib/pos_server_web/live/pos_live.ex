@@ -2485,7 +2485,6 @@ defmodule PosServerWeb.PosLive do
   defp sequence(sequence) when sequence in ["CF", "VF", "DV"], do: sequence
   defp sequence(_), do: "CF"
 
-  defp discount_input_value(value, mode \\ "amount", base \\ 0)
   defp discount_input_value(value, _mode, _base) when value == 0 or value == 0.0, do: ""
 
   defp discount_input_value(value, "final_price", base),
@@ -2617,14 +2616,14 @@ defmodule PosServerWeb.PosLive do
        when is_binary(image) and image != "",
     do: product
 
-  defp nonempty_string?(value), do: is_binary(value) and value != ""
-
   defp product_with_image(product, store_id) do
     case Sql.active_product(product.id, store_id) do
       {:ok, fresh} when is_map(fresh) -> normalize_product(fresh, %{})
       _ -> product
     end
   end
+
+  defp nonempty_string?(value), do: is_binary(value) and value != ""
 
   defp active_store_name(assigns),
     do:
@@ -2688,8 +2687,6 @@ defmodule PosServerWeb.PosLive do
   defp discount_help("final_price", _target), do: "Enter the final price for this order before delivery."
   defp discount_help(_, target) when is_binary(target), do: "The amount applies to this entire order line."
   defp discount_help(_, _target), do: "The amount applies to this order before delivery."
-
-  defp normalize_product(product), do: normalize_product(product, %{})
 
   defp normalize_product(product, known_versions) do
     %{

@@ -3,8 +3,10 @@ defmodule PosServer.Retaily.ProductTrace do
 
   use Ecto.Schema
   import Ecto.Changeset
+  alias PosServer.Retaily.BusinessTime
 
   @event_types ~w(sale inventory_adjustment purchase store_transfer_out store_transfer_in)
+  @timestamps_opts [type: :naive_datetime, autogenerate: {BusinessTime, :local_now, []}]
 
   schema "product_traces" do
     field :event_type, :string

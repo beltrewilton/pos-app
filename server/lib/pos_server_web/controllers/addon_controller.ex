@@ -148,7 +148,7 @@ defmodule PosServerWeb.AddonController do
     }
   end
 
-  defp pos_layout_assigns(conn, params \\ %{}) do
+  defp pos_layout_assigns(conn, params) do
     scope = conn.assigns.current_scope
 
     with {:ok, stores} <- InventoryContext.stores(scope) do

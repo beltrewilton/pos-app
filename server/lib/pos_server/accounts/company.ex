@@ -16,14 +16,16 @@ defmodule PosServer.Accounts.Company do
     field :odoo_user, :string
     field :odoo_apikey, :string
     field :brand_logo, :string
+    field :timezone_offset, :integer, default: -4
 
     timestamps(type: :utc_datetime)
   end
 
   def changeset(company, attrs) do
     company
-    |> cast(attrs, [:company_name, :rnc, :brand_logo])
+    |> cast(attrs, [:company_name, :rnc, :brand_logo, :timezone_offset])
     |> validate_required([:company_name])
+    |> validate_number(:timezone_offset, greater_than_or_equal_to: -12, less_than_or_equal_to: 14)
     |> validate_format(:brand_logo, ~r/^data:image\/[a-zA-Z0-9.+-]+;base64,/,
       message: "must be an image encoded as Base64"
     )

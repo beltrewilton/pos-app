@@ -83,7 +83,7 @@ defmodule PosServerWeb.DashboardController do
 
   def update_logo(conn, _params), do: redirect(conn, to: ~p"/pos/dashboard")
 
-  defp render_dashboard(conn, user, opts \\ []) do
+  defp render_dashboard(conn, user, opts) do
     tenant_changeset = tenant_changeset(conn, user, opts)
     company_changeset = company_changeset(conn, opts)
 
