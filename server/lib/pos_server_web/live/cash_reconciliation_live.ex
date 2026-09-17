@@ -8,7 +8,7 @@ defmodule PosServerWeb.CashReconciliationLive do
   alias PosServer.{Authentication, Repo, TenantContext}
   alias PosServer.Accounts.{Company, UserCompany}
   alias PosServer.Accounts.Scope
-  alias PosServer.Retaily.{InventoryContext, Sale, User}
+  alias PosServer.Retaily.{InventoryContext, Sale, SalePaid, User}
 
   @payment_labels %{"CASH" => "Cash payments", "CC" => "Credit/debit card payments"}
 
@@ -189,12 +189,13 @@ defmodule PosServerWeb.CashReconciliationLive do
     active_sales = Enum.reject(sales, &(value(&1, :status) == "RETURN"))
     payment_totals = Enum.reduce(active_sales, %{}, &sum_payments/2)
     cash_payments = Map.get(payment_totals, "CASH", 0.0)
+    total_paid = Enum.reduce(payment_totals, 0.0, fn {_type, amount}, total -> total + amount end)
 
     %{
       sale_count: length(active_sales),
       sales: Enum.map(active_sales, &sale_receipt_row/1),
-      total_sales: Enum.reduce(active_sales, 0.0, &(decimal(value(&1, :amount)) + &2)),
-      total_paid: Enum.reduce(payment_totals, 0.0, fn {_type, amount}, total -> total + amount end),
+      total_sales: total_paid,
+      total_paid: total_paid,
       payment_totals: payment_totals,
       opening_cash: opening_cash,
       expected_cash: opening_cash + cash_payments
@@ -210,12 +211,14 @@ defmodule PosServerWeb.CashReconciliationLive do
 
   defp reconciliation_sales(tenant, filters) do
     Sale
+    |> join(:inner, [sale], payment in SalePaid, on: payment.sale_id == sale.id)
+    |> join(:left, [sale, _payment], client in assoc(sale, :client))
     |> where([sale], sale.store_id == ^filters["store_id"])
-    |> where([sale], sale.login == ^filters["cashier"])
-    |> where([sale], sale.date_create >= ^filters["date_from"])
-    |> where([sale], sale.date_create <= ^filters["date_to"])
+    |> where([_sale, payment], payment.login == ^filters["cashier"])
+    |> where([_sale, payment], payment.date_create >= ^filters["date_from"])
+    |> where([_sale, payment], payment.date_create <= ^filters["date_to"])
     |> order_by([sale], asc: sale.date_create, asc: sale.id)
-    |> preload([:client, :sale_paids])
+    |> preload([sale, payment, client], client: client, sale_paids: payment)
     |> Repo.all(prefix: tenant)
   end
 
@@ -348,9 +351,27 @@ defmodule PosServerWeb.CashReconciliationLive do
   defp sale_receipt_row(sale) do
     %{
       customer_name: sale_customer_name(sale),
-      date: receipt_datetime(value(sale, :date_create)),
-      amount: value(sale, :amount)
+      date: receipt_datetime(received_at(sale) || value(sale, :date_create)),
+      amount: received_amount(sale)
     }
+  end
+
+  defp received_amount(sale) do
+    sale
+    |> value(:sale_paids)
+    |> List.wrap()
+    |> Enum.reduce(0.0, &(decimal(value(&1, :amount)) + &2))
+  end
+
+  defp received_at(sale) do
+    sale
+    |> value(:sale_paids)
+    |> List.wrap()
+    |> Enum.map(&value(&1, :date_create))
+    |> Enum.reject(&is_nil/1)
+    |> Enum.reduce(nil, fn date, latest ->
+      if is_nil(latest) || NaiveDateTime.compare(date, latest) == :gt, do: date, else: latest
+    end)
   end
 
   defp sale_customer_name(sale) do

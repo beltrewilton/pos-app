@@ -18,6 +18,11 @@ WITH invoice_totals AS (
 ), invoices AS (
   SELECT
     amount,
+    total_paid,
+    CASE
+      WHEN status = 'RETURN' THEN 0
+      ELSE GREATEST(amount - total_paid, 0)
+    END AS due_balance,
     CASE
       WHEN status = 'RETURN' THEN 'cancelled'
       WHEN amount - total_paid > 0 THEN 'open'
@@ -27,9 +32,9 @@ WITH invoice_totals AS (
 )
 SELECT
   COUNT(*) FILTER (WHERE invoice_status = 'close') AS paid_count,
-  COALESCE(SUM(amount) FILTER (WHERE invoice_status = 'close'), 0) AS paid_total,
+  COALESCE(SUM(total_paid) FILTER (WHERE invoice_status != 'cancelled'), 0) AS paid_total,
   COUNT(*) FILTER (WHERE invoice_status = 'open') AS pending_count,
-  COALESCE(SUM(amount) FILTER (WHERE invoice_status = 'open'), 0) AS pending_total,
+  COALESCE(SUM(due_balance) FILTER (WHERE invoice_status = 'open'), 0) AS pending_total,
   COUNT(*) FILTER (WHERE invoice_status = 'cancelled') AS cancelled_count,
   COALESCE(SUM(amount) FILTER (WHERE invoice_status = 'cancelled'), 0) AS cancelled_total
 FROM invoices;
