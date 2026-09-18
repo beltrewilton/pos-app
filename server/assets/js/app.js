@@ -1240,6 +1240,7 @@ async function syncProductImageCache(hook) {
         await writeCachedProductImage(tenant, productId, version, current)
         stored = true
         setProductImageElement(image, current)
+        console.log("Product image loaded from server")
       } catch {
       }
       return
@@ -1249,6 +1250,7 @@ async function syncProductImageCache(hook) {
       const cached = await readCachedProductImage(tenant, productId, version)
       if (cached && cached.startsWith("data:image/")) {
         setProductImageElement(image, cached)
+        console.log("Product image loaded from localStorage")
         writeProductImageVersion(tenant, productId, version)
       } else {
         queueProductImageMiss(hook, productId, version)
