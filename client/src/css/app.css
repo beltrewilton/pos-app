@@ -1834,6 +1834,18 @@ button {
 .invoice-summary .card-content {
   padding: 0.25rem 0.9rem 0.8rem;
 }
+.invoice-kpi-content-breakdown {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: end;
+}
+.invoice-kpi-metric {
+  min-width: 0;
+}
+.invoice-kpi-content-breakdown .invoice-kpi-metric:not(:first-child) .invoice-kpi-value {
+  font-size: 1.16rem;
+}
 .invoice-summary .card-title {
   font-size: 0.95rem;
 }
@@ -3619,6 +3631,10 @@ dialog#customer-purchases-dialog .dialog-content {
   .inventory-summary .card {
     flex: 0 0 min(78vw, 270px);
     scroll-snap-align: start;
+  }
+
+  .invoice-summary .invoice-summary-paid {
+    flex-basis: min(96vw, 560px);
   }
 
   .invoice-summary .card:first-child,

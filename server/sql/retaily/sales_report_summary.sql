@@ -3,7 +3,9 @@ WITH invoice_totals AS (
     sale.id,
     sale.amount,
     sale.status,
-    COALESCE(SUM(sale_paid.amount), 0) AS total_paid
+    COALESCE(SUM(sale_paid.amount), 0) AS total_paid,
+    COALESCE(SUM(sale_paid.amount) FILTER (WHERE sale_paid.type = 'CC'), 0) AS paid_cc_total,
+    COALESCE(SUM(sale_paid.amount) FILTER (WHERE sale_paid.type = 'CASH'), 0) AS paid_cash_total
   FROM {{prefix}}.sale AS sale
   LEFT JOIN {{prefix}}.sale_paid AS sale_paid ON sale_paid.sale_id = sale.id
   LEFT JOIN {{prefix}}.client AS client ON client.id = sale.client_id
@@ -19,6 +21,8 @@ WITH invoice_totals AS (
   SELECT
     amount,
     total_paid,
+    paid_cc_total,
+    paid_cash_total,
     CASE
       WHEN status = 'RETURN' THEN 0
       ELSE GREATEST(amount - total_paid, 0)
@@ -33,6 +37,8 @@ WITH invoice_totals AS (
 SELECT
   COUNT(*) FILTER (WHERE invoice_status = 'close') AS paid_count,
   COALESCE(SUM(total_paid) FILTER (WHERE invoice_status != 'cancelled'), 0) AS paid_total,
+  COALESCE(SUM(paid_cc_total) FILTER (WHERE invoice_status != 'cancelled'), 0) AS paid_cc_total,
+  COALESCE(SUM(paid_cash_total) FILTER (WHERE invoice_status != 'cancelled'), 0) AS paid_cash_total,
   COUNT(*) FILTER (WHERE invoice_status = 'open') AS pending_count,
   COALESCE(SUM(due_balance) FILTER (WHERE invoice_status = 'open'), 0) AS pending_total,
   COUNT(*) FILTER (WHERE invoice_status = 'cancelled') AS cancelled_count,

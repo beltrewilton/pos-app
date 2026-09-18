@@ -820,13 +820,27 @@ defmodule PosServerWeb.InvoiceReportLive do
         <div class="card-header">
           <p class="card-title" data-i18n={kpi_label_key(@name)}>{@label}</p>
         </div>
-        <div class="card-content">
-          <p id={"invoice-#{@name}-total"} class="invoice-kpi-value numeric">
-            {money(value(@summary, "#{@name}_total"))}
-          </p>
-          <p id={"invoice-#{@name}-count"} class="invoice-kpi-total muted numeric">
-            {value(@summary, "#{@name}_count") || 0}
-          </p>
+        <div class={["card-content", @name == "paid" && "invoice-kpi-content-breakdown"]}>
+          <div class="invoice-kpi-metric">
+            <p id={"invoice-#{@name}-total"} class="invoice-kpi-value numeric">
+              {money(value(@summary, "#{@name}_total"))}
+            </p>
+            <p id={"invoice-#{@name}-count"} class="invoice-kpi-total muted numeric">
+              {value(@summary, "#{@name}_count") || 0}
+            </p>
+          </div>
+          <div :if={@name == "paid"} class="invoice-kpi-metric">
+            <p id="invoice-paid-credit-card-total" class="invoice-kpi-value numeric">
+              {money(value(@summary, "paid_cc_total"))}
+            </p>
+            <p class="invoice-kpi-total muted" data-i18n="pos.checkout.creditCard">Credit Card</p>
+          </div>
+          <div :if={@name == "paid"} class="invoice-kpi-metric">
+            <p id="invoice-paid-cash-total" class="invoice-kpi-value numeric">
+              {money(value(@summary, "paid_cash_total"))}
+            </p>
+            <p class="invoice-kpi-total muted" data-i18n="common.cash">Cash</p>
+          </div>
         </div>
       </button>
     </article>
