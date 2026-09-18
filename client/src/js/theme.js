@@ -23,9 +23,17 @@ export function setTheme(theme) {
 }
 
 export function initializeThemePicker(menu) {
+  const syncAll = (selectedTheme) => {
+    document.querySelectorAll(".sidebar-theme-selector, .mobile-theme-selector").forEach((themeMenu) => {
+      syncThemePicker(themeMenu, selectedTheme);
+    });
+  };
+  const syncThemePicker = (themeMenu, selectedTheme) => {
+    themeMenu.querySelectorAll("[data-theme]").forEach((button) => button.setAttribute("aria-current", String(button.dataset.theme === selectedTheme)));
+  };
   const applySelection = (theme) => {
     const selectedTheme = setTheme(theme);
-    menu.querySelectorAll("[data-theme]").forEach((button) => button.setAttribute("aria-current", String(button.dataset.theme === selectedTheme)));
+    syncAll(selectedTheme);
   };
   applySelection(getTheme());
   menu.addEventListener("click", (event) => {

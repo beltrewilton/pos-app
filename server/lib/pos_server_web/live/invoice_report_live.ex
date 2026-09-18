@@ -23,7 +23,7 @@ defmodule PosServerWeb.InvoiceReportLive do
          %{id: store_id} <- selected_store(stores, Map.get(params, "store_id") || session["store_id"]) do
       {:ok,
        socket
-       |> assign(:page_title, "Tigoo Invoice report")
+       |> assign(:page_title, gettext("Invoice Report"))
        |> assign(:print_relay_token, token)
        |> assign(:scope, scope)
        |> assign(:stores, stores)
@@ -493,7 +493,6 @@ defmodule PosServerWeb.InvoiceReportLive do
   end
 
   defp decimal(_), do: 0.0
-  defp money(v), do: :erlang.float_to_binary(decimal(v), decimals: 2) |> then(&"$#{&1}")
   # Tauri renders list dates in separate en-GB date and 12-hour-time spans.
   defp date_only(%Date{} = value), do: Calendar.strftime(value, "%d/%m/%Y")
   defp date_only(%NaiveDateTime{} = value), do: Calendar.strftime(value, "%d/%m/%Y")
@@ -657,7 +656,7 @@ defmodule PosServerWeb.InvoiceReportLive do
                 <div>
                   <p class="eyebrow" data-i18n="invoice.sales">Sales</p>
                   <h2 id="invoice-report-title" tabindex="-1">
-                    Invoice report — {active_store(assigns)}
+                    <span data-i18n="invoice.title">Invoice Report</span> — {active_store(assigns)}
                   </h2>
                 </div>
               </div>
@@ -1180,7 +1179,7 @@ defmodule PosServerWeb.InvoiceReportLive do
       <div class="invoice-payment-row invoice-payment-payoff">
         <input
           class="input numeric"
-          value={money(@detail.due_balance)}
+          value={money_text(@detail.due_balance)}
           type="text"
           inputmode="decimal"
           readonly

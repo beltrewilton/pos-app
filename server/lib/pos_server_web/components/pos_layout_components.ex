@@ -655,10 +655,19 @@ defmodule PosServerWeb.PosLayoutComponents do
             aria-label="Change display language"
             data-i18n-aria-label="layout.status.language"
           >
-            <button type="button" data-language="en">English</button><button
+            <button type="button" data-language="en">
+              <span><span class="language-flag" aria-hidden="true">🇺🇸</span>English</span>
+              <.menu_check />
+            </button><button
               type="button"
               data-language="es"
-            >Español</button><button type="button" data-language="pt">Português</button>
+            >
+              <span><span class="language-flag" aria-hidden="true">🇩🇴</span>Español</span>
+              <.menu_check />
+            </button><button type="button" data-language="pt">
+              <span><span class="language-flag" aria-hidden="true">🇧🇷</span>Português</span>
+              <.menu_check />
+            </button>
           </div>
         </details>
         <span
@@ -769,6 +778,23 @@ defmodule PosServerWeb.PosLayoutComponents do
   defp nav_permission(:addons), do: "pos.addons.install"
 
   defp selected_store?(store_id, selected_id), do: to_string(store_id) == to_string(selected_id)
+
+  defp menu_check(assigns) do
+    ~H"""
+    <svg
+      class="sidebar-menu-check"
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+    """
+  end
 
   defp avatar_image?(%{pic: pic}), do: is_binary(pic) and String.trim(pic) != ""
   defp avatar_image?(_), do: false

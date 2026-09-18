@@ -69,6 +69,7 @@ const userMenus = document.querySelectorAll(".user-menu");
 const sidebarStoreMenu = document.querySelector("#sidebar-store");
 initializeThemePicker(document.querySelector("#sidebar-theme"));
 const sessionStoreStatus = document.querySelector("#session-store-status");
+const POS_STORE_KEY = "pos-selected-store-id";
 let storeId = null;
 let availableStores = [];
 let inventorySocket = null;
@@ -294,6 +295,7 @@ function updateSessionStore() {
   const current = session();
   if (!current || !storeId) return;
   saveSession({ ...current, store_id: Number(storeId) });
+  try { localStorage.setItem(POS_STORE_KEY, String(storeId)); } catch {}
 }
 
 function updateSessionStoreDisplay() {
@@ -331,8 +333,12 @@ async function selectStore(nextStoreId) {
 async function initializeStores() {
   const { entries } = await stores();
   availableStores = entries;
-  const selectedStoreId = session()?.store_id;
-  storeId = entries.find((store) => Number(store.id) === Number(selectedStoreId))?.id || null;
+  let savedStoreId = null;
+  try { savedStoreId = localStorage.getItem(POS_STORE_KEY); } catch {}
+  storeId = entries.find((store) => Number(store.id) === Number(savedStoreId))?.id
+    || entries.find((store) => Number(store.id) === Number(session()?.store_id))?.id
+    || null;
+  updateSessionStore();
   populateStoreOptions();
   if (!storeId) throw new Error(t("ui.selectStoreContinue"));
   updateSessionStoreDisplay();
@@ -393,6 +399,13 @@ document.querySelectorAll("[data-mobile-language]").forEach((button) => {
     document.querySelector("#mobile-language-switcher").open = false;
   });
 });
+function syncMobileLanguageOptions() {
+  document.querySelectorAll("[data-mobile-language]").forEach((button) => {
+    button.setAttribute("aria-current", String(button.dataset.mobileLanguage === getLanguage()));
+  });
+}
+syncMobileLanguageOptions();
+onLanguageChange(syncMobileLanguageOptions);
 
 function setMobileCart(open, { restoreFocus = true } = {}) {
   if (!mobileQuery.matches) return;
@@ -2846,6 +2859,7 @@ function completeStoreSelection() {
   const selected = Number(loginStoreSelect.value);
   if (!Number.isInteger(selected) || selected <= 0 || !pendingLogin) { loginStoreSelect.focus(); loginStoreSelect.reportValidity(); return; }
   saveSession({ ...pendingLogin, store_id: selected });
+  try { localStorage.setItem(POS_STORE_KEY, String(selected)); } catch {}
   pendingLogin = null;
   loginStoreField.hidden = true;
   loginStoreSelect.disabled = true;

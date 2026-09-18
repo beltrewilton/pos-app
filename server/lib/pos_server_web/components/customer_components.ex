@@ -552,7 +552,6 @@ defmodule PosServerWeb.CustomerComponents do
   end
 
   defp customer_date(_), do: "—"
-  defp money(value), do: "$" <> :erlang.float_to_binary(float(value), decimals: 2)
   defp store_path(path, nil), do: path
   defp store_path(path, ""), do: path
   defp store_path(path, store_id), do: path <> "?" <> URI.encode_query(%{"store_id" => store_id})

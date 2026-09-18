@@ -28,6 +28,8 @@ import {receiptPrinter} from "./receipt_printer/service"
 import {initI18n, money, t, translatePage} from "./i18n"
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
+const POS_LANGUAGE_KEY = "pos-display-language"
+const POS_THEME_KEY = "pos-theme"
 const POS_STORE_KEY = "pos-selected-store-id"
 const POS_DRAFT_KEY_PREFIX = "pos-sale-draft"
 const POS_CATALOG_VIEW_KEY = "pos-catalog-view"
@@ -39,9 +41,15 @@ let activePrintRelay = null
 
 function liveSocketParams() {
   const catalogView = getStoredValue(POS_CATALOG_VIEW_KEY)
+  const language = getStoredValue(POS_LANGUAGE_KEY)
+  const theme = getStoredValue(POS_THEME_KEY)
+  const storeId = getStoredValue(POS_STORE_KEY)
   return {
     _csrf_token: csrfToken,
-    catalog_view: catalogView === "cards" || catalogView === "table" ? catalogView : "cards"
+    catalog_view: catalogView === "cards" || catalogView === "table" ? catalogView : "cards",
+    language,
+    theme,
+    store_id: storeId
   }
 }
 

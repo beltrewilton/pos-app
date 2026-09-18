@@ -43,7 +43,10 @@
     menu.addEventListener("click", event => {
       const button = event.target.closest("[data-theme]")
       if (!button) return
-      syncThemePicker(menu, setTheme(button.dataset.theme))
+      const selectedTheme = setTheme(button.dataset.theme)
+      document
+        .querySelectorAll(".sidebar-theme-selector, .mobile-theme-selector")
+        .forEach(themeMenu => syncThemePicker(themeMenu, selectedTheme))
       menu.open = false
     })
   }
@@ -56,7 +59,10 @@
     if (!event.target.closest("[data-theme-toggle]")) return
     const currentTheme = getTheme()
     const family = currentTheme.replace(/-(light|dark)$/, "")
-    setTheme(`${family}-${currentTheme.endsWith("-dark") ? "light" : "dark"}`)
+    const selectedTheme = setTheme(`${family}-${currentTheme.endsWith("-dark") ? "light" : "dark"}`)
+    document
+      .querySelectorAll(".sidebar-theme-selector, .mobile-theme-selector")
+      .forEach(themeMenu => syncThemePicker(themeMenu, selectedTheme))
   })
 
   document.addEventListener("input", event => {

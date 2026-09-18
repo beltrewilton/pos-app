@@ -65,26 +65,33 @@ defmodule PosServer.Retaily.InventoryContext do
 
   def product_store_quantities(scope, store_id, product_id) do
     with {:ok, tenant} <- authorize_store(scope, store_id) do
+      query =
+        from(inventory in Inventory,
+          join: store in Store,
+          on: store.id == inventory.store_id,
+          where: inventory.product_id == ^product_id,
+          order_by: [asc: store.name],
+          select: %{
+            id: inventory.id,
+            product_id: inventory.product_id,
+            store_id: inventory.store_id,
+            store_name: store.name,
+            quantity: inventory.quantity,
+            prev_quantity: inventory.prev_quantity,
+            last_update: inventory.last_update,
+            user_updated: inventory.user_updated
+          }
+        )
+
+      query =
+        if AccessScope.admin?(scope) do
+          query
+        else
+          where(query, [inventory, _store], inventory.store_id in ^scope.store_ids)
+        end
+
       {:ok,
-       Repo.all(
-         from(inventory in Inventory,
-           join: store in Store,
-           on: store.id == inventory.store_id,
-           where: inventory.product_id == ^product_id,
-           order_by: [asc: store.name],
-           select: %{
-             id: inventory.id,
-             product_id: inventory.product_id,
-             store_id: inventory.store_id,
-             store_name: store.name,
-             quantity: inventory.quantity,
-             prev_quantity: inventory.prev_quantity,
-             last_update: inventory.last_update,
-             user_updated: inventory.user_updated
-           }
-         ),
-         prefix: tenant
-       )}
+       Repo.all(query, prefix: tenant)}
     end
   end
 

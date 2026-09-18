@@ -86,6 +86,7 @@ defmodule PosServerWeb do
       import Phoenix.HTML
       # Core UI components
       import PosServerWeb.CoreComponents
+      import PosServerWeb.Formatters, only: [money: 1, money_text: 1]
 
       # Common modules used in templates
       alias Phoenix.LiveView.JS

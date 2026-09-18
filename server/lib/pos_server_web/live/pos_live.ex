@@ -1,12 +1,13 @@
 defmodule PosServerWeb.PosLive do
   use PosServerWeb, :live_view
 
+  import Ecto.Query, only: [from: 2]
   import PosServerWeb.CustomerComponents
   import PosServerWeb.PosLayoutComponents
 
   alias PosServer.{Authentication, InventoryEvents, Repo, TenantContext}
   alias PosServer.Accounts.Scope
-  alias PosServer.Retaily.{Client, InventoryContext, Sales, Sql}
+  alias PosServer.Retaily.{Client, InventoryContext, Sales, Sequence, Sql}
 
   @impl true
   def mount(params, session, socket) do
@@ -18,7 +19,7 @@ defmodule PosServerWeb.PosLive do
 
       socket =
         socket
-        |> assign(:page_title, "Tigoo POS")
+        |> assign(:page_title, gettext("Point of Sale"))
         |> assign(:print_relay_token, token)
         |> assign(:scope, scope)
         |> assign(:stores, stores)
@@ -55,6 +56,7 @@ defmodule PosServerWeb.PosLive do
         |> assign(:credit_due_date, "")
         |> assign(:payments, [])
         |> assign(:sequence, "CF")
+        |> assign(:sequences, sequence_options(scope.tenant))
         |> assign(:memo, "")
         |> assign(:print_prompt, nil)
         |> assign(:client_info, nil)
@@ -767,7 +769,9 @@ defmodule PosServerWeb.PosLive do
               <span class="brand-mark">T</span>
               <div>
                 <p class="eyebrow">Tigoo</p>
-                <h1 id="pos-title">Point of Sale — {active_store_name(assigns)}</h1>
+                <h1 id="pos-title">
+                  <span data-i18n="pos.catalog.pointOfSale">Point of Sale</span> — {active_store_name(assigns)}
+                </h1>
               </div>
             </div>
             <button
@@ -1068,9 +1072,11 @@ defmodule PosServerWeb.PosLive do
             <div>
               <p class="eyebrow" data-i18n="pos.checkout.checkout">Checkout</p>
               <h1 id="checkout-title" class="h3">
-                {if @checkout_stage == :customer,
-                  do: "Customer — #{active_store_name(assigns)}",
-                  else: "Payment & completion — #{active_store_name(assigns)}"}
+                <%= if @checkout_stage == :customer do %>
+                  <span data-i18n="pos.checkout.customer">Customer</span> — {active_store_name(assigns)}
+                <% else %>
+                  <span data-i18n="pos.checkout.paymentCompletion">Payment & completion</span> — {active_store_name(assigns)}
+                <% end %>
               </h1>
             </div>
             <button class="btn" type="button" data-variant="outline" phx-click="close_checkout">
@@ -1132,19 +1138,16 @@ defmodule PosServerWeb.PosLive do
                   <div class="sequence-options" role="group">
                     <div class="sequence-option-buttons">
                       <button
-                        :for={sequence <- ["CF", "DV", "VF"]}
+                        :for={sequence <- @sequences}
                         class="btn"
                         type="button"
-                        data-variant={if @sequence == sequence, do: "default", else: "secondary"}
+                        data-variant={if @sequence == sequence.code, do: "default", else: "secondary"}
                         phx-click="select_sequence"
-                        phx-value-sequence={sequence}
+                        phx-value-sequence={sequence.code}
                       >
-                        {sequence}
+                        {sequence.name}
                       </button>
                     </div>
-                    <span class="sequence-option-description">
-                      {sequence_description(@sequence)}
-                    </span>
                   </div>
                 </fieldset>
                 <p class="checkout-total-due">
@@ -2492,13 +2495,6 @@ defmodule PosServerWeb.PosLive do
 
   defp discount_input_value(value, _mode, _base), do: :erlang.float_to_binary(value, decimals: 2)
 
-  defp money(value) do
-    value = Float.round(value * 1.0, 2)
-    [whole, cents] = :erlang.float_to_binary(value, decimals: 2) |> String.split(".")
-
-    "$#{whole |> String.reverse() |> String.graphemes() |> Enum.chunk_every(3) |> Enum.map_join(",", &Enum.join(&1)) |> String.reverse()}.#{cents}"
-  end
-
   defp purchase_date(%NaiveDateTime{} = value), do: Calendar.strftime(value, "%Y-%m-%d %H:%M")
   defp purchase_date(_), do: "—"
 
@@ -2517,10 +2513,31 @@ defmodule PosServerWeb.PosLive do
     end
   end
 
-  defp sequence_description("CF"), do: "Consumer final"
-  defp sequence_description("DV"), do: "Direct sale"
-  defp sequence_description("VF"), do: "Fiscal voucher"
-  defp sequence_description(_), do: ""
+  defp sequence_options(tenant) do
+    sequences =
+      Repo.all(
+        from(sequence in Sequence,
+          where: sequence.code in ["CF", "VF", "DV"],
+          order_by: [asc: sequence.code],
+          select: %{code: sequence.code, name: sequence.name}
+        ),
+        prefix: tenant
+      )
+
+    sequence_names = Map.new(sequences, &{&1.code, &1.name})
+
+    Enum.map(default_sequence_options(), fn sequence ->
+      %{sequence | name: Map.get(sequence_names, sequence.code, sequence.name)}
+    end)
+  end
+
+  defp default_sequence_options do
+    [
+      %{code: "CF", name: "Consumer final"},
+      %{code: "DV", name: "Direct sale"},
+      %{code: "VF", name: "Fiscal voucher"}
+    ]
+  end
 
   defp visible_products(assigns) do
     query = String.downcase(String.trim(assigns.product_search))

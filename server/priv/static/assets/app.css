@@ -51,6 +51,37 @@
 .pos-shell .sidebar-theme-selector .sidebar-menu-action[aria-current="true"] .sidebar-menu-check {
   visibility: visible;
 }
+.pos-shell .language-menu button {
+  display: flex;
+  width: 100%;
+  min-height: 32px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pos-shell .language-menu button > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pos-shell .language-menu .sidebar-menu-check {
+  visibility: hidden;
+}
+.pos-shell .language-menu button[aria-current="true"] .sidebar-menu-check,
+.pos-shell .language-menu button[aria-pressed="true"] .sidebar-menu-check {
+  visibility: visible;
+}
+.pos-shell .language-menu button[aria-current="true"] {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+.pos-shell .language-flag {
+  display: inline-block;
+  margin-right: 8px;
+  font-size: 0.9em;
+  line-height: 1;
+}
 .dashboard-account-menu {
   position: relative;
 }

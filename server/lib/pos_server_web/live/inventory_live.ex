@@ -20,7 +20,7 @@ defmodule PosServerWeb.InventoryLive do
          %{id: store_id} <- selected_store(stores, Map.get(params, "store_id") || session["store_id"]) do
       socket =
         socket
-        |> assign(:page_title, "Tigoo Inventory")
+        |> assign(:page_title, gettext("Inventory"))
         |> assign(:scope, scope)
         |> assign(:stores, stores)
         |> assign(:store_id, store_id)
@@ -315,6 +315,9 @@ defmodule PosServerWeb.InventoryLive do
       false ->
         {:noreply, put_flash(socket, :error, "You do not have permission to update inventory.")}
 
+      {:error, :forbidden_store} ->
+        {:noreply, put_flash(socket, :error, "You do not have permission to update that store.")}
+
       _ ->
         {:noreply, put_flash(socket, :error, "Enter a whole-number quantity.")}
     end
@@ -346,6 +349,9 @@ defmodule PosServerWeb.InventoryLive do
     else
       false ->
         {:noreply, put_flash(socket, :error, "You do not have permission to update inventory.")}
+
+      {:error, :forbidden_store} ->
+        {:noreply, put_flash(socket, :error, "You do not have permission to update that store.")}
 
       _ ->
         {:noreply, put_flash(socket, :error, "Enter a whole-number quantity.")}
@@ -532,10 +538,8 @@ defmodule PosServerWeb.InventoryLive do
     do: value(entry, String.to_atom(key)) |> to_string() |> String.downcase()
 
   defp value(map, key), do: Map.get(map, key) || Map.get(map, Atom.to_string(key))
-  defp money(value), do: :erlang.float_to_binary(decimal(value), decimals: 2) |> then(&"$#{&1}")
-
   defp cost_value(scope, value),
-    do: if(Scope.allowed?(scope, "product.view.cost"), do: money(value), else: "—")
+    do: if(Scope.allowed?(scope, "product.view.cost"), do: money_text(value), else: "—")
 
   defp decimal(%Decimal{} = value), do: Decimal.to_float(value)
   defp decimal(value) when is_number(value), do: value * 1.0
@@ -611,29 +615,29 @@ defmodule PosServerWeb.InventoryLive do
       ),
       metric(
         "Net sales",
-        money(value(summary, :net_sales)),
+        money_text(value(summary, :net_sales)),
         "#{value(summary, :sale_transaction_count) || 0} sales"
       ),
       metric(
         "Sales mix",
-        money(value(summary, :net_sales)),
+        money_text(value(summary, :net_sales)),
         compact(
           value(summary, :sales_mix),
           fn item ->
-            "#{value(item, :sale_type) || "Sales"}/#{value(item, :login) || "—"}: #{money(value(item, :net_sales))}"
+            "#{value(item, :sale_type) || "Sales"}/#{value(item, :login) || "—"}: #{money_text(value(item, :net_sales))}"
           end,
           "No activity"
         )
       ),
       metric(
         "Average order",
-        money(value(summary, :average_order_value)),
+        money_text(value(summary, :average_order_value)),
         "#{Float.round(decimal(value(summary, :units_per_order)), 1)} units"
       ),
       metric(
         "Best products",
         compact(value(summary, :best_products), fn item ->
-          "#{value(item, :product_name)}: #{money(value(item, :net_revenue))}"
+          "#{value(item, :product_name)}: #{money_text(value(item, :net_revenue))}"
         end),
         compact(
           value(summary, :slowest_products),
@@ -646,19 +650,19 @@ defmodule PosServerWeb.InventoryLive do
       metric(
         "Discount rate",
         percent(value(summary, :discount_rate)),
-        "#{money(value(summary, :net_discount))} discount"
+        "#{money_text(value(summary, :net_discount))} discount"
       ),
       metric(
         "Payment mix",
         compact(value(summary, :payment_method_mix), fn item ->
-          "#{value(item, :type)}: #{money(value(item, :amount))}"
+          "#{value(item, :type)}: #{money_text(value(item, :amount))}"
         end),
         "Recorded payments"
       ),
       metric(
         "Retention",
         "#{value(summary, :returning_customer_count) || 0} customers",
-        "#{value(summary, :purchasing_customer_count) || 0} customers · #{money(value(summary, :average_customer_value))}"
+            "#{value(summary, :purchasing_customer_count) || 0} customers · #{money_text(value(summary, :average_customer_value))}"
       ),
       metric(
         "Order flow",
@@ -696,7 +700,7 @@ defmodule PosServerWeb.InventoryLive do
                 <span class="brand-mark" aria-hidden="true">E</span>
                 <div>
                   <p class="eyebrow" data-i18n="inventory.operations">Operations</p>
-                  <h2 id="inventory-title" tabindex="-1">Inventory — {active_store(assigns)}</h2>
+                  <h2 id="inventory-title" tabindex="-1"><span data-i18n="layout.nav.inventory">Inventory</span> — {active_store(assigns)}</h2>
                 </div>
               </div>
               <form class="operations-filters" phx-change="search" phx-submit="search">
@@ -1166,8 +1170,12 @@ defmodule PosServerWeb.InventoryLive do
                                 <th class="table-head" data-i18n="inventory.previousCurrent">
                                   Previous → Current
                                 </th>
-                                <th class="table-head" data-i18n="inventory.updatedBy">Updated by</th>
-                                <th class="table-head" data-i18n="inventory.context">Context</th>
+                                <th class="table-head inventory-trace-operator" data-i18n="inventory.updatedBy">
+                                  Updated by
+                                </th>
+                                <th class="table-head inventory-trace-context" data-i18n="inventory.context">
+                                  Context
+                                </th>
                               </tr>
                             </thead>
                             <tbody>
@@ -1184,8 +1192,10 @@ defmodule PosServerWeb.InventoryLive do
                                 <td class="table-cell numeric">
                                   {value(trace, :quantity_before)} → {value(trace, :quantity_after)}
                                 </td>
-                                <td class="table-cell">{value(trace, :operator_username) || "—"}</td>
-                                <td class="table-cell">{trace_context(trace)}</td>
+                                <td class="table-cell inventory-trace-operator">
+                                  {value(trace, :operator_username) || "—"}
+                                </td>
+                                <td class="table-cell inventory-trace-context">{trace_context(trace)}</td>
                               </tr>
                             </tbody>
                           </table>

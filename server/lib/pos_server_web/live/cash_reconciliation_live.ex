@@ -27,7 +27,7 @@ defmodule PosServerWeb.CashReconciliationLive do
 
       socket =
         socket
-        |> assign(:page_title, "Tigoo Cash reconciliation")
+        |> assign(:page_title, gettext("Cash Reconciliation"))
         |> assign(:print_relay_token, token)
         |> assign(:scope, scope)
         |> assign(:stores, stores)
@@ -63,6 +63,7 @@ defmodule PosServerWeb.CashReconciliationLive do
   end
 
   def handle_event("restore_pos_draft", _draft, socket), do: {:noreply, socket}
+  def handle_event("client_info", _params, socket), do: {:noreply, socket}
 
   def handle_event("change_filters", params, socket) do
     {:noreply,
@@ -106,7 +107,7 @@ defmodule PosServerWeb.CashReconciliationLive do
             <span class="brand-mark">T</span>
             <div>
               <p class="eyebrow">Tigoo</p>
-              <h1 id="reconciliation-title" class="h3" tabindex="-1">Cash reconciliation</h1>
+              <h1 id="reconciliation-title" class="h3" tabindex="-1" data-i18n="reconciliation.title">Cash Reconciliation</h1>
             </div>
           </div>
           <button class="btn" type="button" data-variant="default" phx-click="print_reconciliation">
@@ -254,7 +255,7 @@ defmodule PosServerWeb.CashReconciliationLive do
       rule(),
       row("Cashier", receipt.cashier),
       row("Printed at", receipt.generated_at),
-      row("Opening cash", money(receipt.opening_cash)),
+      row("Opening cash", money_text(receipt.opening_cash)),
       rule(),
       "SALES",
       rule()
@@ -264,21 +265,21 @@ defmodule PosServerWeb.CashReconciliationLive do
       receipt.sales
       |> Enum.flat_map(fn sale ->
         [
-          row(sale.customer_name, money(sale.amount)),
+          row(sale.customer_name, money_text(sale.amount)),
           sale.date
         ]
       end)
 
-    payment_lines = Enum.map(receipt.payment_totals, &row(&1.label, money(&1.amount)))
+    payment_lines = Enum.map(receipt.payment_totals, &row(&1.label, money_text(&1.amount)))
 
     (lines ++
        sale_lines ++
        [
          rule(),
          row("Sales count", receipt.sales_count),
-         row("Total sales", money(receipt.total_sales)),
+         row("Total sales", money_text(receipt.total_sales)),
          rule()
-       ] ++ payment_lines ++ [rule(), row("Expected drawer", money(receipt.expected_cash))])
+       ] ++ payment_lines ++ [rule(), row("Expected drawer", money_text(receipt.expected_cash))])
     |> Enum.join("\n")
   end
 
@@ -410,7 +411,6 @@ defmodule PosServerWeb.CashReconciliationLive do
   end
 
   defp decimal(_), do: 0.0
-  defp money(v), do: :erlang.float_to_binary(decimal(v), decimals: 2) |> then(&"$ #{&1}")
   defp receipt_datetime(%NaiveDateTime{} = value), do: Calendar.strftime(value, "%Y-%m-%d %I:%M %p")
   defp receipt_datetime(_), do: ""
   defp center(value), do: String.pad_leading(to_string(value), div(48 + String.length(to_string(value)), 2))

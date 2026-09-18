@@ -20,7 +20,7 @@ defmodule PosServerWeb.PurchaseOrdersLive do
          %{id: store_id} <- selected_store(stores, Map.get(params, "store_id") || session["store_id"]) do
       socket =
         socket
-        |> assign(:page_title, "Tigoo Purchase orders")
+        |> assign(:page_title, gettext("Purchase Orders"))
         |> assign(:scope, scope)
         |> assign(:stores, stores)
         |> assign(:store_id, store_id)
@@ -529,7 +529,6 @@ defmodule PosServerWeb.PurchaseOrdersLive do
 
   defp reason_message(%Ecto.Changeset{}), do: "Check the required fields."
   defp reason_message(reason), do: to_string(reason)
-  defp money(value), do: "$" <> :erlang.float_to_binary(decimal(value), decimals: 2)
   defp decimal(%Decimal{} = value), do: Decimal.to_float(value)
   defp decimal(value) when is_number(value), do: value * 1.0
   defp decimal(_), do: 0.0
@@ -606,7 +605,7 @@ defmodule PosServerWeb.PurchaseOrdersLive do
                 <div>
                   <p class="eyebrow" data-i18n="inventory.operations">Operations</p>
                   <h2 id="orders-title" tabindex="-1">
-                    Purchase orders — {active_store(@stores, @store_id)}
+                    <span data-i18n="orders.purchaseOrders">Purchase Orders</span> — {active_store(@stores, @store_id)}
                   </h2>
                 </div>
               </div>

@@ -268,6 +268,10 @@ button {
 .sidebar-menu-check { width: 15px; height: 15px; flex: 0 0 auto; }
 .sidebar-theme-selector .sidebar-menu-check { visibility: hidden; }
 .sidebar-theme-selector .sidebar-menu-action[aria-current="true"] .sidebar-menu-check { visibility: visible; }
+.language-menu .sidebar-menu-check { visibility: hidden; }
+.language-menu button[aria-current="true"] .sidebar-menu-check,
+.language-menu button[aria-pressed="true"] .sidebar-menu-check { visibility: visible; }
+.language-flag { display: inline-block; margin-right: 8px; font-size: 0.9em; line-height: 1; }
 
 /* These legacy neutral surfaces stay untouched for Default; Nature maps them to its semantic background. */
 .theme-nature .application-screen,
@@ -586,6 +590,12 @@ button {
   box-shadow: var(--shadow-md);
 }
 .language-menu button {
+  display: flex;
+  width: 100%;
+  min-height: 32px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 8px 10px;
   border: 0;
   border-radius: calc(var(--radius) - 3px);
@@ -596,7 +606,9 @@ button {
   text-align: left;
   cursor: pointer;
 }
+.language-menu button > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .language-menu button:hover,
+.language-menu button[aria-current="true"],
 .language-menu button[aria-pressed="true"] {
   background: var(--accent);
   color: var(--accent-foreground);
@@ -2630,6 +2642,10 @@ dialog#customer-purchases-dialog .dialog-content {
     padding: 4px 0 4px 12px;
   }
   .mobile-language-options button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     min-height: 42px;
     padding: 0 12px;
     border: 0;
@@ -2640,7 +2656,14 @@ dialog#customer-purchases-dialog .dialog-content {
     text-align: left;
   }
   .mobile-language-options button:hover,
-  .mobile-language-options button:focus-visible { background: var(--muted); }
+  .mobile-language-options button:focus-visible,
+  .mobile-language-options button[aria-current="true"] { background: var(--muted); }
+  .mobile-language-options button[aria-current="true"]::after {
+    content: "\2713";
+    margin-left: auto;
+    color: var(--primary);
+    font-weight: 800;
+  }
 
   .mobile-navigation-footer {
     display: flex;

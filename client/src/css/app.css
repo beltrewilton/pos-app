@@ -315,6 +315,10 @@ button {
 .sidebar-menu-check { width: 15px; height: 15px; flex: 0 0 auto; }
 .sidebar-theme-selector .sidebar-menu-check { visibility: hidden; }
 .sidebar-theme-selector .sidebar-menu-action[aria-current="true"] .sidebar-menu-check { visibility: visible; }
+.language-menu .sidebar-menu-check { visibility: hidden; }
+.language-menu button[aria-current="true"] .sidebar-menu-check,
+.language-menu button[aria-pressed="true"] .sidebar-menu-check { visibility: visible; }
+.language-flag { display: inline-block; margin-right: 8px; font-size: 0.9em; line-height: 1; }
 
 /* These legacy neutral surfaces stay untouched for Default; Nature maps them to its semantic background. */
 .theme-nature .application-screen,
@@ -640,6 +644,12 @@ button {
   box-shadow: var(--shadow-md);
 }
 .language-menu button {
+  display: flex;
+  width: 100%;
+  min-height: 32px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 8px 10px;
   border: 0;
   border-radius: calc(var(--radius) - 3px);
@@ -650,7 +660,9 @@ button {
   text-align: left;
   cursor: pointer;
 }
+.language-menu button > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .language-menu button:hover,
+.language-menu button[aria-current="true"],
 .language-menu button[aria-pressed="true"] {
   background: var(--accent);
   color: var(--accent-foreground);
@@ -1423,8 +1435,47 @@ button {
 }
 .inventory-traces-row .table-cell { padding: 0.75rem; }
 .inventory-trace-wrap { overflow-x: auto; }
-.inventory-trace-table { min-width: 50rem; font-size: 0.8125rem; }
-.inventory-trace-table .table-cell, .inventory-trace-table .table-head { white-space: nowrap; }
+.inventory-trace-table {
+  table-layout: fixed;
+  min-width: 72rem;
+  font-size: 0.8125rem;
+}
+.inventory-trace-table .table-cell,
+.inventory-trace-table .table-head {
+  white-space: nowrap;
+}
+.inventory-trace-table .table-head:nth-child(1),
+.inventory-trace-table .table-cell:nth-child(1) {
+  width: 12rem;
+}
+.inventory-trace-table .table-head:nth-child(2),
+.inventory-trace-table .table-cell:nth-child(2) {
+  width: 9.5rem;
+}
+.inventory-trace-table .table-head:nth-child(3),
+.inventory-trace-table .table-cell:nth-child(3) {
+  width: 9rem;
+}
+.inventory-trace-table .table-head:nth-child(4),
+.inventory-trace-table .table-cell:nth-child(4) {
+  width: 6rem;
+}
+.inventory-trace-table .table-head:nth-child(5),
+.inventory-trace-table .table-cell:nth-child(5) {
+  width: 10rem;
+}
+.inventory-trace-table .inventory-trace-operator {
+  width: 14rem;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.inventory-trace-table .inventory-trace-context {
+  width: 12rem;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 .inventory-store-row .table-cell {
   padding-top: 0.45rem;
   padding-bottom: 0.45rem;
@@ -2952,6 +3003,10 @@ dialog#customer-purchases-dialog .dialog-content {
     padding: 4px 0 4px 12px;
   }
   .mobile-language-options button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     min-height: 42px;
     padding: 0 12px;
     border: 0;
@@ -2962,7 +3017,14 @@ dialog#customer-purchases-dialog .dialog-content {
     text-align: left;
   }
   .mobile-language-options button:hover,
-  .mobile-language-options button:focus-visible { background: var(--muted); }
+  .mobile-language-options button:focus-visible,
+  .mobile-language-options button[aria-current="true"] { background: var(--muted); }
+  .mobile-language-options button[aria-current="true"]::after {
+    content: "\2713";
+    margin-left: auto;
+    color: var(--primary);
+    font-weight: 800;
+  }
 
   .mobile-navigation-footer {
     display: flex;

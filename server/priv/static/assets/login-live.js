@@ -1,4 +1,6 @@
 (() => {
+  const POS_STORE_KEY = "pos-selected-store-id"
+
   window.LoginScreenHook = {
     mounted() {
       this.focusCurrent = () => requestAnimationFrame(() => this.el.querySelector(this.el.dataset.phase === "store_selection" ? "#login-store" : "#login-identifier")?.focus())
@@ -15,6 +17,7 @@
         try {
           const response = await fetch("/pos/login/session", {method: "POST", credentials: "same-origin", headers: {"content-type": "application/json", "x-csrf-token": csrf}, body: JSON.stringify({token, store_id})})
           if (!response.ok) throw new Error("session login failed")
+          try { localStorage.setItem(POS_STORE_KEY, String(store_id)) } catch {}
           const {redirect_to} = await response.json()
           window.location.assign(redirect_to)
         } catch (_) { this.pushEvent("session_failed") }
