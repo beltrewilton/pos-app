@@ -6,6 +6,7 @@ defmodule PosServer.Retaily.Sales do
 
   alias Ecto.Changeset
   alias PosServer.{InventoryEvents, Repo}
+  alias PosServer.Addons.Events, as: AddonEvents
   alias PosServer.Accounts.Scope, as: AccessScope
 
   alias PosServer.Retaily.{
@@ -62,6 +63,7 @@ defmodule PosServer.Retaily.Sales do
         )
 
         ProductTraces.dispatch(tenant, sale.traces)
+        AddonEvents.dispatch(:sale_completed, sale.sale, scope)
         {:ok, sale.sale}
       end
     end

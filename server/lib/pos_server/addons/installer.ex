@@ -10,6 +10,10 @@ defmodule PosServer.Addons.Installer do
   alias PosServer.Addons
 
   @addons_root Path.expand("../../../../../addons-pos-app", __DIR__)
+  @supported_events %{
+    :sale_completed => "sale_completed",
+    "sale_completed" => "sale_completed"
+  }
 
   def available do
     @addons_root
@@ -238,7 +242,8 @@ defmodule PosServer.Addons.Installer do
          name: manifest.name,
          icon: manifest.icon,
          route: "/pos/addons/" <> manifest.identifier,
-         description: Map.get(manifest, :description, "Add-on for this workspace.")
+         description: Map.get(manifest, :description, "Add-on for this workspace."),
+         events: normalized_events(manifest)
        }}
     else
       {:error, reason} -> {:error, reason}
@@ -254,16 +259,45 @@ defmodule PosServer.Addons.Installer do
   end
 
   defp validate_manifest(
-         %{identifier: manifest_identifier, route: route, handler: manifest_handler},
+         %{identifier: manifest_identifier, route: route, handler: manifest_handler} = manifest,
          identifier,
          handler
        )
        when is_atom(manifest_handler) do
     if manifest_identifier == identifier and manifest_handler == handler and
          route in ["/pos/addons/" <> identifier, "/addons/" <> identifier] do
-      :ok
+      with {:ok, _events} <- validate_events(manifest) do
+        :ok
+      end
     else
       {:error, :invalid_manifest}
+    end
+  end
+
+  defp validate_events(manifest) do
+    events = Map.get(manifest, :events, [])
+
+    if is_list(events) do
+      events
+      |> Enum.reduce_while({:ok, []}, fn event, {:ok, acc} ->
+        case Map.fetch(@supported_events, event) do
+          {:ok, event_name} -> {:cont, {:ok, [event_name | acc]}}
+          :error -> {:halt, {:error, :unsupported_addon_event}}
+        end
+      end)
+      |> case do
+        {:ok, events} -> {:ok, events |> Enum.reverse() |> Enum.uniq()}
+        error -> error
+      end
+    else
+      {:error, :invalid_addon_events}
+    end
+  end
+
+  defp normalized_events(manifest) do
+    case validate_events(manifest) do
+      {:ok, events} -> events
+      {:error, _reason} -> []
     end
   end
 
@@ -278,6 +312,7 @@ defmodule PosServer.Addons.Installer do
       handler: Atom.to_string(handler),
       tenant: tenant,
       revision: revision,
+      events: normalized_events(manifest),
       installed: true,
       enabled: true,
       installed_at: DateTime.utc_now() |> DateTime.truncate(:second)

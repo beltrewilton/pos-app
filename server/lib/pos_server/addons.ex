@@ -16,6 +16,20 @@ defmodule PosServer.Addons do
 
   def enabled_for(_tenant), do: []
 
+  def enabled_for_event(tenant, event) when is_binary(tenant) do
+    event = to_string(event)
+
+    Repo.all(
+      from addon in Addon,
+        where:
+          addon.tenant == ^tenant and addon.installed and addon.enabled and
+            fragment("? = ANY(?)", ^event, addon.events),
+        order_by: [asc: addon.name]
+    )
+  end
+
+  def enabled_for_event(_tenant, _event), do: []
+
   def get_enabled_for(identifier, tenant) when is_binary(tenant) do
     Repo.one(
       from addon in Addon,

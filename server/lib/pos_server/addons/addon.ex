@@ -12,6 +12,7 @@ defmodule PosServer.Addons.Addon do
     field :handler, :string
     field :tenant, :string
     field :revision, :string
+    field :events, {:array, :string}, default: []
     field :installed, :boolean, default: true
     field :enabled, :boolean, default: true
     field :installed_at, :utc_datetime
@@ -29,6 +30,7 @@ defmodule PosServer.Addons.Addon do
       :handler,
       :tenant,
       :revision,
+      :events,
       :installed,
       :enabled,
       :installed_at
