@@ -9,28 +9,39 @@ defmodule PosServer.Addons.Installer do
 
   alias PosServer.Addons
 
-  @default_addons_root Path.expand("../../../../../addons-tigoo-app", __DIR__)
   @supported_events %{
     :sale_completed => "sale_completed",
     "sale_completed" => "sale_completed"
   }
 
   def available do
-    addons_root()
-    |> discovered_sources()
-    |> Enum.map(fn {identifier, _path} -> identifier end)
+    case addons_root() do
+      {:ok, root} ->
+        root
+        |> discovered_sources()
+        |> Enum.map(fn {identifier, _path} -> identifier end)
+
+      {:error, _reason} ->
+        []
+    end
   end
 
   def catalog do
-    addons_root()
-    |> discovered_sources()
-    |> Enum.flat_map(fn {identifier, path} ->
-      case catalog_entry(identifier, path) do
-        {:ok, addon} -> [addon]
-        {:error, _reason} -> []
-      end
-    end)
-    |> Enum.sort_by(& &1.name)
+    case addons_root() do
+      {:ok, root} ->
+        root
+        |> discovered_sources()
+        |> Enum.flat_map(fn {identifier, path} ->
+          case catalog_entry(identifier, path) do
+            {:ok, addon} -> [addon]
+            {:error, _reason} -> []
+          end
+        end)
+        |> Enum.sort_by(& &1.name)
+
+      {:error, _reason} ->
+        []
+    end
   end
 
   def install(identifier, tenant) when is_binary(tenant) and tenant != "" do
@@ -201,16 +212,14 @@ defmodule PosServer.Addons.Installer do
   end
 
   defp source_path(identifier) do
-    if valid_identifier?(identifier) do
-      path = Path.join([addons_root(), identifier, "addon.ex"])
+    with true <- valid_identifier?(identifier),
+         {:ok, root} <- addons_root() do
+      path = Path.join([root, identifier, "addon.ex"])
 
-      if File.regular?(path) do
-        {:ok, path}
-      else
-        {:error, :unknown_addon}
-      end
+      if File.regular?(path), do: {:ok, path}, else: {:error, :unknown_addon}
     else
-      {:error, :unknown_addon}
+      false -> {:error, :unknown_addon}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -229,8 +238,8 @@ defmodule PosServer.Addons.Installer do
 
   defp addons_root do
     case System.get_env("ADDONS_PATH") do
-      path when is_binary(path) and path != "" -> Path.expand(path)
-      _ -> @default_addons_root
+      path when is_binary(path) and path != "" -> {:ok, Path.expand(path)}
+      _ -> {:error, :missing_addons_path}
     end
   end
 
