@@ -9,20 +9,20 @@ defmodule PosServer.Addons.Installer do
 
   alias PosServer.Addons
 
-  @addons_root Path.expand("../../../../../addons-pos-app", __DIR__)
+  @default_addons_root Path.expand("../../../../../addons-tigoo-app", __DIR__)
   @supported_events %{
     :sale_completed => "sale_completed",
     "sale_completed" => "sale_completed"
   }
 
   def available do
-    @addons_root
+    addons_root()
     |> discovered_sources()
     |> Enum.map(fn {identifier, _path} -> identifier end)
   end
 
   def catalog do
-    @addons_root
+    addons_root()
     |> discovered_sources()
     |> Enum.flat_map(fn {identifier, path} ->
       case catalog_entry(identifier, path) do
@@ -202,7 +202,7 @@ defmodule PosServer.Addons.Installer do
 
   defp source_path(identifier) do
     if valid_identifier?(identifier) do
-      path = Path.join([@addons_root, identifier, "addon.ex"])
+      path = Path.join([addons_root(), identifier, "addon.ex"])
 
       if File.regular?(path) do
         {:ok, path}
@@ -226,6 +226,13 @@ defmodule PosServer.Addons.Installer do
     do: Regex.match?(~r/\A[a-zA-Z0-9_]+\z/, identifier)
 
   defp valid_identifier?(_identifier), do: false
+
+  defp addons_root do
+    case System.get_env("ADDONS_PATH") do
+      path when is_binary(path) and path != "" -> Path.expand(path)
+      _ -> @default_addons_root
+    end
+  end
 
   defp catalog_entry(identifier, path) do
     with {:ok, source} <- File.read(path),
