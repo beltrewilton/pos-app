@@ -215,15 +215,16 @@ defmodule PosServerWeb.CashReconciliationLive do
   end
 
   defp reconciliation_sales(tenant, filters) do
+    payments_query = from(payment in SalePaid, order_by: [asc: payment.date_create, asc: payment.id])
+
     Sale
-    |> join(:inner, [sale], payment in SalePaid, on: payment.sale_id == sale.id)
-    |> join(:left, [sale, _payment], client in assoc(sale, :client))
+    |> join(:left, [sale], client in assoc(sale, :client))
     |> where([sale], sale.store_id == ^filters["store_id"])
-    |> where([_sale, payment], payment.login == ^filters["cashier"])
-    |> where([_sale, payment], payment.date_create >= ^filters["date_from"])
-    |> where([_sale, payment], payment.date_create <= ^filters["date_to"])
+    |> where([sale], sale.login == ^filters["cashier"])
+    |> where([sale], sale.date_create >= ^filters["date_from"])
+    |> where([sale], sale.date_create <= ^filters["date_to"])
     |> order_by([sale], asc: sale.date_create, asc: sale.id)
-    |> preload([sale, payment, client], client: client, sale_paids: payment)
+    |> preload([_sale, client], client: client, sale_paids: ^payments_query)
     |> Repo.all(prefix: tenant)
   end
 
