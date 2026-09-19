@@ -663,13 +663,17 @@ const pt = {
 const dictionaries = {en, es: merge(en, es), pt: merge(en, pt)}
 
 const pageTitleKeys = {
+  "Tigoo Sign in": "pos.pageTitle",
   "Point of Sale": "pos.catalog.pointOfSale",
   "Payment & completion": "pos.checkout.paymentCompletion",
+  "Tigoo Customers": "pos.customers.customers",
   "Invoice report": "invoice.title",
   "Invoice Report": "invoice.title",
   "Cash Reconciliation": "reconciliation.title",
   "Inventory": "layout.nav.inventory",
-  "Purchase Orders": "orders.purchaseOrders"
+  "Purchase Orders": "orders.purchaseOrders",
+  "Tigoo Company settings": "company.title",
+  "Tigoo Users": "users.users"
 }
 
 export function getLanguage() {
@@ -742,6 +746,7 @@ export function initI18n() {
   window.PosI18n = {getLanguage, setLanguage, t, money, translatePage}
   document.documentElement.lang = getLanguage()
   document.documentElement.dataset.language = getLanguage()
+  observePageTitle()
   document.addEventListener("click", event => {
     const button = event.target.closest("[data-language]")
     if (!button) return
@@ -765,7 +770,15 @@ function syncPageTitle() {
   const key = pageTitleKeys[document.title] || document.documentElement.dataset.pageTitleKey
   if (!key) return
   document.documentElement.dataset.pageTitleKey = key
-  document.title = t(key)
+  const translated = t(key)
+  if (document.title !== translated) document.title = translated
+}
+
+function observePageTitle() {
+  const title = document.querySelector("title")
+  if (!title) return
+  const observer = new MutationObserver(() => syncPageTitle())
+  observer.observe(title, {childList: true, characterData: true, subtree: true})
 }
 
 function datasetParams(element) {
