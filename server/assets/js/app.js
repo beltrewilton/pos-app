@@ -149,7 +149,7 @@ const hooks = {
         this.syncFrame = requestAnimationFrame(this.sync)
       }
       this.imageObserver = new MutationObserver(this.syncSoon)
-      this.imageObserver.observe(this.el, {
+      this.imageObserver.observe(this.el.closest(".catalog-content") || this.el, {
         childList: true,
         subtree: true,
         attributes: true,
