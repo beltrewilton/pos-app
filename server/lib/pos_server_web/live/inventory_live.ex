@@ -1286,9 +1286,6 @@ defmodule PosServerWeb.InventoryLive do
             <h2 id="product-dialog-title" class="dialog-title">
               {if @editing_product, do: "Edit product", else: "Create product"}
             </h2>
-            <p id="product-dialog-description" class="dialog-description">
-              Catalog details and pricing-list values are saved as separate records.
-            </p>
           </div>
           <form
             id="product-form"
