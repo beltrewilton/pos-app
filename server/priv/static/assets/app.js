@@ -10331,6 +10331,7 @@ removing illegal node: "${(childNode.outerHTML || childNode.nodeValue).trim()}"
         this.tenant = this.el.dataset.tenant || tenantId();
         this.loggedProductImages = /* @__PURE__ */ new Set();
         this.persistedProductImages = /* @__PURE__ */ new Set();
+        this.visibleProductImages = /* @__PURE__ */ new Map();
         this.sync = () => syncProductImageCache(this);
         this.handleEvent("product-images:sync", this.sync);
         this.syncSoon = () => {
@@ -10344,8 +10345,12 @@ removing illegal node: "${(childNode.outerHTML || childNode.nodeValue).trim()}"
         });
         requestAnimationFrame(this.sync);
       },
+      beforeUpdate() {
+        this.visibleProductImages = captureVisibleProductImages();
+      },
       updated() {
         this.tenant = this.el.dataset.tenant || tenantId();
+        restoreVisibleProductImages(this.visibleProductImages);
         requestAnimationFrame(this.sync);
       },
       destroyed() {
@@ -11295,6 +11300,28 @@ removing illegal node: "${(childNode.outerHTML || childNode.nodeValue).trim()}"
     image.hidden = false;
     document.querySelectorAll(`[data-product-image-placeholder="${productImageSelectorValue(image.dataset.productImageId)}"]`).forEach((element) => {
       element.hidden = true;
+    });
+  }
+  function productImageDomKey(image) {
+    const productId = image.dataset.productImageId;
+    const cacheKey = image.dataset.productImageCacheKey || "";
+    return productId ? `${productId}:${cacheKey}` : null;
+  }
+  function captureVisibleProductImages(root = document) {
+    const state = /* @__PURE__ */ new Map();
+    root.querySelectorAll("[data-product-image-id]").forEach((image) => {
+      const key = productImageDomKey(image);
+      if (!key || image.hidden) return;
+      const src = image.currentSrc || image.getAttribute("src") || "";
+      if (src) state.set(key, src);
+    });
+    return state;
+  }
+  function restoreVisibleProductImages(state, root = document) {
+    if (!state?.size) return;
+    root.querySelectorAll("[data-product-image-id]").forEach((image) => {
+      const src = state.get(productImageDomKey(image));
+      if (src) setProductImageElement(image, src);
     });
   }
   function logProductImageSource(hook, source, productId, dateCreate) {

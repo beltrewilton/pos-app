@@ -78,3 +78,4 @@ Thumbs.db
 *~
 server/.env-prod
 server/evofit-instructive.sql
+server/sh/prepare_evofit_environment.sh
