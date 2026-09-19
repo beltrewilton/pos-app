@@ -1239,9 +1239,23 @@ function queueProductImageMiss(hook, productId, version) {
 
 async function syncProductImageCache(hook) {
   const tenant = hook.tenant || tenantId()
-  const images = [...document.querySelectorAll("[data-product-image-id][data-product-image-version]")]
+  const productImages = [...document.querySelectorAll("[data-product-image-id]")]
+  const images = productImages.filter(image => image.dataset.productImageVersion)
+  const unversioned = productImages.filter(image => !image.dataset.productImageVersion)
   let stored = false
-  console.log("Product image cache sync", {count: images.length, tenant})
+  console.log("Product image cache sync", {
+    count: images.length,
+    unversioned: unversioned.length,
+    dataImages: productImages.filter(image => (image.currentSrc || image.getAttribute("src") || "").startsWith("data:image/")).length,
+    tenant
+  })
+  unversioned.forEach(image => {
+    const current = image.currentSrc || image.getAttribute("src") || ""
+    console.log("Product image skipped cache because version is missing", {
+      productId: image.dataset.productImageId,
+      fromServer: current.startsWith("data:image/")
+    })
+  })
 
   await Promise.all(images.map(async image => {
     const productId = image.dataset.productImageId
