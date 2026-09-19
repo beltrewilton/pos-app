@@ -77,3 +77,4 @@ Thumbs.db
 *.swo
 *~
 server/.env-prod
+server/evofit-instructive.sql

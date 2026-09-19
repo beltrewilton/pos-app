@@ -730,6 +730,11 @@
   min-width: 5rem;
   max-width: 5rem;
 }
+#inventory-live .operations-table .inventory-price-cell {
+  width: 7rem !important;
+  min-width: 7rem;
+  max-width: 7rem;
+}
 #inventory-live .operations-table .inventory-previous-quantity-cell {
   text-align: center;
 }

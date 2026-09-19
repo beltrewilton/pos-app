@@ -868,6 +868,7 @@ defmodule PosServerWeb.InventoryLive do
                     class={[
                       "table-head",
                       if(is_nil(key), do: "inventory-status-head"),
+                      if(key == "product_price", do: "inventory-price-cell"),
                       if(key == "total_quantity", do: "inventory-total-quantity-cell"),
                       if(key == "prev_quantity", do: "inventory-previous-quantity-cell")
                     ]}
@@ -992,7 +993,7 @@ defmodule PosServerWeb.InventoryLive do
                         else: "—"}
                     </td>
                     <td
-                      class="table-cell numeric"
+                      class="table-cell numeric inventory-price-cell"
                       data-label="Price"
                       data-i18n-data-label="common.price"
                     >
