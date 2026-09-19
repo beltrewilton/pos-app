@@ -131,6 +131,15 @@ defmodule PosServer.Accounts do
                 {:ok, updated_user}
 
               {:error, :tenant, reason} ->
+                IO.inspect(
+                  %{
+                    tenant: updated_user.tenant,
+                    user_id: updated_user.id,
+                    reason: reason
+                  },
+                  label: "tenant provisioning failed"
+                )
+
                 Repo.update(Ecto.Changeset.change(updated_user, tenant: nil))
                 {:error, :provisioning, reason}
             end
@@ -197,6 +206,15 @@ defmodule PosServer.Accounts do
             {:ok, user}
 
           {:error, :tenant, reason} ->
+            IO.inspect(
+              %{
+                tenant: user.tenant,
+                user_id: user.id,
+                reason: reason
+              },
+              label: "tenant provisioning failed"
+            )
+
             Repo.delete(user)
             {:error, :tenant, reason}
         end
@@ -216,16 +234,52 @@ defmodule PosServer.Accounts do
                       create_user_company(repo, created_tenant, user_id, company.id) do
                  case create_default_store(repo, created_tenant, company.id) do
                    {:ok, _store} -> created_tenant
-                   {:error, reason} -> repo.rollback(reason)
+                   {:error, reason} ->
+                     IO.inspect(
+                       %{
+                         tenant: created_tenant,
+                         prefix: Triplex.to_prefix(created_tenant),
+                         user_id: user_id,
+                         company_id: company.id,
+                         step: :default_store,
+                         reason: reason
+                       },
+                       label: "tenant provisioning rollback"
+                     )
+
+                     repo.rollback(reason)
                  end
                else
-                 {:error, reason} -> repo.rollback(reason)
+                 {:error, reason} ->
+                   IO.inspect(
+                     %{
+                       tenant: created_tenant,
+                       prefix: Triplex.to_prefix(created_tenant),
+                       user_id: user_id,
+                       step: :company_or_membership,
+                       reason: reason
+                     },
+                     label: "tenant provisioning rollback"
+                   )
+
+                   repo.rollback(reason)
                end
              end)
            end
          end) do
       {:ok, _tenant} -> :ok
-      {:error, reason} -> {:error, :tenant, reason}
+      {:error, reason} ->
+        IO.inspect(
+          %{
+            tenant: tenant,
+            prefix: Triplex.to_prefix(tenant),
+            user_id: user_id,
+            reason: reason
+          },
+          label: "triplex create schema failed"
+        )
+
+        {:error, :tenant, reason}
     end
   end
 
