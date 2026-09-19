@@ -290,6 +290,8 @@ defmodule PosServer.Addons.Installer do
     end
   end
 
+  defp validate_manifest(_, _, _), do: {:error, :invalid_manifest}
+
   defp validate_events(manifest) do
     events = Map.get(manifest, :events, [])
 
@@ -316,8 +318,6 @@ defmodule PosServer.Addons.Installer do
       {:error, _reason} -> []
     end
   end
-
-  defp validate_manifest(_, _, _), do: {:error, :invalid_manifest}
 
   defp registration_attrs(manifest, tenant, revision, handler) do
     %{

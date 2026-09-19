@@ -11,7 +11,7 @@ defmodule PosServerWeb.DashboardComponents do
     <aside class="dashboard-sidebar" aria-label="Primary navigation" data-i18n-aria-label="layout.nav.primary">
       <div class="dashboard-sidebar-brand">
         <a class="brand" href={~p"/pos/dashboard"} aria-label="tigoo dashboard">
-          <img src={~p"/images/tigoo.svg"} alt="tigoo" />
+          <img src={~p"/images/icon-app.png"} alt="tigoo" />
         </a>
         <button
           class="btn"
