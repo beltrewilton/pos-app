@@ -550,7 +550,6 @@ defmodule PosServerWeb.PosLive do
 
           {:noreply,
            socket
-           |> put_flash(:info, "Sale completed.")
            |> assign(:print_prompt, print_prompt(:receipt, receipt))
            |> assign(:cart, [])
            |> assign(:checkout_stage, nil)
@@ -1089,9 +1088,10 @@ defmodule PosServerWeb.PosLive do
                   class="customer-choice btn"
                   type="button"
                   data-variant="outline"
+                  data-i18n="pos.checkout.pickCustomer"
                   phx-click="open_customer_picker"
                 >
-                  {(@selected_customer && @selected_customer.name) || "Pick a customer…"}
+                  {(@selected_customer && @selected_customer.name) || gettext("Pick a customer…")}
                 </button>
                 <div :if={@selected_customer} id="customer-details" class="customer-details">
                   {@selected_customer.name} · {@selected_customer.celphone || ""} · {@selected_customer.address ||
@@ -1412,9 +1412,10 @@ defmodule PosServerWeb.PosLive do
                 id="order-title"
                 class="customer-picker"
                 type="button"
+                data-i18n="pos.checkout.pickCustomerSpaced"
                 phx-click="open_customer_picker"
                 disabled={@checkout_stage == :payment}
-              >{(@selected_customer && @selected_customer.name) || "Pick a customer …"}</button><button
+              >{(@selected_customer && @selected_customer.name) || gettext("Pick a customer …")}</button><button
                 :if={@selected_customer && is_nil(@checkout_stage)}
                 id="clear-customer"
                 class="btn"
