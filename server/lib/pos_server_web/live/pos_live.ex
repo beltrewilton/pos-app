@@ -2584,6 +2584,12 @@ defmodule PosServerWeb.PosLive do
     do: nonempty_string?(value(product, :image_raw)) or not is_nil(value(product, :image_updated_at))
 
   defp product_image_version(%NaiveDateTime{} = value), do: NaiveDateTime.to_iso8601(value)
+  defp product_image_version({{_, _, _}, {_, _, _}} = value) do
+    value
+    |> NaiveDateTime.from_erl!()
+    |> NaiveDateTime.to_iso8601()
+  end
+
   defp product_image_version(value) when is_binary(value), do: value
   defp product_image_version(_value), do: nil
 
