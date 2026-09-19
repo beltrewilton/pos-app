@@ -1228,6 +1228,7 @@ async function syncProductImageCache(hook) {
   const tenant = hook.tenant || tenantId()
   const images = [...document.querySelectorAll("[data-product-image-id][data-product-image-version]")]
   let stored = false
+  console.log("Product image cache sync", {count: images.length, tenant})
 
   await Promise.all(images.map(async image => {
     const productId = image.dataset.productImageId
@@ -1236,11 +1237,11 @@ async function syncProductImageCache(hook) {
 
     const current = image.currentSrc || image.getAttribute("src") || ""
     if (current.startsWith("data:image/")) {
+      console.log("Product image loaded from server", {productId, version})
       try {
         await writeCachedProductImage(tenant, productId, version, current)
         stored = true
         setProductImageElement(image, current)
-        console.log("Product image loaded from server")
       } catch {
       }
       return
@@ -1249,8 +1250,8 @@ async function syncProductImageCache(hook) {
     try {
       const cached = await readCachedProductImage(tenant, productId, version)
       if (cached && cached.startsWith("data:image/")) {
+        console.log("Product image loaded from localStorage", {productId, version})
         setProductImageElement(image, cached)
-        console.log("Product image loaded from localStorage")
         writeProductImageVersion(tenant, productId, version)
       } else {
         queueProductImageMiss(hook, productId, version)
