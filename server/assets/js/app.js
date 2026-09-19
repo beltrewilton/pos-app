@@ -140,6 +140,7 @@ const hooks = {
     mounted() {
       this.tenant = this.el.dataset.tenant || tenantId()
       this.missing = new Map()
+      this.loggedProductImages = new Set()
       this.pushKnownVersions = () => this.pushEvent("product_image_versions", {versions: readProductImageVersions(this.tenant)})
       this.pushKnownVersions()
       this.sync = () => syncProductImageCache(this)
@@ -151,9 +152,7 @@ const hooks = {
       this.imageObserver = new MutationObserver(this.syncSoon)
       this.imageObserver.observe(this.el.closest(".catalog-content") || this.el, {
         childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ["src", "data-product-image-id", "data-product-image-version"]
+        subtree: true
       })
       requestAnimationFrame(this.sync)
     },
@@ -1224,6 +1223,13 @@ function setProductImageElement(image, src) {
     .forEach(element => { element.hidden = true })
 }
 
+function logProductImageSource(hook, source, productId, version) {
+  const key = `${source}:${productId}:${version}`
+  if (hook.loggedProductImages?.has(key)) return
+  hook.loggedProductImages?.add(key)
+  console.log(`Product image loaded from ${source}`, {productId, version})
+}
+
 function queueProductImageMiss(hook, productId, version) {
   if (!productId || !version) return
   const key = `${productId}:${version}`
@@ -1264,7 +1270,7 @@ async function syncProductImageCache(hook) {
 
     const current = image.currentSrc || image.getAttribute("src") || ""
     if (current.startsWith("data:image/")) {
-      console.log("Product image loaded from server", {productId, version})
+      logProductImageSource(hook, "server", productId, version)
       try {
         await writeCachedProductImage(tenant, productId, version, current)
         stored = true
@@ -1277,7 +1283,7 @@ async function syncProductImageCache(hook) {
     try {
       const cached = await readCachedProductImage(tenant, productId, version)
       if (cached && cached.startsWith("data:image/")) {
-        console.log("Product image loaded from localStorage", {productId, version})
+        logProductImageSource(hook, "localStorage", productId, version)
         setProductImageElement(image, cached)
         writeProductImageVersion(tenant, productId, version)
       } else {
