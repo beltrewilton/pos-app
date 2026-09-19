@@ -144,6 +144,17 @@ const hooks = {
       this.pushKnownVersions()
       this.sync = () => syncProductImageCache(this)
       this.handleEvent("product-images:sync", this.sync)
+      this.syncSoon = () => {
+        cancelAnimationFrame(this.syncFrame)
+        this.syncFrame = requestAnimationFrame(this.sync)
+      }
+      this.imageObserver = new MutationObserver(this.syncSoon)
+      this.imageObserver.observe(this.el, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["src", "data-product-image-id", "data-product-image-version"]
+      })
       requestAnimationFrame(this.sync)
     },
     updated() {
@@ -151,6 +162,8 @@ const hooks = {
       requestAnimationFrame(this.sync)
     },
     destroyed() {
+      cancelAnimationFrame(this.syncFrame)
+      this.imageObserver?.disconnect()
       clearTimeout(this.missingTimer)
     }
   },
