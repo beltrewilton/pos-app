@@ -63,6 +63,7 @@ defmodule PosServerWeb.CashReconciliationLive do
   end
 
   def handle_event("restore_pos_draft", _draft, socket), do: {:noreply, socket}
+  def handle_event("set_catalog_view", _params, socket), do: {:noreply, socket}
   def handle_event("client_info", _params, socket), do: {:noreply, socket}
 
   def handle_event("change_filters", params, socket) do
