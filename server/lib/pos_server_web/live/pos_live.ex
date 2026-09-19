@@ -1088,6 +1088,7 @@ defmodule PosServerWeb.PosLive do
                   class="customer-choice btn"
                   type="button"
                   data-variant="outline"
+                  data-i18n={unless @selected_customer, do: "pos.checkout.pickCustomer"}
                   phx-click="open_customer_picker"
                 >
                   {(@selected_customer && @selected_customer.name) || gettext("Pick a customer…")}
@@ -1411,6 +1412,7 @@ defmodule PosServerWeb.PosLive do
                 id="order-title"
                 class="customer-picker"
                 type="button"
+                data-i18n={unless @selected_customer, do: "pos.checkout.pickCustomerSpaced"}
                 phx-click="open_customer_picker"
                 disabled={@checkout_stage == :payment}
               >{(@selected_customer && @selected_customer.name) || gettext("Pick a customer …")}</button><button
