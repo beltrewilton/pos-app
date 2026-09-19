@@ -758,8 +758,8 @@ html.pos-catalog-view-table #pos-live[data-catalog-view="cards"] .catalog-panel 
   opacity: 1;
   transform: none;
   transition:
-    opacity 220ms ease 500ms,
-    transform 220ms ease 500ms;
+    opacity 120ms ease 100ms,
+    transform 120ms ease 100ms;
 }
 
 #pos-live .catalog-panel.is-content-loading > *,
