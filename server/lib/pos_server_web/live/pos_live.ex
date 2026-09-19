@@ -2591,7 +2591,19 @@ defmodule PosServerWeb.PosLive do
   end
 
   defp product_image_version(value) when is_binary(value), do: value
+
+  defp product_image_version(product) when is_map(product) do
+    product_image_version(value(product, :image_updated_at)) ||
+      product_image_version(value(product, :date_create)) ||
+      product_image_content_version(value(product, :image_raw))
+  end
+
   defp product_image_version(_value), do: nil
+
+  defp product_image_content_version(image) when is_binary(image) and image != "",
+    do: "sha256:#{Base.encode16(:crypto.hash(:sha256, image), case: :lower)}"
+
+  defp product_image_content_version(_image), do: nil
 
   defp normalize_product_image_versions(versions) do
     versions
@@ -2717,7 +2729,7 @@ defmodule PosServerWeb.PosLive do
       name: value(product, :name),
       code: value(product, :code),
       image_raw: value(product, :image_raw),
-      image_updated_at: product_image_version(value(product, :image_updated_at)),
+      image_updated_at: product_image_version(product),
       inventory_quantity: value(product, :inventory_quantity),
       price: value(product, :price),
       sub: value(product, :sub),
