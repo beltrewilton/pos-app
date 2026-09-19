@@ -1881,7 +1881,7 @@ defmodule PosServerWeb.PosLive do
 
     case Sql.active_products_page(socket.assigns.cursor,
            store_id: socket.assigns.store_id,
-           limit: 100
+           limit: 50
          ) do
       {:ok, page} ->
         socket
