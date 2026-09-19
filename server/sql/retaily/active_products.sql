@@ -8,7 +8,10 @@ WITH catalog AS (
     product.code,
     product.img_path,
     product.date_create,
-    product.image_raw,
+    CASE
+      WHEN product.date_create IS NOT DISTINCT FROM product.image_updated_at THEN NULL
+      ELSE product.image_raw
+    END AS image_raw,
     product.image_updated_at,
     product.active,
     product.user_modified,

@@ -7,7 +7,7 @@ defmodule PosServerWeb.PosLive do
 
   alias PosServer.{Authentication, InventoryEvents, Repo, TenantContext}
   alias PosServer.Accounts.Scope
-  alias PosServer.Retaily.{Client, InventoryContext, Sales, Sequence, Sql}
+  alias PosServer.Retaily.{Client, InventoryContext, Product, Sales, Sequence, Sql}
 
   @impl true
   def mount(params, session, socket) do
@@ -28,7 +28,6 @@ defmodule PosServerWeb.PosLive do
         |> assign(:cursor, nil)
         |> assign(:has_more, true)
         |> assign(:loading_products, false)
-        |> assign(:product_image_versions, %{})
         |> assign(:product_search, "")
         |> assign(:catalog_view, initial_catalog_view(socket))
         |> assign(:cart, [])
@@ -586,38 +585,26 @@ defmodule PosServerWeb.PosLive do
   def handle_event("client_info", params, socket),
     do: {:noreply, assign(socket, :client_info, normalize_client_info(params))}
 
-  def handle_event("product_image_versions", %{"versions" => versions}, socket)
-      when is_map(versions) do
-    versions = normalize_product_image_versions(versions)
+  def handle_event("product_image_persisted", %{"id" => id, "date_create" => date_create}, socket) do
+    with product_id when product_id > 0 <- integer(id),
+         {:ok, created_at} <- parse_product_image_timestamp(date_create),
+         {:ok, _} <- mark_product_image_persisted(socket.assigns.scope.tenant, product_id, created_at) do
+      {:noreply,
+       update(socket, :products, fn products ->
+         Enum.map(products, fn
+           %{id: ^product_id, date_create: ^created_at} = product ->
+             %{product | image_raw: nil, image_updated_at: product_image_version(created_at)}
 
-    {:noreply,
-     socket
-     |> assign(:product_image_versions, versions)
-     |> update(:products, &Enum.map(&1, fn product -> cache_product_image(product, versions) end))}
+           product ->
+             product
+         end)
+       end)}
+    else
+      _ -> {:noreply, socket}
+    end
   end
 
-  def handle_event("product_image_versions", _params, socket), do: {:noreply, socket}
-
-  def handle_event("product_image_cache_miss", %{"products" => products}, socket)
-      when is_list(products) do
-    missing =
-      products
-      |> Enum.flat_map(fn
-        %{"id" => id, "version" => version} ->
-          case integer(id) do
-            value when value > 0 -> [{value, product_image_version(version)}]
-            _ -> []
-          end
-
-        _ ->
-          []
-      end)
-      |> MapSet.new()
-
-    {:noreply, refresh_product_images(socket, missing)}
-  end
-
-  def handle_event("product_image_cache_miss", _params, socket), do: {:noreply, socket}
+  def handle_event("product_image_persisted", _params, socket), do: {:noreply, socket}
 
   def handle_event("printer_result", %{"status" => "success"}, socket),
     do: {:noreply, assign(socket, :print_prompt, nil)}
@@ -883,9 +870,9 @@ defmodule PosServerWeb.PosLive do
                 src={product_image_src(product)}
                 alt=""
                 loading="lazy"
-                hidden={is_nil(product.image_raw)}
+                hidden
                 data-product-image-id={product.id}
-                data-product-image-version={product_image_version(product.image_updated_at)}
+                data-product-image-cache-key={product_image_version(product.date_create)}
               />
               <div
                 :if={not product_has_image?(product) or is_nil(product.image_raw)}
@@ -946,9 +933,9 @@ defmodule PosServerWeb.PosLive do
                       src={product_image_src(product)}
                       alt=""
                       loading="lazy"
-                      hidden={is_nil(product.image_raw)}
+                      hidden
                       data-product-image-id={product.id}
-                      data-product-image-version={product_image_version(product.image_updated_at)}
+                      data-product-image-cache-key={product_image_version(product.date_create)}
                     />
                     <span
                       :if={not product_has_image?(product) or is_nil(product.image_raw)}
@@ -1901,7 +1888,7 @@ defmodule PosServerWeb.PosLive do
         |> assign(
           :products,
           socket.assigns.products ++
-            Enum.map(page.entries, &normalize_product(&1, socket.assigns.product_image_versions))
+            Enum.map(page.entries, &normalize_product/1)
         )
         |> assign(:cursor, page.next_cursor)
         |> assign(:has_more, page.has_more?)
@@ -1925,7 +1912,7 @@ defmodule PosServerWeb.PosLive do
         if MapSet.member?(changed, product.id) do
           case Sql.active_product(product.id, socket.assigns.store_id) do
             {:ok, nil} -> []
-            {:ok, fresh} -> [normalize_product(fresh, socket.assigns.product_image_versions)]
+            {:ok, fresh} -> [normalize_product(fresh)]
             {:error, _} -> [product]
           end
         else
@@ -1941,7 +1928,7 @@ defmodule PosServerWeb.PosLive do
       |> Enum.flat_map(fn product_id ->
         case Sql.active_product(product_id, socket.assigns.store_id) do
           {:ok, fresh} when is_map(fresh) ->
-            [normalize_product(fresh, socket.assigns.product_image_versions)]
+            [normalize_product(fresh)]
           _ -> []
         end
       end)
@@ -1994,7 +1981,7 @@ defmodule PosServerWeb.PosLive do
     Enum.flat_map(lines, fn line ->
       with product_id when product_id > 0 <- integer(value(line, :id) || value(line, :product_id)),
            {:ok, product} when is_map(product) <- Sql.active_product(product_id, store_id) do
-        product = normalize_product(product, %{})
+        product = normalize_product(product)
 
         [
           %{
@@ -2592,60 +2579,10 @@ defmodule PosServerWeb.PosLive do
 
   defp product_image_version(value) when is_binary(value), do: value
 
-  defp product_image_version(product) when is_map(product) do
-    product_image_version(value(product, :image_updated_at)) ||
-      product_image_version(value(product, :date_create)) ||
-      product_image_content_version(value(product, :image_raw))
-  end
+  defp product_image_version(product) when is_map(product),
+    do: product_image_version(value(product, :image_updated_at))
 
   defp product_image_version(_value), do: nil
-
-  defp product_image_content_version(image) when is_binary(image) and image != "",
-    do: "sha256:#{Base.encode16(:crypto.hash(:sha256, image), case: :lower)}"
-
-  defp product_image_content_version(_image), do: nil
-
-  defp normalize_product_image_versions(versions) do
-    versions
-    |> Enum.flat_map(fn {id, version} ->
-      case integer(id) do
-        value when value > 0 ->
-          case product_image_version(version) do
-            version when is_binary(version) and version != "" -> [{value, version}]
-            _ -> []
-          end
-
-        _ ->
-          []
-      end
-    end)
-    |> Map.new()
-  end
-
-  defp cache_product_image(%{id: id, image_updated_at: version} = product, known_versions)
-       when is_map(known_versions) do
-    if is_binary(version) and Map.get(known_versions, id) == version,
-      do: %{product | image_raw: nil},
-      else: product
-  end
-
-  defp cache_product_image(product, _known_versions), do: product
-
-  defp refresh_product_images(socket, missing) do
-    if MapSet.size(missing) == 0 do
-      socket
-    else
-      update(socket, :products, fn products ->
-        Enum.map(products, fn product ->
-          if MapSet.member?(missing, {product.id, product.image_updated_at}) do
-            product_with_image(product, socket.assigns.store_id)
-          else
-            product
-          end
-        end)
-      end)
-    end
-  end
 
   defp product_with_image(%{image_raw: image} = product, _store_id)
        when is_binary(image) and image != "",
@@ -2653,8 +2590,29 @@ defmodule PosServerWeb.PosLive do
 
   defp product_with_image(product, store_id) do
     case Sql.active_product(product.id, store_id) do
-      {:ok, fresh} when is_map(fresh) -> normalize_product(fresh, %{})
+      {:ok, fresh} when is_map(fresh) -> normalize_product(fresh)
       _ -> product
+    end
+  end
+
+  defp parse_product_image_timestamp(value) do
+    value
+    |> product_image_version()
+    |> case do
+      nil -> :error
+      value -> NaiveDateTime.from_iso8601(value)
+    end
+  end
+
+  defp mark_product_image_persisted(tenant, product_id, created_at) do
+    from(product in Product,
+      where: product.id == ^product_id and product.date_create == ^created_at,
+      update: [set: [image_updated_at: ^created_at]]
+    )
+    |> Repo.update_all([], prefix: tenant)
+    |> case do
+      {1, _} -> {:ok, :updated}
+      {0, _} -> {:error, :not_found}
     end
   end
 
@@ -2723,11 +2681,12 @@ defmodule PosServerWeb.PosLive do
   defp discount_help(_, target) when is_binary(target), do: "The amount applies to this entire order line."
   defp discount_help(_, _target), do: "The amount applies to this order before delivery."
 
-  defp normalize_product(product, known_versions) do
+  defp normalize_product(product) do
     %{
       id: value(product, :id),
       name: value(product, :name),
       code: value(product, :code),
+      date_create: value(product, :date_create),
       image_raw: value(product, :image_raw),
       image_updated_at: product_image_version(product),
       inventory_quantity: value(product, :inventory_quantity),
@@ -2735,7 +2694,6 @@ defmodule PosServerWeb.PosLive do
       sub: value(product, :sub),
       tax: value(product, :tax)
     }
-    |> cache_product_image(known_versions)
   end
 
   defp normalize_customer(customer) do

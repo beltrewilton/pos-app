@@ -35,7 +35,6 @@ const POS_DRAFT_KEY_PREFIX = "pos-sale-draft"
 const POS_CATALOG_VIEW_KEY = "pos-catalog-view"
 const PRODUCT_IMAGE_DB = "pos-product-images"
 const PRODUCT_IMAGE_STORE = "images"
-const PRODUCT_IMAGE_VERSION_PREFIX = "pos:product-image-versions"
 const PRINT_RELAY_SESSION_KEY = "pos.printRelay.sessionId"
 let activePrintRelay = null
 
@@ -139,10 +138,8 @@ const hooks = {
   ProductImageCache: {
     mounted() {
       this.tenant = this.el.dataset.tenant || tenantId()
-      this.missing = new Map()
       this.loggedProductImages = new Set()
-      this.pushKnownVersions = () => this.pushEvent("product_image_versions", {versions: readProductImageVersions(this.tenant)})
-      this.pushKnownVersions()
+      this.persistedProductImages = new Set()
       this.sync = () => syncProductImageCache(this)
       this.handleEvent("product-images:sync", this.sync)
       this.syncSoon = () => {
@@ -163,7 +160,6 @@ const hooks = {
     destroyed() {
       cancelAnimationFrame(this.syncFrame)
       this.imageObserver?.disconnect()
-      clearTimeout(this.missingTimer)
     }
   },
   PurchaseOrderLines: purchaseOrderLinesHook(),
@@ -1134,41 +1130,8 @@ function writeStoredJson(key, value) {
   }
 }
 
-function productImageVersionKey(tenant) {
-  return `${PRODUCT_IMAGE_VERSION_PREFIX}:${tenant || "default"}`
-}
-
-function productImageCacheKey(tenant, productId, version) {
-  return `${tenant || "default"}:${productId}:${version}`
-}
-
-function readProductImageVersions(tenant) {
-  try {
-    const value = JSON.parse(localStorage.getItem(productImageVersionKey(tenant)) || "{}")
-    return value && typeof value === "object" && !Array.isArray(value) ? value : {}
-  } catch {
-    return {}
-  }
-}
-
-function writeProductImageVersion(tenant, productId, version) {
-  if (!tenant || !productId || !version) return
-  const versions = readProductImageVersions(tenant)
-  versions[String(productId)] = String(version)
-  try {
-    localStorage.setItem(productImageVersionKey(tenant), JSON.stringify(versions))
-  } catch {
-  }
-}
-
-function removeProductImageVersion(tenant, productId, version) {
-  const versions = readProductImageVersions(tenant)
-  if (versions[String(productId)] !== String(version)) return
-  delete versions[String(productId)]
-  try {
-    localStorage.setItem(productImageVersionKey(tenant), JSON.stringify(versions))
-  } catch {
-  }
+function productImageCacheKey(tenant, productId, dateCreate) {
+  return `${tenant || "default"}:${productId}:${dateCreate}`
 }
 
 function productImageDb() {
@@ -1185,9 +1148,9 @@ function productImageDb() {
   return window.productImageDbPromise
 }
 
-async function readCachedProductImage(tenant, productId, version) {
+async function readCachedProductImage(tenant, productId, dateCreate) {
   const db = await productImageDb()
-  const key = productImageCacheKey(tenant, productId, version)
+  const key = productImageCacheKey(tenant, productId, dateCreate)
   return new Promise((resolve, reject) => {
     const tx = db.transaction(PRODUCT_IMAGE_STORE, "readonly")
     const request = tx.objectStore(PRODUCT_IMAGE_STORE).get(key)
@@ -1196,17 +1159,16 @@ async function readCachedProductImage(tenant, productId, version) {
   })
 }
 
-async function writeCachedProductImage(tenant, productId, version, src) {
+async function writeCachedProductImage(tenant, productId, dateCreate, src) {
   if (!src || !src.startsWith("data:image/")) return false
   const db = await productImageDb()
-  const key = productImageCacheKey(tenant, productId, version)
+  const key = productImageCacheKey(tenant, productId, dateCreate)
   await new Promise((resolve, reject) => {
     const tx = db.transaction(PRODUCT_IMAGE_STORE, "readwrite")
-    tx.objectStore(PRODUCT_IMAGE_STORE).put({key, tenant, product_id: String(productId), version: String(version), src})
+    tx.objectStore(PRODUCT_IMAGE_STORE).put({key, tenant, product_id: String(productId), date_create: String(dateCreate), src})
     tx.oncomplete = () => resolve()
     tx.onerror = () => reject(tx.error)
   })
-  writeProductImageVersion(tenant, productId, version)
   return true
 }
 
@@ -1223,32 +1185,18 @@ function setProductImageElement(image, src) {
     .forEach(element => { element.hidden = true })
 }
 
-function logProductImageSource(hook, source, productId, version) {
-  const key = `${source}:${productId}:${version}`
+function logProductImageSource(hook, source, productId, dateCreate) {
+  const key = `${source}:${productId}:${dateCreate}`
   if (hook.loggedProductImages?.has(key)) return
   hook.loggedProductImages?.add(key)
-  console.log(`Product image loaded from ${source}`, {productId, version})
-}
-
-function queueProductImageMiss(hook, productId, version) {
-  if (!productId || !version) return
-  const key = `${productId}:${version}`
-  hook.missing.set(key, {id: Number(productId), version})
-  clearTimeout(hook.missingTimer)
-  hook.missingTimer = setTimeout(() => {
-    const products = [...hook.missing.values()]
-    hook.missing.clear()
-    products.forEach(product => removeProductImageVersion(hook.tenant, product.id, product.version))
-    if (products.length) hook.pushEvent("product_image_cache_miss", {products})
-  }, 50)
+  console.log(`Product image loaded from ${source}`, {productId, dateCreate})
 }
 
 async function syncProductImageCache(hook) {
   const tenant = hook.tenant || tenantId()
   const productImages = [...document.querySelectorAll("[data-product-image-id]")]
-  const images = productImages.filter(image => image.dataset.productImageVersion)
-  const unversioned = productImages.filter(image => !image.dataset.productImageVersion)
-  let stored = false
+  const images = productImages.filter(image => image.dataset.productImageCacheKey)
+  const unversioned = productImages.filter(image => !image.dataset.productImageCacheKey)
   console.log("Product image cache sync", {
     count: images.length,
     unversioned: unversioned.length,
@@ -1265,36 +1213,37 @@ async function syncProductImageCache(hook) {
 
   await Promise.all(images.map(async image => {
     const productId = image.dataset.productImageId
-    const version = image.dataset.productImageVersion
-    if (!tenant || !productId || !version) return
+    const dateCreate = image.dataset.productImageCacheKey
+    if (!tenant || !productId || !dateCreate) return
 
     const current = image.currentSrc || image.getAttribute("src") || ""
     if (current.startsWith("data:image/")) {
-      logProductImageSource(hook, "server", productId, version)
+      logProductImageSource(hook, "server", productId, dateCreate)
       try {
-        await writeCachedProductImage(tenant, productId, version, current)
-        stored = true
+        await writeCachedProductImage(tenant, productId, dateCreate, current)
         setProductImageElement(image, current)
+        notifyProductImagePersisted(hook, productId, dateCreate)
       } catch {
       }
       return
     }
 
     try {
-      const cached = await readCachedProductImage(tenant, productId, version)
+      const cached = await readCachedProductImage(tenant, productId, dateCreate)
       if (cached && cached.startsWith("data:image/")) {
-        logProductImageSource(hook, "localStorage", productId, version)
+        logProductImageSource(hook, "IndexedDB", productId, dateCreate)
         setProductImageElement(image, cached)
-        writeProductImageVersion(tenant, productId, version)
-      } else {
-        queueProductImageMiss(hook, productId, version)
       }
     } catch {
-      queueProductImageMiss(hook, productId, version)
     }
   }))
+}
 
-  if (stored) hook.pushKnownVersions?.()
+function notifyProductImagePersisted(hook, productId, dateCreate) {
+  const key = `${productId}:${dateCreate}`
+  if (hook.persistedProductImages?.has(key)) return
+  hook.persistedProductImages?.add(key)
+  hook.pushEvent("product_image_persisted", {id: Number(productId), date_create: dateCreate})
 }
 
 function posDraftKey(element) {
