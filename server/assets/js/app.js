@@ -56,6 +56,7 @@ const hooks = {
   LoginScreen: window.LoginScreenHook,
   CompanySettings: window.CompanySettingsHook,
   CustomerDialog: dialogHook(),
+  ProductDialog: productDialogHook(),
   CustomerScreen: {
     mounted() {
       this.customerScrollTop = 0
@@ -1373,6 +1374,21 @@ function dialogHook() {
     mounted() {
       this.el.showModal()
       this.el.addEventListener("cancel", event => event.preventDefault())
+      this.el.addEventListener("click", event => { if (event.target === this.el) event.preventDefault() })
+    }
+  }
+}
+
+function productDialogHook() {
+  return {
+    mounted() {
+      this.el.showModal()
+      this.el.addEventListener("cancel", event => event.preventDefault())
+      this.el.addEventListener("keydown", event => {
+        if (event.key !== "Escape") return
+        event.preventDefault()
+        event.stopPropagation()
+      }, true)
       this.el.addEventListener("click", event => { if (event.target === this.el) event.preventDefault() })
     }
   }

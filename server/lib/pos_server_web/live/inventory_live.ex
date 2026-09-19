@@ -34,6 +34,9 @@ defmodule PosServerWeb.InventoryLive do
         |> assign(:expanded, nil)
         |> assign(:store_quantities, [])
         |> assign(:traces, [])
+        |> assign(:loading_product_id, nil)
+        |> assign(:loading_traces_id, nil)
+        |> assign(:loading_quantities_id, nil)
         |> assign(:editing_product_id, nil)
         |> assign(:locally_updated_product_ids, MapSet.new())
         |> assign(:product_dialog, false)
@@ -135,20 +138,13 @@ defmodule PosServerWeb.InventoryLive do
     if !Scope.allowed?(socket.assigns.scope, "product.edit") do
       {:noreply, put_flash(socket, :error, "You do not have permission to edit products.")}
     else
-      case ProductCatalog.get(socket.assigns.scope, integer(id)) do
-        {:ok, product} ->
-          {:noreply,
-           socket
-           |> assign(:product_dialog, true)
-           |> assign(:editing_product, product)
-           |> assign(:product_form_status, "")}
+      product_id = integer(id)
+      send(self(), {:open_product_editor, product_id})
 
-        {:error, :forbidden} ->
-          {:noreply, put_flash(socket, :error, "You do not have permission to edit products.")}
-
-        _ ->
-          {:noreply, put_flash(socket, :error, "Product could not be loaded.")}
-      end
+      {:noreply,
+       socket
+       |> assign(:loading_product_id, product_id)
+       |> assign(:product_form_status, "")}
     end
   end
 
@@ -244,21 +240,12 @@ defmodule PosServerWeb.InventoryLive do
     if socket.assigns.expanded == {:quantities, product_id} do
       {:noreply, clear_row_context(socket)}
     else
-      case InventoryContext.product_store_quantities(
-             socket.assigns.scope,
-             socket.assigns.store_id,
-             product_id
-           ) do
-        {:ok, entries} ->
-          {:noreply,
-           socket
-           |> clear_row_context()
-           |> assign(:expanded, {:quantities, product_id})
-           |> assign(:store_quantities, entries)}
+      send(self(), {:load_store_quantities, product_id})
 
-        _ ->
-          {:noreply, put_flash(socket, :error, "Store quantities could not be loaded.")}
-      end
+      {:noreply,
+       socket
+       |> clear_row_context()
+       |> assign(:loading_quantities_id, product_id)}
     end
   end
 
@@ -268,21 +255,12 @@ defmodule PosServerWeb.InventoryLive do
     if socket.assigns.expanded == {:traces, product_id} do
       {:noreply, clear_row_context(socket)}
     else
-      case InventoryContext.product_traces(
-             socket.assigns.scope,
-             socket.assigns.store_id,
-             product_id
-           ) do
-        {:ok, entries} ->
-          {:noreply,
-           socket
-           |> clear_row_context()
-           |> assign(:expanded, {:traces, product_id})
-           |> assign(:traces, entries)}
+      send(self(), {:load_product_traces, product_id})
 
-        _ ->
-          {:noreply, put_flash(socket, :error, "Product history could not be loaded.")}
-      end
+      {:noreply,
+       socket
+       |> clear_row_context()
+       |> assign(:loading_traces_id, product_id)}
     end
   end
 
@@ -359,6 +337,72 @@ defmodule PosServerWeb.InventoryLive do
   end
 
   @impl true
+  def handle_info({:open_product_editor, product_id}, socket) do
+    case ProductCatalog.get(socket.assigns.scope, product_id) do
+      {:ok, product} ->
+        {:noreply,
+         socket
+         |> assign(:loading_product_id, nil)
+         |> assign(:product_dialog, true)
+         |> assign(:editing_product, product)
+         |> assign(:product_form_status, "")}
+
+      {:error, :forbidden} ->
+        {:noreply,
+         socket
+         |> assign(:loading_product_id, nil)
+         |> put_flash(:error, "You do not have permission to edit products.")}
+
+      _ ->
+        {:noreply,
+         socket
+         |> assign(:loading_product_id, nil)
+         |> put_flash(:error, "Product could not be loaded.")}
+    end
+  end
+
+  def handle_info({:load_store_quantities, product_id}, socket) do
+    case InventoryContext.product_store_quantities(
+           socket.assigns.scope,
+           socket.assigns.store_id,
+           product_id
+         ) do
+      {:ok, entries} ->
+        {:noreply,
+         socket
+         |> assign(:loading_quantities_id, nil)
+         |> assign(:expanded, {:quantities, product_id})
+         |> assign(:store_quantities, entries)}
+
+      _ ->
+        {:noreply,
+         socket
+         |> assign(:loading_quantities_id, nil)
+         |> put_flash(:error, "Store quantities could not be loaded.")}
+    end
+  end
+
+  def handle_info({:load_product_traces, product_id}, socket) do
+    case InventoryContext.product_traces(
+           socket.assigns.scope,
+           socket.assigns.store_id,
+           product_id
+         ) do
+      {:ok, entries} ->
+        {:noreply,
+         socket
+         |> assign(:loading_traces_id, nil)
+         |> assign(:expanded, {:traces, product_id})
+         |> assign(:traces, entries)}
+
+      _ ->
+        {:noreply,
+         socket
+         |> assign(:loading_traces_id, nil)
+         |> put_flash(:error, "Product history could not be loaded.")}
+    end
+  end
+
   def handle_info({:inventory_changed, %{product_ids: product_ids}}, socket) do
     changed = MapSet.new(product_ids)
 
@@ -459,6 +503,8 @@ defmodule PosServerWeb.InventoryLive do
       |> assign(:expanded, nil)
       |> assign(:store_quantities, [])
       |> assign(:traces, [])
+      |> assign(:loading_traces_id, nil)
+      |> assign(:loading_quantities_id, nil)
       |> assign(:editing_product_id, nil)
 
   defp ignore_next_inventory_event(socket, product_id),
@@ -893,17 +939,22 @@ defmodule PosServerWeb.InventoryLive do
               </thead>
               <tbody id="inventory-table-body">
                 <%= for entry <- visible_entries(assigns) do %>
+                  <% product_loading? = @loading_product_id == entry.product_id %>
+                  <% traces_loading? = @loading_traces_id == entry.product_id %>
+                  <% quantities_loading? = @loading_quantities_id == entry.product_id %>
                   <tr class="table-row" data-inventory-product-id={entry.product_id}>
                     <td class="table-cell" data-label="Product" data-i18n-data-label="common.product">
                       <button
                         :if={Scope.allowed?(@scope, "product.edit")}
-                        class="btn"
+                        class="btn inventory-product-link"
                         type="button"
                         data-variant="link"
                         phx-click="open_product_editor"
                         phx-value-product_id={entry.product_id}
+                        aria-busy={to_string(product_loading?)}
                       >
-                        {entry.product_name || "Product ##{entry.product_id}"}
+                        <span :if={product_loading?} class="inventory-quantity-spinner" aria-hidden="true"></span>
+                        <span>{entry.product_name || "Product ##{entry.product_id}"}</span>
                       </button>
                       <span :if={!Scope.allowed?(@scope, "product.edit")}>
                         {entry.product_name || "Product ##{entry.product_id}"}
@@ -976,11 +1027,14 @@ defmodule PosServerWeb.InventoryLive do
                         class="btn inventory-sku-trace"
                         type="button"
                         data-variant="link"
-                        phx-click="toggle_traces"
-                        phx-value-product_id={entry.product_id}
-                        aria-expanded={to_string(@expanded == {:traces, entry.product_id})}
+                        phx-click={
+                          JS.push("toggle_traces", value: %{product_id: entry.product_id})
+                        }
+                        aria-expanded={to_string(@expanded == {:traces, entry.product_id} && !traces_loading?)}
+                        aria-busy={to_string(traces_loading?)}
                       >
-                        {entry.product_code || "—"}
+                        <span :if={traces_loading?} class="inventory-quantity-spinner" aria-hidden="true"></span>
+                        <span :if={!traces_loading?}>{entry.product_code || "—"}</span>
                       </button>
                     </td>
                     <td
@@ -1008,12 +1062,19 @@ defmodule PosServerWeb.InventoryLive do
                         class="btn inventory-total-quantity"
                         type="button"
                         data-variant="link"
-                        phx-click="toggle_quantities"
-                        phx-value-product_id={entry.product_id}
-                        aria-expanded={to_string(@expanded == {:quantities, entry.product_id})}
+                        phx-click={
+                          JS.push("toggle_quantities", value: %{product_id: entry.product_id})
+                        }
+                        aria-expanded={to_string(@expanded == {:quantities, entry.product_id} && !quantities_loading?)}
+                        aria-busy={to_string(quantities_loading?)}
                       >
-                        <span class="inventory-total-quantity-indicator" aria-hidden="true">{if @expanded == {:quantities, entry.product_id}, do: "▾", else: "▸"}</span>{entry.total_quantity ||
-                          entry.quantity || 0}
+                        <span
+                          :if={quantities_loading?}
+                          class="inventory-quantity-spinner"
+                          aria-hidden="true"
+                        ></span>
+                        <span :if={!quantities_loading?} class="inventory-total-quantity-indicator" aria-hidden="true">{if @expanded == {:quantities, entry.product_id}, do: "▾", else: "▸"}</span><span :if={!quantities_loading?}>{entry.total_quantity ||
+                          entry.quantity || 0}</span>
                       </button>
                     </td>
                     <td
@@ -1218,6 +1279,7 @@ defmodule PosServerWeb.InventoryLive do
         role="dialog"
         aria-modal="true"
         aria-labelledby="product-dialog-title"
+        phx-hook="ProductDialog"
       >
         <div class="dialog-content">
           <div class="dialog-header">

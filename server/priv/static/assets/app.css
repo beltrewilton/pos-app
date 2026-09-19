@@ -738,6 +738,45 @@
 #inventory-live .operations-table .inventory-previous-quantity-cell {
   text-align: center;
 }
+#inventory-live .inventory-product-link,
+#inventory-live .inventory-sku-trace,
+#inventory-live .inventory-total-quantity {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.35rem;
+}
+#inventory-live .inventory-product-link,
+#inventory-live .inventory-sku-trace {
+  min-width: 0;
+}
+#inventory-live .inventory-total-quantity {
+  font-weight: 700;
+  min-width: 0;
+  padding: 0;
+}
+#inventory-live .inventory-total-quantity-indicator {
+  text-align: center;
+  width: 0.75rem;
+}
+#inventory-live .inventory-quantity-spinner {
+  animation: inventory-quantity-spin 0.7s linear infinite;
+  border: 2px solid color-mix(in oklch, currentColor 28%, transparent);
+  border-radius: 999px;
+  border-top-color: currentColor;
+  flex: 0 0 auto;
+  height: 0.95rem;
+  width: 0.95rem;
+}
+@keyframes inventory-quantity-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #inventory-live .inventory-quantity-spinner {
+    animation: none;
+  }
+}
 .is-sidebar-collapsed .dashboard-sidebar {
   flex-basis: 4.25rem;
 }
