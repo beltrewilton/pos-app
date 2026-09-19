@@ -79,8 +79,11 @@ defmodule PosServerWeb.CashReconciliationLive do
     {:noreply,
      assign(socket, :print_prompt, %{
        title: "Print reconciliation",
+       title_key: "reconciliation.printTitle",
        description: "Print the cash reconciliation receipt.",
+       description_key: "reconciliation.printDescription",
        button: "Print report",
+       button_key: "reconciliation.printReport",
        event: "printer:print-reconciliation",
        payload: %{request_id: print_request_id(), reconciliation: socket.assigns.receipt}
      })}
@@ -112,15 +115,15 @@ defmodule PosServerWeb.CashReconciliationLive do
             </div>
           </div>
           <button class="btn" type="button" data-variant="default" phx-click="print_reconciliation">
-            Print report
+            <span data-i18n="reconciliation.printReport">Print report</span>
           </button>
         </header>
 
         <section class="reconciliation-controls" aria-labelledby="reconciliation-controls-title">
-          <h2 id="reconciliation-controls-title" class="card-title">Register inputs</h2>
+          <h2 id="reconciliation-controls-title" class="card-title" data-i18n="reconciliation.registerInputs">Register inputs</h2>
           <form class="form" phx-change="change_filters">
             <div class="form-group">
-              <label class="label" for="reconciliation-cashier">Cashier</label>
+              <label class="label" for="reconciliation-cashier" data-i18n="reconciliation.cashier">Cashier</label>
               <select id="reconciliation-cashier" class="select" name="cashier">
                 <option :for={cashier <- @cashiers} value={cashier.username} selected={cashier.username == @cashier}>
                   {cashier_name(cashier)}
@@ -128,21 +131,21 @@ defmodule PosServerWeb.CashReconciliationLive do
               </select>
             </div>
             <div class="form-group">
-              <label class="label" for="reconciliation-date">Date</label>
+              <label class="label" for="reconciliation-date" data-i18n="common.date">Date</label>
               <input id="reconciliation-date" class="input" type="date" name="date" value={@date} />
             </div>
             <div class="form-group">
-              <label class="label" for="reconciliation-opening-cash">Opening cash</label>
+              <label class="label" for="reconciliation-opening-cash" data-i18n="reconciliation.openingCash">Opening cash</label>
               <input id="reconciliation-opening-cash" class="input numeric" type="number" name="opening_cash" min="0" step="0.01" inputmode="decimal" value={@opening_cash} />
             </div>
           </form>
 
           <dl class="totals reconciliation-totals">
-            <div><dt>Sales count</dt><dd>{@summary.sale_count}</dd></div>
-            <div><dt>Cash payments</dt><dd>{money(payment_total(@summary, "CASH"))}</dd></div>
-            <div><dt>Credit/debit card payments</dt><dd>{money(payment_total(@summary, "CC"))}</dd></div>
-            <div><dt>Total sales</dt><dd>{money(@summary.total_sales)}</dd></div>
-            <div class="grand-total"><dt>Expected cash drawer</dt><dd>{money(@summary.expected_cash)}</dd></div>
+            <div><dt data-i18n="reconciliation.salesCount">Sales count</dt><dd>{@summary.sale_count}</dd></div>
+            <div><dt data-i18n="reconciliation.cashPayments">Cash payments</dt><dd>{money(payment_total(@summary, "CASH"))}</dd></div>
+            <div><dt data-i18n="reconciliation.cardPayments">Credit/debit card payments</dt><dd>{money(payment_total(@summary, "CC"))}</dd></div>
+            <div><dt data-i18n="reconciliation.totalSales">Total sales</dt><dd>{money(@summary.total_sales)}</dd></div>
+            <div class="grand-total"><dt data-i18n="reconciliation.expectedCashDrawer">Expected cash drawer</dt><dd>{money(@summary.expected_cash)}</dd></div>
           </dl>
         </section>
       </section>
@@ -150,8 +153,8 @@ defmodule PosServerWeb.CashReconciliationLive do
       <aside id="order-panel" class="order-panel reconciliation-receipt-panel" aria-labelledby="reconciliation-preview-title">
         <header class="order-header">
           <div>
-            <p class="eyebrow">Report preview</p>
-            <h2 id="reconciliation-preview-title" class="h3">Receipt</h2>
+            <p class="eyebrow" data-i18n="reconciliation.reportPreview">Report preview</p>
+            <h2 id="reconciliation-preview-title" class="h3" data-i18n="reconciliation.receipt">Receipt</h2>
           </div>
         </header>
         <div class="receipt-preview-scroll">
@@ -289,12 +292,24 @@ defmodule PosServerWeb.CashReconciliationLive do
     <dialog id="receipt-dialog" class="dialog" data-size="sm" open role="dialog" aria-modal="true" aria-labelledby="receipt-dialog-title">
       <div class="dialog-content">
         <div class="dialog-header">
-          <h2 id="receipt-dialog-title" class="dialog-title">{@prompt.title}</h2>
-          <p id="receipt-print-description" class="dialog-description">{@prompt.description}</p>
+          <h2 id="receipt-dialog-title" class="dialog-title" data-i18n={@prompt[:title_key]}>
+            {@prompt.title}
+          </h2>
+          <p
+            id="receipt-print-description"
+            class="dialog-description"
+            data-i18n={@prompt[:description_key]}
+          >
+            {@prompt.description}
+          </p>
         </div>
         <p id="receipt-print-status" class="print-status" role="status">{@prompt[:status] || ""}</p>
         <div class="dialog-footer">
-          <button id="skip-print" class="btn" type="button" data-variant="outline" phx-click="skip_print" disabled={@prompt[:printing] == true}>Cancel</button><button id="print-receipt" class="btn" type="button" data-variant="default" phx-click="confirm_print" disabled={@prompt[:printing] == true}>{@prompt.button}</button>
+          <button id="skip-print" class="btn" type="button" data-variant="outline" phx-click="skip_print" disabled={@prompt[:printing] == true}>
+            <span data-i18n="common.cancel">Cancel</span>
+          </button><button id="print-receipt" class="btn" type="button" data-variant="default" phx-click="confirm_print" disabled={@prompt[:printing] == true}>
+            <span data-i18n={@prompt[:button_key]}>{@prompt.button}</span>
+          </button>
         </div>
       </div>
     </dialog>
