@@ -502,6 +502,8 @@ defmodule PosServerWeb.PosLive do
 
     if socket.assigns.selected_customer &&
          payment_complete?(socket) do
+      change_amount = Float.round(max(0.0, paid(socket) - total(socket)), 2)
+
       attrs = %{
         "store_id" => socket.assigns.store_id,
         "client_id" => socket.assigns.selected_customer.id,
@@ -529,7 +531,7 @@ defmodule PosServerWeb.PosLive do
         "payments" =>
           if(socket.assigns.credit,
             do: [],
-            else: Enum.map(socket.assigns.payments, &%{"type" => &1.type, "amount" => &1.amount})
+            else: submitted_payments(socket)
           )
       }
 
@@ -547,6 +549,7 @@ defmodule PosServerWeb.PosLive do
       case Sales.create_sale(socket.assigns.scope, attrs) do
         {:ok, sale} ->
           receipt = receipt_payload(sale, current_store(socket))
+          receipt = Map.put(receipt, :change_amount, change_amount)
 
           {:noreply,
            socket
@@ -2399,6 +2402,18 @@ defmodule PosServerWeb.PosLive do
 
   defp assign_payments_from_params(socket, _params), do: socket
 
+  defp submitted_payments(socket) do
+    socket.assigns.payments
+    |> Enum.reduce({[], total(socket)}, fn payment, {payments, remaining} ->
+      amount = Float.round(min(payment.amount, max(0.0, remaining)), 2)
+      payment = %{"type" => payment.type, "amount" => amount}
+
+      {[payment | payments], Float.round(remaining - amount, 2)}
+    end)
+    |> elem(0)
+    |> Enum.reverse()
+  end
+
   defp payment_complete?(state) do
     state = state(state)
 
@@ -2719,6 +2734,7 @@ defmodule PosServerWeb.PosLive do
       sequence: value(sale, :sequence),
       client_name: value(value(sale, :client) || %{}, :name),
       client_document_id: value(value(sale, :client) || %{}, :document_id),
+      client_celphone: value(value(sale, :client) || %{}, :celphone),
       login: value(sale, :login),
       sale_type: value(sale, :sale_type),
       amount: value(sale, :amount),

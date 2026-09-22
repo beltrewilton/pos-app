@@ -82,6 +82,7 @@ export class ReceiptFormatter {
       {text: twoCol(t("receipts.store"), str(store.name || ""), columns)},
       {text: twoCol(t("receipts.customer"), str(sale.client_name || client.name || t("receipts.consumerFinal")), columns)},
       {text: twoCol(t("receipts.document"), str(sale.client_document_id || client.document_id || ""), columns)},
+      {text: twoCol(t("receipts.celphone"), str(sale.client_celphone || client.celphone || client.phone || ""), columns)},
       {text: twoCol(t("receipts.salesperson"), str(sale.login || ""), columns)},
       copyLabel ? {align: "center", text: copyLabel} : null,
       {align: "center", text: sale.status === "CREDIT" ? t("receipts.creditInvoice") : t("receipts.salesJournal")},
@@ -118,6 +119,12 @@ export class ReceiptFormatter {
     if (payment && pending > 0) lines.push({text: amountLine(t("receipts.pendingBalance"), pending, columns)})
     if (number(sale.change_amount) > 0) lines.push({text: amountLine(t("receipts.change"), sale.change_amount, columns)})
     lines.push({text: twoCol(t("receipts.articles"), trimNumber(items), columns)})
+
+    if (str(sale.additional_info).trim()) {
+      lines.push({text: rule(columns)})
+      lines.push({bold: true, text: str(t("receipts.additionalInfo")).toUpperCase().slice(0, columns)})
+      lines.push({text: wrap(str(sale.additional_info).trim().toUpperCase(), columns)})
+    }
 
     lines.push({text: rule(columns)})
     lines.push({align: "center", text: t("receipts.thanks")})
