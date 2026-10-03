@@ -838,6 +838,7 @@
 }
 .installed-addon-card {
   align-items: center;
+  border: 1px solid transparent;
   border-radius: var(--radius-lg);
   color: var(--foreground);
   display: flex;
@@ -849,17 +850,35 @@
   text-decoration: none;
   transition:
     background-color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
     transform 0.15s ease;
 }
 .installed-addon-card:hover {
   background: var(--accent);
+  border-color: color-mix(in oklch, var(--primary) 40%, var(--border));
+  box-shadow: var(--shadow-sm);
   transform: translateY(-1px);
 }
 .installed-addon-icon {
+  border: 1px solid color-mix(in oklch, var(--primary) 16%, transparent);
   box-shadow: var(--shadow-sm);
   font-size: 1.55rem;
   height: 3.25rem;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease;
   width: 3.25rem;
+}
+.installed-addon-card:hover .installed-addon-icon {
+  background: var(--primary);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px color-mix(in oklch, var(--primary) 16%, transparent), var(--shadow-md);
+  color: var(--primary-foreground);
+  transform: translateY(-2px) scale(1.04);
 }
 .installed-addon-name {
   font-size: 0.78rem;

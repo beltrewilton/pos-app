@@ -512,6 +512,7 @@ const en = {
     availableApps: "Available apps",
     catalogCopy: "Extend your workspace with server-managed business tools.",
     available: "available",
+    installedAddons: "ADDONS INSTALADOS",
     installed: "Installed",
     install: "Install",
     uninstall: "Uninstall"

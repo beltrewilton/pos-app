@@ -11,18 +11,11 @@
     <header class="dashboard-header">
       <div>
         <p class="dashboard-kicker" data-i18n="addons.extensions">Extensions</p>
-        <h1 id="installed-addons-title" data-i18n="addons.installedAddons">Installed Add-ons</h1>
+        <h1 id="installed-addons-title" data-i18n="addons.installedAddons">ADDONS INSTALADOS</h1>
       </div>
     </header>
     <div class="dashboard-content">
-      <section class="addons-catalog" aria-labelledby="installed-catalog-title">
-        <div class="addons-catalog-heading">
-          <div>
-            <h2 id="installed-catalog-title" data-i18n="addons.installed">Installed</h2>
-            <p data-i18n="addons.installedCopy">Open the add-ons currently enabled for this workspace.</p>
-          </div>
-          <span class="addons-count">{length(@installed)} <span data-i18n="addons.installed">installed</span></span>
-        </div>
+      <section class="addons-catalog" aria-labelledby="installed-addons-title">
 
         <div :if={@installed != []} class="installed-addons-grid">
           <a
