@@ -105,6 +105,28 @@ defmodule PosServerWeb.AddonController do
   def uninstall(conn, _params), do: redirect(conn, to: ~p"/")
 
   # Runtime registry lookup selects the add-on behind the generic POS route.
+  def show(%{assigns: %{current_scope: scope}} = conn, %{"identifier" => identifier, "export" => "xlsx"}) do
+    with true <- Scope.allowed?(scope, "pos.addons"),
+         addon when not is_nil(addon) <- Addons.get_enabled_for(identifier, scope.tenant),
+         {:ok, handler} <- Installer.handler(addon),
+         true <- function_exported?(handler, :export, 1) do
+      case handler.export(addon_context(scope, addon, conn.params)) do
+        {:download, filename, binary, content_type} ->
+          conn
+          |> put_resp_content_type(content_type, nil)
+          |> put_resp_header("content-disposition", ~s(attachment; filename="#{filename}"))
+          |> send_resp(200, binary)
+
+        _ ->
+          conn
+          |> put_flash(:error, "Could not export add-on report.")
+          |> redirect(to: addon_route(addon))
+      end
+    else
+      _ -> send_resp(conn, :not_found, "Add-on export not found")
+    end
+  end
+
   def show(%{assigns: %{current_scope: scope}} = conn, %{"identifier" => identifier} = params) do
     with true <- Scope.allowed?(scope, "pos.addons"),
          addon when not is_nil(addon) <- Addons.get_enabled_for(identifier, scope.tenant),
