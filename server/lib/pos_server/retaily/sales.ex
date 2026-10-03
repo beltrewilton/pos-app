@@ -110,6 +110,7 @@ defmodule PosServer.Retaily.SaleLine do
     field :discount_input, :decimal
     # Retaily's existing PostgreSQL migration stores sale quantities as float.
     field :quantity, :float
+    field :price, :decimal, virtual: true
     field :total_amount, :decimal
 
     belongs_to :sale, PosServer.Retaily.Sale, type: :integer

@@ -625,7 +625,7 @@ defmodule PosServer.Retaily.Sales do
       from(sale in Sale, where: sale.id == ^id)
       |> with_payment_totals()
       |> Repo.one!(prefix: tenant)
-      |> Repo.preload([:client, :sale_paids, sale_lines: :product], prefix: tenant)
+      |> Repo.preload([:client, :sale_paids, sale_lines: sale_lines_with_price_query()], prefix: tenant)
 
     sale
     |> serialize_sale()
@@ -734,6 +734,9 @@ defmodule PosServer.Retaily.Sales do
   end
 
   defp serialize_line(line) do
+    price = line.price || line.amount
+    line_price = line_price(line)
+
     %{
       id: line.id,
       amount: line.amount,
@@ -742,6 +745,9 @@ defmodule PosServer.Retaily.Sales do
       discount_type: line.discount_type,
       discount_input: line.discount_input,
       quantity: line.quantity,
+      price: price,
+      line_price: line_price,
+      invoice_total: Decimal.sub(line_price, line.discount || @zero),
       total_amount: line.total_amount,
       product_id: line.product_id,
       product: %{
@@ -752,6 +758,34 @@ defmodule PosServer.Retaily.Sales do
         active: line.product.active
       }
     }
+  end
+
+  defp sale_lines_with_price_query do
+    latest_prices =
+      from(price in PricingList,
+        join: latest in subquery(
+          from(price in PricingList,
+            where: price.pricing_id == 1,
+            group_by: price.product_id,
+            select: %{product_id: price.product_id, id: max(price.id)}
+          )
+        ),
+        on: latest.id == price.id,
+        select: %{product_id: price.product_id, price: price.price}
+      )
+
+    from(line in SaleLine,
+      left_join: price in subquery(latest_prices),
+      on: price.product_id == line.product_id,
+      preload: [:product],
+      select_merge: %{price: type(fragment("?::numeric", price.price), :decimal)}
+    )
+  end
+
+  defp line_price(line) do
+    (line.price || line.amount || @zero)
+    |> Decimal.mult(Decimal.from_float(line.quantity || 0.0))
+    |> Decimal.round(2)
   end
 
   defp global_discount(sale) do

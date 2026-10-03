@@ -1079,6 +1079,7 @@ defmodule PosServerWeb.InvoiceReportLive do
                       <th class="table-head" data-i18n="common.product">Product</th>
                       <th class="table-head" data-i18n="common.quantity">Quantity</th>
                       <th class="table-head" data-i18n="invoice.unitPrice">Unit price</th>
+                      <th class="table-head" data-i18n="invoice.price">Price</th>
                       <th class="table-head" data-i18n="common.discount">Discount</th>
                       <th class="table-head" aria-hidden="true"></th>
                       <th class="table-head" data-i18n="common.total">Total</th>
@@ -1089,16 +1090,17 @@ defmodule PosServerWeb.InvoiceReportLive do
                       <td class="table-cell">{(line.product && line.product.name) || "—"}</td>
                       <td class="table-cell numeric">{line.quantity}</td>
                       <td class="table-cell numeric">{money(line.amount)}</td>
+                      <td class="table-cell numeric">{money(line.line_price)}</td>
                       <td class="table-cell numeric">
                         {discount_display(line.discount, line.discount_type, line.discount_input)}
                       </td>
                       <td class="table-cell" aria-hidden="true"></td>
-                      <td class="table-cell numeric">{money(line.total_amount)}</td>
+                      <td class="table-cell numeric">{money(line.invoice_total)}</td>
                     </tr>
                   </tbody>
                   <tfoot>
                     <tr class="table-row invoice-line-summary">
-                      <td class="table-cell" colspan="3" aria-hidden="true"></td>
+                      <td class="table-cell" colspan="4" aria-hidden="true"></td>
                       <td class="table-cell numeric invoice-line-summary-discount">
                         {if decimal(@detail.discount) > 0, do: money(@detail.discount), else: "-"}
                       </td>
@@ -1106,7 +1108,7 @@ defmodule PosServerWeb.InvoiceReportLive do
                       <td class="table-cell numeric">{money(@detail.sub)}</td>
                     </tr>
                     <tr class="table-row invoice-line-summary">
-                      <td class="table-cell" colspan="3" aria-hidden="true"></td>
+                      <td class="table-cell" colspan="4" aria-hidden="true"></td>
                       <td class="table-cell numeric invoice-line-summary-discount">-</td>
                       <th class="table-cell" data-i18n="common.tax18">Tax (18%)</th>
                       <td class="table-cell numeric">{money(@detail.tax_amount)}</td>
@@ -1115,13 +1117,13 @@ defmodule PosServerWeb.InvoiceReportLive do
                       :if={decimal(@detail.delivery_charge) > 0}
                       class="table-row invoice-line-summary"
                     >
-                      <td class="table-cell" colspan="3" aria-hidden="true"></td>
+                      <td class="table-cell" colspan="4" aria-hidden="true"></td>
                       <td class="table-cell numeric invoice-line-summary-discount">-</td>
                       <th class="table-cell" data-i18n="pos.checkout.delivery">Delivery</th>
                       <td class="table-cell numeric">{money(@detail.delivery_charge)}</td>
                     </tr>
                     <tr class="table-row invoice-line-summary invoice-line-summary-total">
-                      <td class="table-cell" colspan="3" aria-hidden="true"></td>
+                      <td class="table-cell" colspan="4" aria-hidden="true"></td>
                       <td class="table-cell numeric invoice-line-summary-discount">-</td>
                       <th class="table-cell" data-i18n="common.total">Total</th>
                       <td class="table-cell numeric">{money(@detail.amount)}</td>
